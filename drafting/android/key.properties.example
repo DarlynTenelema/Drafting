@@ -1,0 +1,4 @@
+storePassword=TU_CONTRASEÑA_DEL_KEYSTORE
+keyPassword=TU_CONTRASEÑA_DEL_KEY
+keyAlias=upload
+storeFile=C:/Users/PC/Drafting/drafting/android/upload-keystore.jks
