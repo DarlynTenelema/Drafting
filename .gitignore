@@ -14,3 +14,10 @@ backend/.env
 /drafting/.dart_tool/
 /drafting/.flutter-plugins
 /drafting/.flutter-plugins-dependencies
+
+# Go compiled binary (should never be committed)
+backend/golang/server
+backend/golang/*.exe
+
+# Android build reports and artifacts
+drafting/android/build/
