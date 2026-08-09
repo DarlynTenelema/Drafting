@@ -32,7 +32,7 @@ func Connect() {
 		log.Fatalf("Failed to auto migrate database: %v", err)
 	}
 
-	seedSubscriptionPlans()
-
 	DB = db
+
+	seedSubscriptionPlans()
 }
