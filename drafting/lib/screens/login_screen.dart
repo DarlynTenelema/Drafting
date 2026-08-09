@@ -1,5 +1,7 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import '../core/services/api_client.dart';
@@ -17,6 +19,15 @@ class LoginScreen extends StatefulWidget {
 class _LoginScreenState extends State<LoginScreen> {
   final GoogleSignIn _googleSignIn = GoogleSignIn.instance;
   bool _isLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _googleSignIn.initialize(
+      clientId: '373092520666-n6h8cn0tpllr3tacqu2vh4o2efnjf8v9.apps.googleusercontent.com',
+      serverClientId: kIsWeb ? null : '373092520666-n6h8cn0tpllr3tacqu2vh4o2efnjf8v9.apps.googleusercontent.com',
+    );
+  }
 
   Future<void> _handleGoogleSignIn() async {
     setState(() {
@@ -53,14 +64,18 @@ class _LoginScreenState extends State<LoginScreen> {
             ),
           );
         } else {
-          _showError('Error en el servidor al autenticar.');
+          _showError('Error del servidor (${response.statusCode}): ${response.body}');
+          debugPrint('Backend auth error: ${response.statusCode} - ${response.body}');
         }
       } else {
         _showError('No se pudo obtener el token de Google.');
       }
+    } on PlatformException catch (e) {
+      _showError('Fallo en Google SignIn: código ${e.code}, mensaje: ${e.message}');
+      debugPrint('PlatformException: ${e.toString()}');
     } catch (error) {
-      _showError('Ocurrió un error al iniciar sesión.');
-      debugPrint(error.toString());
+      _showError('Excepción inesperada: ${error.toString()}');
+      debugPrint('Unexpected error: ${error.toString()}');
     } finally {
       if (mounted) {
         setState(() {

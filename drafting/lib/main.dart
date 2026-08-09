@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'theme/app_theme.dart';
 import 'screens/splash_screen.dart';
 
@@ -9,7 +10,8 @@ void main() async {
   // This must be the Web OAuth 2.0 Client ID (not the Android one) from Google Cloud Console.
   // The backend uses this same Client ID (GOOGLE_CLIENT_ID env var) to verify the idToken.
   await GoogleSignIn.instance.initialize(
-    serverClientId: '373092520666-n6h8cn0tpllr3tacqu2vh4o2efnjf8v9.apps.googleusercontent.com',
+    clientId: '373092520666-n6h8cn0tpllr3tacqu2vh4o2efnjf8v9.apps.googleusercontent.com',
+    serverClientId: kIsWeb ? null : '373092520666-n6h8cn0tpllr3tacqu2vh4o2efnjf8v9.apps.googleusercontent.com',
   );
   runApp(const DraftingApp());
 }
