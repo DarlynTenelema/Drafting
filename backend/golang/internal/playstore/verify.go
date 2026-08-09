@@ -32,17 +32,13 @@ func NewVerifier() (*Verifier, error) {
 		return nil, fmt.Errorf("GOOGLE_PLAY_PACKAGE_NAME is required when verification is enabled")
 	}
 
-	credentialsPath := strings.TrimSpace(config.GetEnv("GOOGLE_PLAY_SERVICE_ACCOUNT_JSON", ""))
-	if credentialsPath == "" {
+	credentialsJSON := strings.TrimSpace(config.GetEnv("GOOGLE_PLAY_SERVICE_ACCOUNT_JSON", ""))
+	if credentialsJSON == "" {
 		return nil, fmt.Errorf("GOOGLE_PLAY_SERVICE_ACCOUNT_JSON is required when verification is enabled")
 	}
 
-	if _, err := os.Stat(credentialsPath); err != nil {
-		return nil, fmt.Errorf("service account file not found: %w", err)
-	}
-
 	ctx := context.Background()
-	service, err := androidpublisher.NewService(ctx, option.WithCredentialsFile(credentialsPath))
+	service, err := androidpublisher.NewService(ctx, option.WithCredentialsJSON([]byte(credentialsJSON)))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create android publisher client: %w", err)
 	}
