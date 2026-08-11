@@ -322,8 +322,8 @@ class CaptureService : Service() {
                 if (!sessionToken.isNullOrEmpty()) {
                     conn.setRequestProperty("Authorization", "Bearer $sessionToken")
                 }
-                conn.connectTimeout = 15000
-                conn.readTimeout = 15000
+                conn.connectTimeout = 30000
+                conn.readTimeout = 30000
                 conn.doOutput = true
                 conn.doInput = true
 
@@ -359,7 +359,7 @@ class CaptureService : Service() {
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
-                showResultOnUI("Error de conexión: Verifica tu internet.")
+                showResultOnUI("Err: ${e.javaClass.simpleName} - ${e.message}")
                 sendResultToActivity("error", 500, "Error de red: ${e.message}")
             }
         }
