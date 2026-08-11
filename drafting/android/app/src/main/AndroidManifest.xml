@@ -48,6 +48,9 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
+        <meta-data
+            android:name="com.google.android.gms.credentials.API_ENABLED"
+            android:value="false" />
         <!-- Capture Service (Foreground Service for MediaProjection) -->
         <service
             android:name=".CaptureService"

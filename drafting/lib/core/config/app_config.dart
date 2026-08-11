@@ -8,7 +8,7 @@ class AppConfig {
 
   static const String _apiBaseUrl = String.fromEnvironment(
     'API_BASE_URL',
-    defaultValue: 'http://10.0.2.2:8080',
+    defaultValue: 'https://drafting-production.up.railway.app',
   );
 
   static String get apiBaseUrl => _apiBaseUrl.replaceAll(RegExp(r'/+$'), '');

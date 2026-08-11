@@ -62,7 +62,15 @@ class CaptureService : Service() {
     override fun onCreate() {
         super.onCreate()
         createNotificationChannel()
-        startForeground(NOTIFICATION_ID, buildNotification())
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            startForeground(
+                NOTIFICATION_ID, 
+                buildNotification(), 
+                android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION
+            )
+        } else {
+            startForeground(NOTIFICATION_ID, buildNotification())
+        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -72,15 +80,20 @@ class CaptureService : Service() {
             return START_NOT_STICKY
         }
 
-        val code = intent.getIntExtra("code", -1)
-        val data = intent.getParcelableExtra<Intent>("data")
+        val code = intent.getIntExtra("code", 0)
+        val data = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            intent.getParcelableExtra("data", Intent::class.java)
+        } else {
+            @Suppress("DEPRECATION")
+            intent.getParcelableExtra<Intent>("data")
+        }
         baseUrl = intent.getStringExtra("baseUrl")
         sessionToken = intent.getStringExtra("sessionToken")
         mainRole = intent.getStringExtra("mainRole")
         secondaryRole = intent.getStringExtra("secondaryRole")
         autofillRole = intent.getStringExtra("autofillRole")
 
-        if (code == -1 || data == null) {
+        if (code != android.app.Activity.RESULT_OK || data == null) {
             notifyCaptureError("Invalid capture permission data.")
             stopSelf()
             return START_NOT_STICKY
@@ -244,18 +257,20 @@ class CaptureService : Service() {
         val buffer = planes[0].buffer
         val pixelStride = planes[0].pixelStride
         val rowStride = planes[0].rowStride
-        val rowPadding = rowStride - pixelStride * image.width
+        val imgWidth = image.width
+        val imgHeight = image.height
+        val rowPadding = rowStride - pixelStride * imgWidth
 
         val bitmap = Bitmap.createBitmap(
-            image.width + rowPadding / pixelStride,
-            image.height,
+            imgWidth + rowPadding / pixelStride,
+            imgHeight,
             Bitmap.Config.ARGB_8888
         )
         bitmap.copyPixelsFromBuffer(buffer)
         image.close()
         
         // Remove padding to get exact screen bounds
-        val croppedBitmap = Bitmap.createBitmap(bitmap, 0, 0, image.width, image.height)
+        val croppedBitmap = Bitmap.createBitmap(bitmap, 0, 0, imgWidth, imgHeight)
         
         // Escalar imagen para no colapsar la red y ahorrar tokens (máx 720p aprox)
         val maxDim = 1280.0f

@@ -23,10 +23,6 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   void initState() {
     super.initState();
-    _googleSignIn.initialize(
-      clientId: '373092520666-n6h8cn0tpllr3tacqu2vh4o2efnjf8v9.apps.googleusercontent.com',
-      serverClientId: kIsWeb ? null : '373092520666-n6h8cn0tpllr3tacqu2vh4o2efnjf8v9.apps.googleusercontent.com',
-    );
   }
 
   Future<void> _handleGoogleSignIn() async {
@@ -35,15 +31,11 @@ class _LoginScreenState extends State<LoginScreen> {
     });
 
     try {
-      final googleUser = await _googleSignIn.authenticate(scopeHint: ['email']);
-      if (googleUser == null) {
-        setState(() { _isLoading = false; });
-        return;
-      }
+      final googleUser = await _googleSignIn.authenticate();
 
       final GoogleSignInAuthentication googleAuth = googleUser.authentication;
       // Google API sends an idToken when authenticated
-      final String? idToken = googleAuth.idToken; 
+      final String? idToken = googleAuth.idToken;
 
       if (idToken != null) {
         final response = await ApiClient.post(
