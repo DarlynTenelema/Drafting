@@ -24,7 +24,7 @@ func AnalyzeDraft(ctx context.Context, base64Image string, mainRole, secondaryRo
 	}
 	defer client.Close()
 
-	model := client.GenerativeModel("gemini-2.5-flash-lite") // Using the flash-lite model as requested.
+	model := client.GenerativeModel("gemini-2.5-flash") // Using the flash model.
 
 	// Decode base64 image
 	imgData, err := base64.StdEncoding.DecodeString(base64Image)
