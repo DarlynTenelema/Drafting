@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"log"
 	"net/http"
 	"time"
 
@@ -44,6 +45,7 @@ func AnalyzeDraft(w http.ResponseWriter, r *http.Request) {
 	// Call Gemini API
 	recommendation, err := gemini.AnalyzeDraft(r.Context(), req.ImageBase64, req.MainRole, req.SecondaryRole, req.AutofillRole)
 	if err != nil {
+		log.Printf("AnalyzeDraft Error: %v", err)
 		http.Error(w, "Error analyzing draft: "+err.Error(), http.StatusInternalServerError)
 		return
 	}

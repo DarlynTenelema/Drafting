@@ -11,6 +11,7 @@ import (
 
 	"backend/internal/config"
 	"backend/internal/database"
+	"backend/internal/gemini"
 	"backend/internal/handlers"
 	"backend/internal/middleware"
 
@@ -23,12 +24,17 @@ func main() {
 	config.Load()
 
 	// In production, ensure critical environment variables are present
-	config.ValidateRequired("DATABASE_URL", "GOOGLE_CLIENT_ID", "GEMINI_API_KEY", "JWT_SECRET")
+	config.ValidateRequired("DATABASE_URL", "GOOGLE_CLIENT_ID", "JWT_SECRET")
 	config.ValidateTimeWindow("GLOBAL_FREE_TRIAL_START_DATE", "GLOBAL_FREE_TRIAL_END_DATE")
 	config.ValidateGooglePlay()
 
 	// 2. Connect to database
 	database.Connect()
+
+	// Initialize Vertex AI (Agent Platform) Client
+	if err := gemini.InitVertexClient(); err != nil {
+		log.Fatalf("Failed to initialize Vertex AI client: %v", err)
+	}
 
 	handlers.InitSubscriptionHandlers()
 
