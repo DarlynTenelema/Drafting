@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"log"
+	"os"
 
 	"backend/internal/config"
 
@@ -12,14 +13,29 @@ import (
 )
 
 func AnalyzeDraft(ctx context.Context, base64Image string, mainRole, secondaryRole, autofillRole string) (string, error) {
-	apiKey := config.GetEnv("GEMINI_API_KEY", "")
-	if apiKey == "" {
-		return "", fmt.Errorf("GEMINI_API_KEY is not configured")
+	saJson := config.GetEnv("GOOGLE_PLAY_SERVICE_ACCOUNT_JSON", "")
+	if saJson == "" {
+		return "", fmt.Errorf("GOOGLE_PLAY_SERVICE_ACCOUNT_JSON is not configured")
 	}
 
+	// Create a temporary file for the SA JSON because the Go SDK's Application Default Credentials
+	// reads from the GOOGLE_APPLICATION_CREDENTIALS environment variable.
+	// In a serverless/Railway environment, we can write the env var string to a temp file on boot.
+	tmpFile, err := os.CreateTemp("", "sa-*.json")
+	if err != nil {
+		return "", fmt.Errorf("failed to create temp SA file: %w", err)
+	}
+	defer os.Remove(tmpFile.Name()) // clean up
+	if _, err := tmpFile.Write([]byte(saJson)); err != nil {
+		return "", fmt.Errorf("failed to write SA file: %w", err)
+	}
+	tmpFile.Close()
+	os.Setenv("GOOGLE_APPLICATION_CREDENTIALS", tmpFile.Name())
+
 	client, err := genai.NewClient(ctx, &genai.ClientConfig{
-		APIKey:  apiKey,
-		Backend: genai.BackendGeminiAPI,
+		Backend:  genai.BackendVertexAI,
+		Project:  "project-793e159d-7403-492f-969",
+		Location: "us-central1",
 	})
 	if err != nil {
 		return "", fmt.Errorf("failed to create gemini client: %w", err)
@@ -42,7 +58,8 @@ func AnalyzeDraft(ctx context.Context, base64Image string, mainRole, secondaryRo
 			},
 		},
 	}
-	resp, err := client.Models.GenerateContent(ctx, "gemini-2.5-flash-lite", contents, nil)
+	// Note: Vertex AI usually has 'gemini-1.5-flash' instead of 'gemini-2.5-flash-lite' available broadly.
+	resp, err := client.Models.GenerateContent(ctx, "gemini-1.5-flash", contents, nil)
 	
 	if err != nil {
 		return "", fmt.Errorf("failed to generate content: %w", err)
