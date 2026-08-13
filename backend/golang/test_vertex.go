@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"os"
 	
 	"backend/internal/config"
 	"backend/internal/gemini"
@@ -11,7 +12,8 @@ import (
 
 func main() {
 	config.Load() // Loads from system env if .env is missing
-	os.Setenv("GOOGLE_PLAY_SERVICE_ACCOUNT_JSON", ` + "`" + `{"project_id": "drafting-project"}` + "`" + `) // mock for test if empty
+	// mock for test if empty
+	os.Setenv("GOOGLE_PLAY_SERVICE_ACCOUNT_JSON", `{"project_id": "drafting-project"}`)
 	// Actually we can just run it from the root or load the explicit file.
 	err := gemini.InitVertexClient()
 	if err != nil {
