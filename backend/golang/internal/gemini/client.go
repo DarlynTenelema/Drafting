@@ -18,28 +18,11 @@ var aiClient *genai.Client
 func InitVertexClient() error {
 	ctx := context.Background()
 
-	// Opción 1: Google AI Studio (API Key) - Más fácil y recomendado
-	apiKey := config.GetEnv("GEMINI_API_KEY", "")
-	if apiKey != "" {
-		client, err := genai.NewClient(ctx, &genai.ClientConfig{
-			APIKey:  apiKey,
-			Backend: genai.BackendGeminiAPI,
-		})
-		if err != nil {
-			return fmt.Errorf("error creando cliente Gemini API: %w", err)
-		}
-		aiClient = client
-		log.Println("✅ Cliente Gemini API (AI Studio) inicializado correctamente.")
-		return nil
-	}
-
-	// Opción 2: Vertex AI (Service Account) - Fallback
 	saJSON := config.GetEnv("GOOGLE_PLAY_SERVICE_ACCOUNT_JSON", "")
 	if saJSON == "" {
-		return fmt.Errorf("ni GEMINI_API_KEY ni GOOGLE_PLAY_SERVICE_ACCOUNT_JSON están configurados")
+		return fmt.Errorf("GOOGLE_PLAY_SERVICE_ACCOUNT_JSON is not configured")
 	}
 
-	// Extraemos el Project ID automáticamente del JSON
 	var saData struct {
 		ProjectID string `json:"project_id"`
 	}
@@ -47,7 +30,6 @@ func InitVertexClient() error {
 		return fmt.Errorf("error leyendo service account json: %w", err)
 	}
 
-	// Escribimos el JSON a un archivo temporal para las credenciales
 	tmpFile, err := os.CreateTemp("", "gcp-credentials-*.json")
 	if err != nil {
 		return fmt.Errorf("error creando archivo temporal: %w", err)
@@ -61,16 +43,16 @@ func InitVertexClient() error {
 	os.Setenv("GOOGLE_APPLICATION_CREDENTIALS", tmpFile.Name())
 
 	client, err := genai.NewClient(ctx, &genai.ClientConfig{
-		Backend:  genai.BackendVertexAI,
+		Backend:  genai.BackendEnterprise,
 		Project:  saData.ProjectID,
 		Location: "us-central1",
 	})
 	if err != nil {
-		return fmt.Errorf("error creando cliente Vertex AI: %w", err)
+		return fmt.Errorf("error creando cliente Enterprise: %w", err)
 	}
 
 	aiClient = client
-	log.Println("✅ Cliente Vertex AI (Agent Platform) inicializado correctamente para Producción.")
+	log.Println("✅ Cliente Gemini Enterprise Agent Platform inicializado correctamente para Producción.")
 	return nil
 }
 
