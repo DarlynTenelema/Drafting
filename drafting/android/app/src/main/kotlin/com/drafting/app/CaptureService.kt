@@ -153,6 +153,15 @@ class CaptureService : Service() {
         }
 
         windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
+        
+        if (::floatingView.isInitialized) {
+            try {
+                windowManager.removeView(floatingView)
+            } catch (e: Exception) {
+                // Ignore if not attached
+            }
+        }
+
         val inflater = getSystemService(Context.LAYOUT_INFLATER_SERVICE) as LayoutInflater
         floatingView = inflater.inflate(R.layout.layout_overlay, null)
 
@@ -354,8 +363,13 @@ class CaptureService : Service() {
                     showResultOnUI("Tu suscripción o prueba ha expirado.")
                     sendResultToActivity("error", 402, "Suscripción o prueba agotada.")
                 } else {
-                    showResultOnUI("Error del servidor: $responseCode")
-                    sendResultToActivity("error", responseCode, "Error del servidor: $responseCode")
+                    val errorResponse = try {
+                        conn.errorStream?.bufferedReader()?.use { it.readText() } ?: ""
+                    } catch (e: Exception) { "" }
+                    
+                    val displayMsg = if (errorResponse.isNotEmpty()) "Error 500: $errorResponse" else "Error del servidor: $responseCode"
+                    showResultOnUI(displayMsg)
+                    sendResultToActivity("error", responseCode, displayMsg)
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
