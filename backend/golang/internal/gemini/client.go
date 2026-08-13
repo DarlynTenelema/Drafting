@@ -13,18 +13,33 @@ import (
 	"google.golang.org/genai"
 )
 
-var vertexClient *genai.Client
+var aiClient *genai.Client
 
 func InitVertexClient() error {
 	ctx := context.Background()
 
-	// 1. Obtenemos el JSON de la cuenta de servicio desde el .env
-	saJSON := config.GetEnv("GOOGLE_PLAY_SERVICE_ACCOUNT_JSON", "")
-	if saJSON == "" {
-		return fmt.Errorf("GOOGLE_PLAY_SERVICE_ACCOUNT_JSON is not configured")
+	// Opción 1: Google AI Studio (API Key) - Más fácil y recomendado
+	apiKey := config.GetEnv("GEMINI_API_KEY", "")
+	if apiKey != "" {
+		client, err := genai.NewClient(ctx, &genai.ClientConfig{
+			APIKey:  apiKey,
+			Backend: genai.BackendGeminiAPI,
+		})
+		if err != nil {
+			return fmt.Errorf("error creando cliente Gemini API: %w", err)
+		}
+		aiClient = client
+		log.Println("✅ Cliente Gemini API (AI Studio) inicializado correctamente.")
+		return nil
 	}
 
-	// 2. Extraemos el Project ID automáticamente del JSON
+	// Opción 2: Vertex AI (Service Account) - Fallback
+	saJSON := config.GetEnv("GOOGLE_PLAY_SERVICE_ACCOUNT_JSON", "")
+	if saJSON == "" {
+		return fmt.Errorf("ni GEMINI_API_KEY ni GOOGLE_PLAY_SERVICE_ACCOUNT_JSON están configurados")
+	}
+
+	// Extraemos el Project ID automáticamente del JSON
 	var saData struct {
 		ProjectID string `json:"project_id"`
 	}
@@ -32,7 +47,7 @@ func InitVertexClient() error {
 		return fmt.Errorf("error leyendo service account json: %w", err)
 	}
 
-	// 3. Escribimos el JSON a un archivo temporal para las credenciales
+	// Escribimos el JSON a un archivo temporal para las credenciales
 	tmpFile, err := os.CreateTemp("", "gcp-credentials-*.json")
 	if err != nil {
 		return fmt.Errorf("error creando archivo temporal: %w", err)
@@ -43,26 +58,24 @@ func InitVertexClient() error {
 	}
 	tmpFile.Close()
 
-	// 4. Le decimos al SDK de Google dónde está el archivo
 	os.Setenv("GOOGLE_APPLICATION_CREDENTIALS", tmpFile.Name())
 
-	// 5. Inicializamos el cliente apuntando a Vertex AI (Agent Platform)
 	client, err := genai.NewClient(ctx, &genai.ClientConfig{
-		Backend:  genai.BackendVertexAI, // Vertex AI y Agent Platform son lo mismo bajo el capó
+		Backend:  genai.BackendVertexAI,
 		Project:  saData.ProjectID,
-		Location: "us-central1", // Recomendado para la mayoría de los casos
+		Location: "us-central1",
 	})
 	if err != nil {
 		return fmt.Errorf("error creando cliente Vertex AI: %w", err)
 	}
 
-	vertexClient = client
+	aiClient = client
 	log.Println("✅ Cliente Vertex AI (Agent Platform) inicializado correctamente para Producción.")
 	return nil
 }
 
 func AnalyzeDraft(ctx context.Context, base64Image string, mainRole, secondaryRole, autofillRole string) (string, error) {
-	if vertexClient == nil {
+	if aiClient == nil {
 		return "", fmt.Errorf("el cliente de IA no ha sido inicializado")
 	}
 
@@ -84,7 +97,7 @@ func AnalyzeDraft(ctx context.Context, base64Image string, mainRole, secondaryRo
 		},
 	}
 	
-	resp, err := vertexClient.Models.GenerateContent(ctx, "gemini-1.5-flash-002", contents, nil)
+	resp, err := aiClient.Models.GenerateContent(ctx, "gemini-1.5-flash-002", contents, nil)
 	
 	if err != nil {
 		return "", fmt.Errorf("failed to generate content: %w", err)
