@@ -79,7 +79,7 @@ func AnalyzeDraft(ctx context.Context, base64Image string, mainRole, secondaryRo
 		},
 	}
 	
-	resp, err := aiClient.Models.GenerateContent(ctx, "gemini-3.5-flash", contents, nil)
+	resp, err := aiClient.Models.GenerateContent(ctx, "gemini-2.5-flash", contents, nil)
 	
 	if err != nil {
 		return "", fmt.Errorf("failed to generate content: %w", err)
