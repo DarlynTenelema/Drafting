@@ -72,6 +72,7 @@ func AnalyzeDraft(ctx context.Context, base64Image string, mainRole, secondaryRo
 
 	contents := []*genai.Content{
 		{
+			Role: "user",
 			Parts: []*genai.Part{
 				{Text: prompt},
 				{InlineData: &genai.Blob{Data: imgData, MIMEType: "image/jpeg"}},
