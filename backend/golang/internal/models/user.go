@@ -9,9 +9,10 @@ import (
 
 type User struct {
 	ID           uuid.UUID `gorm:"type:uuid;primary_key;default:gen_random_uuid()"`
-	GoogleID     string    `gorm:"type:varchar(255);uniqueIndex;not null"`
+	GoogleID     *string   `gorm:"type:varchar(255);uniqueIndex"`
 	Email        string    `gorm:"type:varchar(255);not null"`
-	SessionToken         string    `gorm:"type:varchar(255)"`
+	PasswordHash string    `gorm:"type:varchar(255)"`
+	SessionToken string    `gorm:"type:varchar(255)"`
 	LastDraftAt          time.Time
 	SubscriptionEndsAt   *time.Time
 	CreatedAt            time.Time

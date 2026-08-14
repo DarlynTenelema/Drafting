@@ -55,6 +55,8 @@ func main() {
 	r.Route("/api/v1", func(r chi.Router) {
 		// Public Routes
 		r.Post("/auth/google", handlers.GoogleLogin)
+		r.Post("/auth/register", handlers.ManualRegister)
+		r.Post("/auth/login", handlers.ManualLogin)
 
 		// Protected Routes
 		r.Group(func(r chi.Router) {

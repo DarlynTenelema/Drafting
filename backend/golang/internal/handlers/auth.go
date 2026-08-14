@@ -47,7 +47,7 @@ func GoogleLogin(w http.ResponseWriter, r *http.Request) {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 			// User does not exist, create new.
 			user = models.User{
-				GoogleID:     claims.GoogleID,
+				GoogleID:     &claims.GoogleID,
 				Email:        claims.Email,
 				SessionToken: jti,
 			}

@@ -11,6 +11,8 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 type contextKey string
@@ -63,18 +65,25 @@ func Auth(next http.Handler) http.Handler {
 
 		sessionToken := strings.TrimPrefix(authHeader, "Bearer ")
 
-		// Validate JWT and extract google_id + jti
-		googleID, jti, err := auth.ValidateJWT(sessionToken)
+		// Validate JWT and extract sub (userID or googleID) + jti
+		sub, jti, err := auth.ValidateJWT(sessionToken)
 		if err != nil {
 			http.Error(w, "Unauthorized: invalid token", http.StatusUnauthorized)
 			return
 		}
 
 		var user models.User
-		// Find user by google_id
-		if err := database.DB.Where("google_id = ?", googleID).First(&user).Error; err != nil {
-			http.Error(w, "Unauthorized or session expired", http.StatusUnauthorized)
-			return
+		// Find user by id (if UUID) or google_id (backward compatibility)
+		if _, errUuid := uuid.Parse(sub); errUuid == nil {
+			if err := database.DB.Where("id = ?", sub).First(&user).Error; err != nil {
+				http.Error(w, "Unauthorized or session expired", http.StatusUnauthorized)
+				return
+			}
+		} else {
+			if err := database.DB.Where("google_id = ?", sub).First(&user).Error; err != nil {
+				http.Error(w, "Unauthorized or session expired", http.StatusUnauthorized)
+				return
+			}
 		}
 
 		// If user.SessionToken is present, enforce that it matches the token jti (single-session behavior)
