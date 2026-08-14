@@ -65,7 +65,7 @@ func ManualRegister(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Generate JWT using User ID as the subject
-	tokenStr, jti, err := auth.GenerateJWT(user.ID.String(), 24*time.Hour)
+	tokenStr, jti, err := auth.GenerateJWT(user.ID.String(), 365*24*time.Hour)
 	if err != nil {
 		http.Error(w, "Error generating token", http.StatusInternalServerError)
 		return
@@ -113,7 +113,7 @@ func ManualLogin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Generate JWT
-	tokenStr, jti, err := auth.GenerateJWT(user.ID.String(), 24*time.Hour)
+	tokenStr, jti, err := auth.GenerateJWT(user.ID.String(), 365*24*time.Hour)
 	if err != nil {
 		http.Error(w, "Error generating token", http.StatusInternalServerError)
 		return

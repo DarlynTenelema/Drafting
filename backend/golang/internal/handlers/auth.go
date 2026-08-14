@@ -36,8 +36,8 @@ func GoogleLogin(w http.ResponseWriter, r *http.Request) {
 	var user models.User
 	result := database.DB.Where("google_id = ?", claims.GoogleID).First(&user)
 
-	// Generate a JWT (24h TTL)
-	tokenStr, jti, err := auth.GenerateJWT(claims.GoogleID, 24*time.Hour)
+	// Generate a JWT (365 days TTL)
+	tokenStr, jti, err := auth.GenerateJWT(claims.GoogleID, 365*24*time.Hour)
 	if err != nil {
 		http.Error(w, "Internal server error: failed to generate token", http.StatusInternalServerError)
 		return
