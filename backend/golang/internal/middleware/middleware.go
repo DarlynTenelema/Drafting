@@ -105,12 +105,14 @@ func Cooldown(next http.Handler) http.Handler {
 			return
 		}
 
-		// Check if 20 minutes have passed since last draft
-		if time.Since(user.LastDraftAt) < 20*time.Minute {
+		// Limitar a 10 consultas por hora
+		var count int64
+		database.DB.Model(&models.ApiUsage{}).Where("user_id = ? AND created_at > ?", user.ID, time.Now().Add(-1*time.Hour)).Count(&count)
+		if count >= 10 {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusTooManyRequests)
 			json.NewEncoder(w).Encode(map[string]string{
-				"error": "You must wait 20 minutes before using the system again.",
+				"error": "Límite de 10 consultas por hora alcanzado. Intenta de nuevo más tarde.",
 			})
 			return
 		}

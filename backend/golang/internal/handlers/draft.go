@@ -52,15 +52,7 @@ func AnalyzeDraft(w http.ResponseWriter, r *http.Request) {
 
 	isPremium := user.SubscriptionEndsAt != nil && user.SubscriptionEndsAt.After(time.Now())
 
-	if isPremium {
-		var count int64
-		database.DB.Model(&models.ApiUsage{}).Where("user_id = ? AND created_at > ?", user.ID, time.Now().Add(-1*time.Hour)).Count(&count)
-		
-		if count >= 10 {
-			http.Error(w, "Too many requests. Límite premium alcanzado.", http.StatusTooManyRequests)
-			return
-		}
-	} else {
+	if !isPremium {
 		if time.Now().After(globalFreeTrialEndDate) {
 			var count int64
 			database.DB.Model(&models.ApiUsage{}).Where("user_id = ?", user.ID).Count(&count)
@@ -77,7 +69,7 @@ func AnalyzeDraft(w http.ResponseWriter, r *http.Request) {
 	recommendation, err := gemini.AnalyzeDraft(r.Context(), req.ImageBase64, req.MainRole, req.SecondaryRole, req.AutofillRole)
 	if err != nil {
 		log.Printf("AnalyzeDraft Error: %v", err)
-		http.Error(w, "Error analyzing draft: "+err.Error(), http.StatusInternalServerError)
+		http.Error(w, "Ups, el sistema está saturado. No se pudo generar la recomendación. Intenta de nuevo.", http.StatusInternalServerError)
 		return
 	}
 

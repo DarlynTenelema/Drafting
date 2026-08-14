@@ -75,13 +75,15 @@ Tareas:
 3. Roles preferidos del usuario: Principal: %s, Secundario: %s, Comodín: %s.
 
 Reglas CRÍTICAS:
-- Si el rol asignado en la imagen NO es uno de sus preferidos, está en "Autofill". Recomienda campeones exclusivamente para el ROL ASIGNADO en la imagen, priorizando opciones seguras.
+- IDIOMA: Responde SIEMPRE y ÚNICAMENTE en español.
+- FORMATO: NO uses formato Markdown. NO uses asteriscos (**), ni texto en negrita, ni cursivas. Genera únicamente texto plano normal.
+- ROLES: Si el rol asignado en la imagen NO es uno de sus preferidos, está en "Autofill". Recomienda campeones exclusivamente para el ROL ASIGNADO en la imagen, priorizando opciones seguras.
 - Analiza la composición para buscar sinergias (si es early pick) o counters (si es late pick).
 
-Tu respuesta DEBE seguir estrictamente este formato (máximo 15 palabras de justificación por opción):
-1. **[Campeón A]**: [Justificación]
-2. **[Campeón B]**: [Justificación]
-3. **[Campeón C]**: [Justificación]`, mainRole, secondaryRole, autofillRole)
+Tu respuesta DEBE seguir estrictamente este formato de texto plano (máximo 15 palabras de justificación por opción):
+1. [Campeón A]: [Justificación]
+2. [Campeón B]: [Justificación]
+3. [Campeón C]: [Justificación]`, mainRole, secondaryRole, autofillRole)
 
 	contents := []*genai.Content{
 		{
