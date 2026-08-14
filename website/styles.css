@@ -1,0 +1,215 @@
+:root {
+  --primary-color: #0f172a;
+  --secondary-color: #1e293b;
+  --accent-blue: #3b82f6;
+  --accent-gold: #fbbf24;
+  --text-main: #f8fafc;
+  --text-muted: #94a3b8;
+  --glow-blue: rgba(59, 130, 246, 0.5);
+  --glow-gold: rgba(251, 191, 36, 0.4);
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  background-color: var(--primary-color);
+  color: var(--text-main);
+  line-height: 1.6;
+  overflow-x: hidden;
+  position: relative;
+}
+
+body::before {
+  content: '';
+  position: absolute;
+  top: -20%;
+  left: -10%;
+  width: 50%;
+  height: 50%;
+  background: radial-gradient(circle, var(--glow-blue) 0%, transparent 70%);
+  filter: blur(100px);
+  z-index: -1;
+}
+
+body::after {
+  content: '';
+  position: absolute;
+  bottom: -20%;
+  right: -10%;
+  width: 50%;
+  height: 50%;
+  background: radial-gradient(circle, var(--glow-gold) 0%, transparent 70%);
+  filter: blur(120px);
+  z-index: -1;
+}
+
+/* Header */
+header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1.5rem 5%;
+  background: rgba(15, 23, 42, 0.7);
+  backdrop-filter: blur(10px);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+}
+
+.logo {
+  font-size: 1.8rem;
+  font-weight: 800;
+  letter-spacing: 1px;
+  background: linear-gradient(to right, var(--accent-blue), var(--accent-gold));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+nav a {
+  color: var(--text-main);
+  text-decoration: none;
+  margin-left: 2rem;
+  font-weight: 500;
+  transition: color 0.3s ease;
+}
+
+nav a:hover {
+  color: var(--accent-gold);
+}
+
+/* Hero Section */
+.hero {
+  min-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  padding: 2rem 5%;
+}
+
+h1 {
+  font-size: 4rem;
+  font-weight: 800;
+  margin-bottom: 1.5rem;
+  line-height: 1.1;
+  animation: slideUp 0.8s ease-out;
+}
+
+.highlight {
+  color: var(--accent-blue);
+  position: relative;
+  display: inline-block;
+}
+
+.hero p {
+  font-size: 1.2rem;
+  color: var(--text-muted);
+  max-width: 600px;
+  margin-bottom: 2.5rem;
+  animation: slideUp 1s ease-out;
+}
+
+.cta-button {
+  display: inline-block;
+  padding: 1rem 2.5rem;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #fff;
+  background: linear-gradient(135deg, var(--accent-blue), #2563eb);
+  border-radius: 50px;
+  text-decoration: none;
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+  box-shadow: 0 10px 20px rgba(59, 130, 246, 0.3);
+  animation: slideUp 1.2s ease-out;
+}
+
+.cta-button:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 15px 30px rgba(59, 130, 246, 0.5);
+}
+
+/* Page Container for text pages (Privacy, TOS) */
+.page-container {
+  max-width: 800px;
+  margin: 4rem auto;
+  padding: 2.5rem;
+  background: rgba(30, 41, 59, 0.6);
+  backdrop-filter: blur(15px);
+  border-radius: 20px;
+  border: 1px solid rgba(255,255,255,0.05);
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+}
+
+.page-container h1 {
+  font-size: 2.5rem;
+  margin-bottom: 2rem;
+  text-align: center;
+  border-bottom: 2px solid var(--accent-blue);
+  padding-bottom: 1rem;
+}
+
+.page-container h2 {
+  font-size: 1.5rem;
+  color: var(--accent-gold);
+  margin-top: 2rem;
+  margin-bottom: 1rem;
+}
+
+.page-container p, .page-container ul {
+  margin-bottom: 1.5rem;
+  color: var(--text-muted);
+}
+
+.page-container ul {
+  margin-left: 2rem;
+}
+
+.page-container li {
+  margin-bottom: 0.5rem;
+}
+
+.page-container a {
+  color: var(--accent-blue);
+  text-decoration: none;
+}
+
+.page-container a:hover {
+  text-decoration: underline;
+}
+
+/* Footer */
+footer {
+  text-align: center;
+  padding: 2rem;
+  border-top: 1px solid rgba(255,255,255,0.05);
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
+/* Animations */
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (max-width: 768px) {
+  h1 { font-size: 2.5rem; }
+  .hero p { font-size: 1rem; }
+  nav { display: none; } /* Simplified for mobile */
+}

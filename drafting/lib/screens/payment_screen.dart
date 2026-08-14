@@ -258,89 +258,209 @@ class _PaymentScreenState extends State<PaymentScreen> {
     );
   }
 
-  Widget _buildProductCard(ProductDetails product) {
-    return Card(
-      color: AppTheme.surface,
-      margin: const EdgeInsets.only(bottom: 16),
-      child: ListTile(
-        title: Text(
-          product.title,
-          style: const TextStyle(color: AppTheme.textLight, fontWeight: FontWeight.bold),
-        ),
-        subtitle: Text(
-          product.description,
-          style: const TextStyle(color: AppTheme.textMuted),
-        ),
-        trailing: ElevatedButton(
-          style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primary),
-          onPressed: _verifying ? null : () => _buyProduct(product),
-          child: Text(product.price, style: const TextStyle(color: Colors.white)),
-        ),
+  Widget _buildSubscriptionCard({
+    required String title,
+    required String description,
+    required String price,
+    required VoidCallback onPressed,
+  }) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 24),
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: AppTheme.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppTheme.primary.withValues(alpha: 0.5), width: 1.5),
+        boxShadow: [
+          BoxShadow(
+            color: AppTheme.primary.withValues(alpha: 0.1),
+            blurRadius: 10,
+            spreadRadius: 2,
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: GoogleFonts.outfit(
+              fontSize: 22,
+              fontWeight: FontWeight.bold,
+              color: AppTheme.textLight,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            price,
+            style: GoogleFonts.outfit(
+              fontSize: 32,
+              fontWeight: FontWeight.bold,
+              color: AppTheme.primary,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            description,
+            style: GoogleFonts.inter(
+              fontSize: 14,
+              color: AppTheme.textMuted,
+            ),
+          ),
+          const SizedBox(height: 24),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppTheme.primary,
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              ),
+              onPressed: _verifying ? null : onPressed,
+              child: Text(
+                'Obtener Plan',
+                style: GoogleFonts.inter(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 24),
+          const Divider(color: AppTheme.textMuted, height: 1),
+          const SizedBox(height: 24),
+          _buildFeatureRow('Límites de uso ilimitados por la duración.'),
+          const SizedBox(height: 12),
+          _buildFeatureRow('Acceso al modelo de IA avanzado para Draft.'),
+          const SizedBox(height: 12),
+          _buildFeatureRow('Recomendaciones instantáneas de campeones.'),
+        ],
       ),
     );
   }
 
-  Widget _buildMockCard(String title, String price, String productId) {
-    return Card(
-      color: AppTheme.surface,
-      margin: const EdgeInsets.only(bottom: 16),
-      child: ListTile(
-        title: Text(title, style: const TextStyle(color: AppTheme.textLight, fontWeight: FontWeight.bold)),
-        subtitle: const Text('Solo debug — requiere ALLOW_UNVERIFIED_PURCHASES=true', style: TextStyle(color: AppTheme.textMuted)),
-        trailing: ElevatedButton(
-          style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primary),
-          onPressed: _verifying ? null : () => _simulateDevPurchase(productId),
-          child: Text(price, style: const TextStyle(color: Colors.white)),
+  Widget _buildFeatureRow(String text) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Icon(Icons.check, color: AppTheme.primary, size: 20),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Text(
+            text,
+            style: GoogleFonts.inter(
+              fontSize: 14,
+              color: AppTheme.textLight,
+              height: 1.4,
+            ),
+          ),
         ),
-      ),
+      ],
+    );
+  }
+
+  List<Widget> _getMockCardsForPrefix(String prefix) {
+    if (prefix == 'micro') {
+      return [
+        _buildSubscriptionCard(title: 'Micro - 24 horas', description: 'Solo debug', price: '\$0.49', onPressed: () => _simulateDevPurchase('sub_micro_24h')),
+        _buildSubscriptionCard(title: 'Micro - 72 horas', description: 'Solo debug', price: '\$1.47', onPressed: () => _simulateDevPurchase('sub_micro_72h')),
+        _buildSubscriptionCard(title: 'Micro - 120 horas', description: 'Solo debug', price: '\$2.45', onPressed: () => _simulateDevPurchase('sub_micro_120h')),
+      ];
+    } else if (prefix == 'medium') {
+      return [
+        _buildSubscriptionCard(title: 'Medium - 30 días', description: 'Solo debug', price: '\$9.99', onPressed: () => _simulateDevPurchase('sub_medium_30d')),
+        _buildSubscriptionCard(title: 'Medium - 90 días', description: 'Solo debug', price: '\$29.97', onPressed: () => _simulateDevPurchase('sub_medium_90d')),
+        _buildSubscriptionCard(title: 'Medium - 150 días', description: 'Solo debug', price: '\$49.95', onPressed: () => _simulateDevPurchase('sub_medium_150d')),
+      ];
+    } else {
+      return [
+        _buildSubscriptionCard(title: 'Max - 180 días', description: 'Solo debug', price: '\$49.99', onPressed: () => _simulateDevPurchase('sub_max_180d')),
+        _buildSubscriptionCard(title: 'Max - 240 días', description: 'Solo debug', price: '\$79.99', onPressed: () => _simulateDevPurchase('sub_max_240d')),
+        _buildSubscriptionCard(title: 'Max - 365 días', description: 'Solo debug', price: '\$99.99', onPressed: () => _simulateDevPurchase('sub_max_365d')),
+      ];
+    }
+  }
+
+  String _cleanTitle(String rawTitle) {
+    // Google Play siempre añade " (NombreApp)" al final del título.
+    final index = rawTitle.indexOf(' (');
+    if (index != -1) {
+      return rawTitle.substring(0, index);
+    }
+    return rawTitle;
+  }
+
+  Widget _buildTabContent(List<ProductDetails> tabProducts, String prefix) {
+    return ListView(
+      padding: const EdgeInsets.all(24),
+      children: [
+        _buildStatusBanner(),
+        if (!_isAvailable)
+          const Padding(
+            padding: EdgeInsets.only(bottom: 16),
+            child: Text(
+              'Google Play Billing no está disponible en este dispositivo.',
+              style: TextStyle(color: Colors.orange),
+            ),
+          ),
+        ...tabProducts.map((p) => _buildSubscriptionCard(
+              title: _cleanTitle(p.title),
+              description: p.description,
+              price: p.price,
+              onPressed: () => _buyProduct(p),
+            )),
+        if (_products.isEmpty && kDebugMode) ..._getMockCardsForPrefix(prefix),
+      ],
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text('Suscripciones', style: GoogleFonts.outfit(color: AppTheme.textLight)),
+    final microProducts = _products.where((p) => p.id.startsWith('sub_micro')).toList();
+    final mediumProducts = _products.where((p) => p.id.startsWith('sub_medium')).toList();
+    final maxProducts = _products.where((p) => p.id.startsWith('sub_max')).toList();
+
+    return DefaultTabController(
+      length: 3,
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text('Suscripciones', style: GoogleFonts.outfit(color: AppTheme.textLight)),
+          backgroundColor: AppTheme.background,
+          elevation: 0,
+          iconTheme: const IconThemeData(color: AppTheme.textLight),
+          bottom: TabBar(
+            indicatorColor: AppTheme.primary,
+            labelColor: AppTheme.primary,
+            unselectedLabelColor: AppTheme.textMuted,
+            labelStyle: GoogleFonts.outfit(fontWeight: FontWeight.bold),
+            tabs: const [
+              Tab(text: 'Micro'),
+              Tab(text: 'Medium'),
+              Tab(text: 'Max'),
+            ],
+          ),
+        ),
         backgroundColor: AppTheme.background,
-        elevation: 0,
-        iconTheme: const IconThemeData(color: AppTheme.textLight),
-      ),
-      backgroundColor: AppTheme.background,
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : Stack(
-              children: [
-                ListView(
-                  padding: const EdgeInsets.all(16),
-                  children: [
-                    _buildStatusBanner(),
-                    Text('Planes disponibles', style: GoogleFonts.outfit(fontSize: 24, color: AppTheme.textLight)),
-                    const SizedBox(height: 20),
-                    if (!_isAvailable)
-                      const Padding(
-                        padding: EdgeInsets.only(bottom: 16),
-                        child: Text(
-                          'Google Play Billing no está disponible en este dispositivo.',
-                          style: TextStyle(color: Colors.orange),
-                        ),
-                      ),
-                    ..._products.map(_buildProductCard),
-                    if (_products.isEmpty && kDebugMode) ...[
-                      const Text('Modo debug sin Play Store', style: TextStyle(color: Colors.orange)),
-                      const SizedBox(height: 10),
-                      _buildMockCard('Micro - 24 horas', '\$0.49', 'sub_micro_24h'),
-                      _buildMockCard('Medium - 30 días', '\$9.99', 'sub_medium_30d'),
-                      _buildMockCard('Max - 180 días', '\$49.99', 'sub_max_180d'),
+        body: _loading
+            ? const Center(child: CircularProgressIndicator())
+            : Stack(
+                children: [
+                  TabBarView(
+                    children: [
+                      _buildTabContent(microProducts, 'micro'),
+                      _buildTabContent(mediumProducts, 'medium'),
+                      _buildTabContent(maxProducts, 'max'),
                     ],
-                  ],
-                ),
-                if (_verifying)
-                  Container(
-                    color: Colors.black54,
-                    child: const Center(child: CircularProgressIndicator(color: AppTheme.primary)),
                   ),
-              ],
-            ),
+                  if (_verifying)
+                    Container(
+                      color: Colors.black54,
+                      child: const Center(child: CircularProgressIndicator(color: AppTheme.primary)),
+                    ),
+                ],
+              ),
+      ),
     );
   }
 

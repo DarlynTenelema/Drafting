@@ -68,7 +68,20 @@ func AnalyzeDraft(ctx context.Context, base64Image string, mainRole, secondaryRo
 		return "", fmt.Errorf("invalid image format")
 	}
 
-	prompt := fmt.Sprintf("Analyze this screen of a mobile MOBA game draft. Based on the situation, what champion should I pick? Here are my roles:\nMain: %s\nSecondary: %s\nAutofill: %s\nKeep the answer short and direct. Your response MUST strictly follow this exact format:\nSi vas:\n%s: [champion name]\n%s: [champion name]\n%s: [champion name]", mainRole, secondaryRole, autofillRole, mainRole, secondaryRole, autofillRole)
+	prompt := fmt.Sprintf(`Eres un analista experto de Wild Rift. Analiza la imagen del draft.
+Tareas:
+1. Identifica el rol asignado al jugador en la imagen (ícono bajo su campeón/selección).
+2. Identifica aliados, enemigos y baneos visibles.
+3. Roles preferidos del usuario: Principal: %s, Secundario: %s, Comodín: %s.
+
+Reglas CRÍTICAS:
+- Si el rol asignado en la imagen NO es uno de sus preferidos, está en "Autofill". Recomienda campeones exclusivamente para el ROL ASIGNADO en la imagen, priorizando opciones seguras.
+- Analiza la composición para buscar sinergias (si es early pick) o counters (si es late pick).
+
+Tu respuesta DEBE seguir estrictamente este formato (máximo 15 palabras de justificación por opción):
+1. **[Campeón A]**: [Justificación]
+2. **[Campeón B]**: [Justificación]
+3. **[Campeón C]**: [Justificación]`, mainRole, secondaryRole, autofillRole)
 
 	contents := []*genai.Content{
 		{

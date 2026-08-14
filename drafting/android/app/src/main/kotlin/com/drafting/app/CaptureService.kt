@@ -31,6 +31,7 @@ import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.LinearLayout
 import android.widget.ImageButton
+import android.widget.ImageView
 import android.widget.FrameLayout
 import android.widget.Toast
 import org.json.JSONObject
@@ -195,7 +196,11 @@ class CaptureService : Service() {
         params.x = 0
         params.y = 100
 
-        setupDrag(floatingView, params)
+        val dragHandle = floatingView.findViewById<ImageView>(R.id.dragHandle)
+        val messageContainer = floatingView.findViewById<FrameLayout>(R.id.messageContainer)
+        
+        setupDrag(dragHandle, params)
+        setupDrag(messageContainer, params)
 
         try {
             windowManager.addView(floatingView, params)
@@ -233,7 +238,7 @@ class CaptureService : Service() {
                     MotionEvent.ACTION_MOVE -> {
                         params.x = initialX + (event.rawX - initialTouchX).toInt()
                         params.y = initialY + (event.rawY - initialTouchY).toInt()
-                        windowManager.updateViewLayout(view, params)
+                        windowManager.updateViewLayout(floatingView, params)
                         return true
                     }
                 }
@@ -242,19 +247,27 @@ class CaptureService : Service() {
         })
     }
 
-    private fun captureScreenAndSend() {
+    private fun captureScreenAndSend(retryCount: Int = 0) {
         // Show Loading State
-        Handler(Looper.getMainLooper()).post {
-            floatingView.findViewById<FrameLayout>(R.id.messageContainer).visibility = View.VISIBLE
-            floatingView.findViewById<LinearLayout>(R.id.loadingLayout).visibility = View.VISIBLE
-            floatingView.findViewById<ScrollView>(R.id.resultScrollView).visibility = View.GONE
+        if (retryCount == 0) {
+            Handler(Looper.getMainLooper()).post {
+                floatingView.findViewById<FrameLayout>(R.id.messageContainer).visibility = View.VISIBLE
+                floatingView.findViewById<LinearLayout>(R.id.loadingLayout).visibility = View.VISIBLE
+                floatingView.findViewById<ScrollView>(R.id.resultScrollView).visibility = View.GONE
+            }
         }
 
-        val image = imageReader?.acquireLatestImage()
-        if (image == null) {
-            notifyCaptureError("No image available from screen capture.")
-            return
-        }
+        try {
+
+            val image = imageReader?.acquireLatestImage()
+            if (image == null) {
+                if (retryCount < 3) {
+                    Handler(Looper.getMainLooper()).postDelayed({ captureScreenAndSend(retryCount + 1) }, 500)
+                    return
+                }
+                notifyCaptureError("No image available from screen capture.")
+                return
+            }
 
         val planes = image.planes
         if (planes.isEmpty()) {
@@ -298,11 +311,24 @@ class CaptureService : Service() {
         val byteArray = stream.toByteArray()
         val base64Image = Base64.encodeToString(byteArray, Base64.NO_WRAP)
         
-        if (finalBitmap != croppedBitmap) finalBitmap.recycle()
-        croppedBitmap.recycle()
-        bitmap.recycle()
+            if (finalBitmap != croppedBitmap) finalBitmap.recycle()
+            croppedBitmap.recycle()
+            bitmap.recycle()
 
-        sendToBackend(base64Image)
+            sendToBackend(base64Image)
+        } catch (e: Exception) {
+            if (retryCount < 3) {
+                Handler(Looper.getMainLooper()).postDelayed({ captureScreenAndSend(retryCount + 1) }, 500)
+            } else {
+                notifyCaptureError("Fallo al capturar: ${e.message}")
+            }
+        } catch (e: Error) {
+            if (retryCount < 3) {
+                Handler(Looper.getMainLooper()).postDelayed({ captureScreenAndSend(retryCount + 1) }, 500)
+            } else {
+                notifyCaptureError("Error crítico: ${e.message}")
+            }
+        }
     }
 
     private fun sendResultToActivity(status: String, code: Int, message: String) {

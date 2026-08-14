@@ -8,6 +8,9 @@ import '../core/services/session_service.dart';
 import '../theme/app_theme.dart';
 import 'login_screen.dart';
 import 'payment_screen.dart';
+import 'info_screen.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import '../shared/widgets/hextech_orb.dart';
 
 class IndexScreen extends StatefulWidget {
   final String? sessionToken;
@@ -35,6 +38,7 @@ class _IndexScreenState extends State<IndexScreen> {
     _sessionToken = widget.sessionToken ?? '';
     _loadSession();
     _loadUser();
+    _loadRoles();
     
     _eventSubscription = NativeService.onEvent.listen((event) {
       if (event['code'] == 402) {
@@ -64,6 +68,22 @@ class _IndexScreenState extends State<IndexScreen> {
         _sessionToken = token;
       });
     }
+  }
+
+  Future<void> _loadRoles() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (mounted) {
+      setState(() {
+        mainRoleController.text = prefs.getString('mainRole') ?? '';
+        secondaryRoleController.text = prefs.getString('secondaryRole') ?? '';
+        autofillRoleController.text = prefs.getString('autofillRole') ?? '';
+      });
+    }
+  }
+
+  Future<void> _saveRole(String key, String value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(key, value);
   }
 
   void _loadUser() async {
@@ -129,11 +149,12 @@ class _IndexScreenState extends State<IndexScreen> {
     }
   }
 
-  Widget _buildTextField(String label, String hint, IconData icon, TextEditingController controller) {
+  Widget _buildTextField(String label, String hint, IconData icon, TextEditingController controller, String prefKey) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 16.0),
       child: TextField(
         controller: controller,
+        onChanged: (val) => _saveRole(prefKey, val),
         style: const TextStyle(color: AppTheme.textLight),
         decoration: InputDecoration(
           labelText: label,
@@ -171,8 +192,10 @@ class _IndexScreenState extends State<IndexScreen> {
                     IconButton(
                       icon: const Icon(Icons.info_outline, color: AppTheme.textMuted),
                       onPressed: () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Ayuda e información')),
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => const InfoScreen(),
+                          ),
                         );
                       },
                     ),
@@ -204,51 +227,29 @@ class _IndexScreenState extends State<IndexScreen> {
                         'Ej: Mid Lane',
                         Icons.star_border_outlined,
                         mainRoleController,
+                        'mainRole',
                       ),
                       _buildTextField(
                         'Segunda Línea',
                         'Ej: Jungla',
                         Icons.swap_calls,
                         secondaryRoleController,
+                        'secondaryRole',
                       ),
                       _buildTextField(
                         'Rol Autofill',
                         'Ej: Support',
                         Icons.shield_outlined,
                         autofillRoleController,
+                        'autofillRole',
                       ),
                       
                       const SizedBox(height: 60),
                       
-                      // Central Action Button with Glow
-                      GestureDetector(
+                      // Central Action Button with Glow (Hextech Orb)
+                      HextechOrb(
+                        isActive: _isActive,
                         onTap: _toggleService,
-                        child: Container(
-                          width: 180,
-                          height: 180,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: _isActive ? Colors.redAccent : AppTheme.primary,
-                            boxShadow: [
-                              BoxShadow(
-                                color: (_isActive ? Colors.redAccent : AppTheme.primary).withValues(alpha: 0.5),
-                                blurRadius: 40,
-                                spreadRadius: 10,
-                                offset: const Offset(0, 0),
-                              ),
-                            ],
-                          ),
-                          alignment: Alignment.center,
-                          child: Text(
-                            _isActive ? 'DETENER' : 'ACTIVAR',
-                            style: GoogleFonts.inter(
-                              fontSize: 24,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
-                              letterSpacing: 1.2,
-                            ),
-                          ),
-                        ),
                       ),
                       
                     ],

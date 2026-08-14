@@ -27,6 +27,7 @@ func Connect() {
 		&models.User{},
 		&models.SubscriptionPlan{},
 		&models.PaymentTransaction{},
+		&models.ApiUsage{},
 	)
 	if err != nil {
 		log.Fatalf("Failed to auto migrate database: %v", err)

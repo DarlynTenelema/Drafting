@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"os"
 	"time"
 
 	"backend/internal/database"
@@ -42,6 +43,36 @@ func AnalyzeDraft(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// --- Rate Limiting & Quota Logic ---
+	globalFreeTrialEndDateStr := os.Getenv("GLOBAL_FREE_TRIAL_END_DATE")
+	if globalFreeTrialEndDateStr == "" {
+		globalFreeTrialEndDateStr = "2026-08-16T23:59:59Z"
+	}
+	globalFreeTrialEndDate, _ := time.Parse(time.RFC3339, globalFreeTrialEndDateStr)
+
+	isPremium := user.SubscriptionEndsAt != nil && user.SubscriptionEndsAt.After(time.Now())
+
+	if isPremium {
+		var count int64
+		database.DB.Model(&models.ApiUsage{}).Where("user_id = ? AND created_at > ?", user.ID, time.Now().Add(-1*time.Hour)).Count(&count)
+		
+		if count >= 10 {
+			http.Error(w, "Too many requests. Límite premium alcanzado.", http.StatusTooManyRequests)
+			return
+		}
+	} else {
+		if time.Now().After(globalFreeTrialEndDate) {
+			var count int64
+			database.DB.Model(&models.ApiUsage{}).Where("user_id = ?", user.ID).Count(&count)
+			
+			if count >= 5 {
+				http.Error(w, "Prueba gratuita agotada. Límite de 5 peticiones alcanzado.", http.StatusForbidden)
+				return
+			}
+		}
+	}
+	// -----------------------------------
+
 	// Call Gemini API
 	recommendation, err := gemini.AnalyzeDraft(r.Context(), req.ImageBase64, req.MainRole, req.SecondaryRole, req.AutofillRole)
 	if err != nil {
@@ -49,6 +80,9 @@ func AnalyzeDraft(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Error analyzing draft: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
+
+	// Record successful API usage
+	database.DB.Create(&models.ApiUsage{UserID: user.ID, CreatedAt: time.Now()})
 
 	// Update user's LastDraftAt only if successful
 	user.LastDraftAt = time.Now()

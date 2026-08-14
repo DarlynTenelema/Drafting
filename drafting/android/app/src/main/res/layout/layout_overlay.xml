@@ -12,7 +12,7 @@
         android:layout_height="120dp"
         android:layout_marginEnd="12dp"
         android:layout_gravity="center_vertical"
-        android:background="@drawable/bg_rounded_dark"
+        android:background="@drawable/bg_hextech_panel"
         android:visibility="gone">
 
         <!-- Estado de Carga -->
@@ -51,28 +51,40 @@
                 android:id="@+id/resultTextView"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:textColor="#F8FAFC"
-                android:textSize="14sp" />
+                android:textColor="#00E5FF"
+                android:textStyle="bold"
+                android:textSize="18sp" />
         </ScrollView>
     </FrameLayout>
 
     <!-- Controles (Derecha) -->
     <LinearLayout
+        android:id="@+id/controlsContainer"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:orientation="vertical"
+        android:gravity="center_horizontal"
         android:layout_gravity="center_vertical">
+        
+        <!-- Manillar de arrastre -->
+        <ImageView
+            android:id="@+id/dragHandle"
+            android:layout_width="24dp"
+            android:layout_height="24dp"
+            android:layout_marginBottom="8dp"
+            android:src="@drawable/ic_drag_handle"
+            android:contentDescription="Arrastrar" />
         
         <!-- Botón de Captura -->
         <ImageButton
             android:id="@+id/btnCapture"
             android:layout_width="56dp"
             android:layout_height="56dp"
-            android:background="@drawable/bg_circle_blue"
+            android:background="@drawable/bg_hextech_button"
             android:src="@android:drawable/ic_menu_camera"
-            android:tint="#FFFFFF"
+            android:tint="#C89B3C"
             android:scaleType="centerInside"
-            android:elevation="4dp"
+            android:elevation="6dp"
             android:contentDescription="Tomar Captura" />
             
         <!-- Botón de Cerrar -->
@@ -81,12 +93,11 @@
             android:layout_width="48dp"
             android:layout_height="48dp"
             android:layout_marginTop="16dp"
-            android:layout_gravity="center_horizontal"
-            android:background="@drawable/bg_circle_red"
+            android:background="@drawable/bg_hextech_close"
             android:src="@android:drawable/ic_menu_close_clear_cancel"
-            android:tint="#FFFFFF"
+            android:tint="#C89B3C"
             android:scaleType="centerInside"
-            android:elevation="4dp"
+            android:elevation="6dp"
             android:contentDescription="Cerrar" />
     </LinearLayout>
 </LinearLayout>
