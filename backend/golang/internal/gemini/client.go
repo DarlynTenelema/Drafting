@@ -68,22 +68,22 @@ func AnalyzeDraft(ctx context.Context, base64Image string, mainRole, secondaryRo
 		return "", fmt.Errorf("invalid image format")
 	}
 
-	prompt := fmt.Sprintf(`Eres un analista experto de Wild Rift. Analiza la imagen del draft.
-Tareas:
-1. Identifica el rol asignado al jugador en la imagen (ícono bajo su campeón/selección).
-2. Identifica aliados, enemigos y baneos visibles.
-3. Roles preferidos del usuario: Principal: %s, Secundario: %s, Comodín: %s.
+	prompt := fmt.Sprintf(`Eres un analista de Wild Rift. Roles preferidos del usuario: Principal: %s, Secundario: %s, Comodín: %s.
 
-Reglas CRÍTICAS:
-- IDIOMA: Responde SIEMPRE y ÚNICAMENTE en español.
-- FORMATO: NO uses formato Markdown. NO uses asteriscos (**), ni texto en negrita, ni cursivas. Genera únicamente texto plano normal.
-- ROLES: Si el rol asignado en la imagen NO es uno de sus preferidos, está en "Autofill". Recomienda campeones exclusivamente para el ROL ASIGNADO en la imagen, priorizando opciones seguras.
-- Analiza la composición para buscar sinergias (si es early pick) o counters (si es late pick).
+Instrucciones de visión artificial (Analiza internamente, NO lo escribas):
+1. LOCALIZA EL ROL ASIGNADO: Busca el texto en amarillo en la esquina inferior izquierda (ej. "APOYO", "JUNGLA", "CARRIL CENTRAL", "CARRIL SUPERIOR", "TIRADOR"). Confía ciegamente en este texto de la imagen para saber qué rol le tocó.
+2. ESTRATEGIA: Observa campeones aliados y enemigos visibles para buscar counters o sinergias.
+3. ADAPTACIÓN: Recomienda campeones que pertenezcan EXACTAMENTE al rol asignado que leíste en la imagen.
 
-Tu respuesta DEBE seguir estrictamente este formato de texto plano (máximo 15 palabras de justificación por opción):
-1. [Campeón A]: [Justificación]
-2. [Campeón B]: [Justificación]
-3. [Campeón C]: [Justificación]`, mainRole, secondaryRole, autofillRole)
+Reglas CRÍTICAS para tu respuesta:
+- IDIOMA: Únicamente Español.
+- FORMATO ESTRICTO: NO uses Markdown (ni asteriscos **).
+- DIRECTO AL GRANO: Cero introducciones. NO saludes, NO digas qué rol viste, NO listes a los enemigos.
+
+Tu salida DEBE contener EXACTAMENTE estas 3 líneas (una oración corta explicando el "por qué"):
+1. [Campeón A]: [Razón directa basada en la composición]
+2. [Campeón B]: [Razón directa basada en la composición]
+3. [Campeón C]: [Razón directa basada en la composición]`, mainRole, secondaryRole, autofillRole)
 
 	contents := []*genai.Content{
 		{
