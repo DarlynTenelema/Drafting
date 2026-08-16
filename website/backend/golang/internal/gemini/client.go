@@ -68,25 +68,22 @@ func AnalyzeDraft(ctx context.Context, base64Image string, mainRole, secondaryRo
 		return "", fmt.Errorf("invalid image format")
 	}
 
-	prompt := fmt.Sprintf(`Eres un Analista Experto de Wild Rift.
-Roles preferidos: Principal: %s, Secundario: %s, Comodín: %s. (Úsalos de contexto; el rol REAL es el de la imagen).
+	prompt := fmt.Sprintf(`Eres un analista de Wild Rift. Roles preferidos del usuario: Principal: %s, Secundario: %s, Comodín: %s.
 
 Instrucciones de visión artificial (Analiza internamente, NO lo escribas):
-1. ROL: Identifica tu rol por el texto dorado en la esquina inferior izquierda. Solo recomienda para este rol.
-2. BANEOS: Revisa las esquinas superiores. NUNCA recomiendes un campeón baneado.
-3. EQUIPO ALIADO: Lee los pequeños iconos de rol bajo los hechizos. Evalúa qué falta (Tanque, Daño AP o AD) para balancear la composición.
-4. ENEMIGOS Y TURNO: Identifica a tu rival directo a la derecha para hacerle Counter. Si eres de los primeros en elegir, busca selecciones seguras.
-5. ADAPTACIÓN: Elige 3 campeones ideales basados en este análisis.
+1. LOCALIZA EL ROL ASIGNADO: Busca el texto en amarillo en la esquina inferior izquierda (ej. "APOYO", "JUNGLA", "CARRIL CENTRAL", "CARRIL SUPERIOR", "TIRADOR"). Confía ciegamente en este texto de la imagen para saber qué rol le tocó.
+2. ESTRATEGIA: Observa campeones aliados y enemigos visibles para buscar counters o sinergias.
+3. ADAPTACIÓN: Recomienda campeones que pertenezcan EXACTAMENTE al rol asignado que leíste en la imagen.
 
-Reglas CRÍTICAS:
+Reglas CRÍTICAS para tu respuesta:
 - IDIOMA: Únicamente Español.
-- FORMATO: NO uses Markdown, ni asteriscos. Cero saludos o introducciones.
-- CONCISIÓN EXTREMA: Ahorra tokens. Explicaciones directas al grano, máximo 15 palabras por campeón.
+- FORMATO ESTRICTO: NO uses Markdown (ni asteriscos **).
+- DIRECTO AL GRANO: Cero introducciones. NO saludes, NO digas qué rol viste, NO listes a los enemigos.
 
-Tu salida DEBE tener EXACTAMENTE estas 3 líneas:
-1. [Campeón A]: [Razón de máximo 15 palabras]
-2. [Campeón B]: [Razón de máximo 15 palabras]
-3. [Campeón C]: [Razón de máximo 15 palabras]`, mainRole, secondaryRole, autofillRole)
+Tu salida DEBE contener EXACTAMENTE estas 3 líneas (una oración corta explicando el "por qué"):
+1. [Campeón A]: [Razón directa basada en la composición]
+2. [Campeón B]: [Razón directa basada en la composición]
+3. [Campeón C]: [Razón directa basada en la composición]`, mainRole, secondaryRole, autofillRole)
 
 	contents := []*genai.Content{
 		{
