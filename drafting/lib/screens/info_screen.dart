@@ -87,8 +87,8 @@ class InfoScreen extends StatelessWidget {
             // --- Sección de Actualizaciones ---
             _buildSectionHeader('Nuevas Actualizaciones', Icons.new_releases_outlined),
             _buildInfoCard(
-              'Versión 2.1.0 - Orbe Hextech',
-              '• Nuevo diseño 3D para el botón de captura con temática Hextech.\n'
+              'Versión 2.1.0 - Orbe Analítico',
+              '• Nuevo diseño 3D para el botón de captura con temática Analítica.\n'
               '• Mejoras en la ventana flotante de Android: Nuevo sistema de arrastre y colores personalizados.\n'
               '• Optimizaciones de rendimiento al analizar la pantalla.',
             ),
@@ -103,7 +103,7 @@ class InfoScreen extends StatelessWidget {
             ),
             _buildInfoCard(
               '2. Activa el Sistema',
-              'Presiona el Orbe Hextech para encender el servicio. Aparecerá una ventana flotante con el icono de una cámara.',
+              'Presiona el Orbe Analítico para encender el servicio. Aparecerá una ventana flotante con el icono de una cámara.',
             ),
             _buildInfoCard(
               '3. Analiza el Draft',

@@ -107,41 +107,57 @@ class CaptureService : Service() {
         }
 
         val mpm = getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
-        mediaProjection = try {
-            mpm.getMediaProjection(code, data)
-        } catch (e: Exception) {
-            notifyCaptureError("Failed to create MediaProjection: ${e.message}")
-            stopSelf()
-            return START_NOT_STICKY
-        }
+        
+        // Postpone projection creation slightly to ensure startForeground is fully processed by Android 14
+        Handler(Looper.getMainLooper()).postDelayed({
+            try {
+                mediaProjection = mpm.getMediaProjection(code, data)
+                if (mediaProjection == null) {
+                    notifyCaptureError("MediaProjection is null.")
+                    stopSelf()
+                    return@postDelayed
+                }
 
-        if (mediaProjection == null) {
-            notifyCaptureError("MediaProjection is null.")
-            stopSelf()
-            return START_NOT_STICKY
-        }
+                // Android 14 requires a callback to be registered
+                mediaProjection?.registerCallback(object : MediaProjection.Callback() {
+                    override fun onStop() {
+                        super.onStop()
+                        stopSelf()
+                    }
+                }, null)
 
-        setupVirtualDisplay()
-        showFloatingBubble()
+                setupVirtualDisplay()
+                showFloatingBubble()
+            } catch (e: Throwable) {
+                notifyCaptureError("Failed to start capture: ${e.message}")
+                stopSelf()
+            }
+        }, 200)
+
         return START_NOT_STICKY
     }
 
     private fun setupVirtualDisplay() {
-        val metrics = resources.displayMetrics
-        val density = metrics.densityDpi
-        val width = metrics.widthPixels
-        val height = metrics.heightPixels
+        try {
+            val metrics = resources.displayMetrics
+            val density = metrics.densityDpi
+            val width = metrics.widthPixels
+            val height = metrics.heightPixels
 
-        imageReader = ImageReader.newInstance(width, height, PixelFormat.RGBA_8888, 2)
-        virtualDisplay = mediaProjection?.createVirtualDisplay(
-            "DraftingCapture",
-            width, height, density,
-            DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
-            imageReader?.surface, null, null
-        )
+            imageReader = ImageReader.newInstance(width, height, PixelFormat.RGBA_8888, 2)
+            virtualDisplay = mediaProjection?.createVirtualDisplay(
+                "DraftingCapture",
+                width, height, density,
+                DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
+                imageReader?.surface, null, null
+            )
 
-        if (virtualDisplay == null) {
-            notifyCaptureError("Unable to create virtual display.")
+            if (virtualDisplay == null) {
+                notifyCaptureError("Unable to create virtual display.")
+                stopSelf()
+            }
+        } catch (e: Throwable) {
+            notifyCaptureError("Virtual display error: ${e.message}")
             stopSelf()
         }
     }
@@ -460,7 +476,11 @@ class CaptureService : Service() {
     override fun onDestroy() {
         super.onDestroy()
         if (::floatingView.isInitialized) {
-            windowManager.removeView(floatingView)
+            try {
+                windowManager.removeView(floatingView)
+            } catch (e: Exception) {
+                // Ignore if not attached
+            }
         }
         virtualDisplay?.release()
         imageReader?.close()

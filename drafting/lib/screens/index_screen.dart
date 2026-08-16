@@ -112,6 +112,55 @@ class _IndexScreenState extends State<IndexScreen> {
     );
   }
 
+  Future<bool> _checkAndShowDisclosure() async {
+    final prefs = await SharedPreferences.getInstance();
+    final hasAccepted = prefs.getBool('hasAcceptedDisclosure') ?? false;
+    
+    if (hasAccepted) {
+      return true;
+    }
+
+    if (!mounted) return false;
+
+    final result = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          backgroundColor: AppTheme.surface,
+          title: const Text(
+            'Permiso de Captura de Pantalla',
+            style: TextStyle(color: AppTheme.textLight, fontWeight: FontWeight.bold),
+          ),
+          content: const Text(
+            'Drafting requiere capturar tu pantalla para analizar la partida. '
+            'Las imágenes se enviarán a nuestros servidores en la nube para procesar la recomendación con Inteligencia Artificial. '
+            'No almacenamos tus imágenes permanentemente ni compartimos datos con terceros.\n\n'
+            '¿Aceptas el uso de la captura de pantalla para esta funcionalidad?',
+            style: TextStyle(color: AppTheme.textMuted),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Rechazar', style: TextStyle(color: Colors.redAccent)),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primary),
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text('Acepto', style: TextStyle(color: Colors.white)),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (result == true) {
+      await prefs.setBool('hasAcceptedDisclosure', true);
+      return true;
+    }
+    return false;
+  }
+
   void _toggleService() async {
     if (_isActive) {
       await NativeService.stopCaptureService();
@@ -125,6 +174,11 @@ class _IndexScreenState extends State<IndexScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Sesión no válida. Inicia sesión de nuevo.')),
         );
+        return;
+      }
+
+      final hasPermission = await _checkAndShowDisclosure();
+      if (!hasPermission) {
         return;
       }
 
