@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:padding="8dp">
+
+    <!-- Contenedor del Mensaje de la IA (Izquierda) -->
+    <FrameLayout
+        android:id="@+id/messageContainer"
+        android:layout_width="250dp"
+        android:layout_height="120dp"
+        android:layout_marginEnd="12dp"
+        android:layout_gravity="center_vertical"
+        android:background="@drawable/bg_hextech_panel"
+        android:visibility="gone">
+
+        <!-- Estado de Carga -->
+        <LinearLayout
+            android:id="@+id/loadingLayout"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:orientation="vertical"
+            android:gravity="center"
+            android:visibility="gone">
+            
+            <ProgressBar
+                android:layout_width="32dp"
+                android:layout_height="32dp"
+                android:indeterminateTint="#3B82F6" />
+                
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:text="Cargando..."
+                android:textColor="#FFFFFF"
+                android:textSize="14sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+
+        <!-- Estado de Resultado -->
+        <ScrollView
+            android:id="@+id/resultScrollView"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:padding="12dp"
+            android:visibility="gone">
+            
+            <TextView
+                android:id="@+id/resultTextView"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:textColor="#00E5FF"
+                android:textStyle="bold"
+                android:textSize="18sp" />
+        </ScrollView>
+    </FrameLayout>
+
+    <!-- Controles (Derecha) -->
+    <LinearLayout
+        android:id="@+id/controlsContainer"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:gravity="center_horizontal"
+        android:layout_gravity="center_vertical">
+        
+        <!-- Manillar de arrastre -->
+        <ImageView
+            android:id="@+id/dragHandle"
+            android:layout_width="24dp"
+            android:layout_height="24dp"
+            android:layout_marginBottom="8dp"
+            android:src="@drawable/ic_drag_handle"
+            android:contentDescription="Arrastrar" />
+        
+        <!-- Botón de Captura -->
+        <ImageButton
+            android:id="@+id/btnCapture"
+            android:layout_width="56dp"
+            android:layout_height="56dp"
+            android:background="@drawable/bg_hextech_button"
+            android:src="@android:drawable/ic_menu_camera"
+            android:tint="#C89B3C"
+            android:scaleType="centerInside"
+            android:elevation="6dp"
+            android:contentDescription="Tomar Captura" />
+            
+        <!-- Botón de Cerrar -->
+        <ImageButton
+            android:id="@+id/btnClose"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:layout_marginTop="16dp"
+            android:background="@drawable/bg_hextech_close"
+            android:src="@android:drawable/ic_menu_close_clear_cancel"
+            android:tint="#C89B3C"
+            android:scaleType="centerInside"
+            android:elevation="6dp"
+            android:contentDescription="Cerrar" />
+    </LinearLayout>
+</LinearLayout>
