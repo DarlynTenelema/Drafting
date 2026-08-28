@@ -19,6 +19,14 @@ type contextKey string
 
 const UserContextKey contextKey = "user"
 
+func GetUserIDFromContext(ctx context.Context) (uuid.UUID, bool) {
+	user, ok := ctx.Value(UserContextKey).(*models.User)
+	if !ok {
+		return uuid.Nil, false
+	}
+	return user.ID, true
+}
+
 func IsGlobalFreeTrialActive() bool {
 	startStr := config.GetEnv("GLOBAL_FREE_TRIAL_START_DATE", "")
 	endStr := config.GetEnv("GLOBAL_FREE_TRIAL_END_DATE", "")
@@ -149,5 +157,27 @@ func SubscriptionCheck(next http.Handler) http.Handler {
 		json.NewEncoder(w).Encode(map[string]string{
 			"error": "Subscription expired or global free trial has ended. Please purchase a plan.",
 		})
+	})
+}
+
+// AdminCheck verifies if the authenticated user has the "admin" role
+func AdminCheck(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		user, ok := r.Context().Value(UserContextKey).(*models.User)
+		if !ok {
+			http.Error(w, "User context missing", http.StatusInternalServerError)
+			return
+		}
+
+		if user.Role != "admin" {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusForbidden)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Access forbidden. Admin role required.",
+			})
+			return
+		}
+
+		next.ServeHTTP(w, r)
 	})
 }

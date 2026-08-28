@@ -14,6 +14,9 @@ CREATE TABLE public.users (
     deleted_at TIMESTAMP WITH TIME ZONE
 );
 
+-- Habilitar Row Level Security (RLS) para proteger los datos
+ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
+
 -- Crear un índice para búsquedas más rápidas usando google_id
 CREATE INDEX idx_users_google_id ON public.users(google_id);
 
@@ -22,7 +25,9 @@ CREATE INDEX idx_users_session_token ON public.users(session_token);
 
 -- Función para actualizar automáticamente la columna updated_at
 CREATE OR REPLACE FUNCTION update_updated_at_column()
-RETURNS TRIGGER AS $$
+RETURNS TRIGGER 
+SET search_path = '' 
+AS $$
 BEGIN
     NEW.updated_at = NOW();
     RETURN NEW;
@@ -43,17 +48,26 @@ CREATE TABLE public.subscription_plans (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Habilitar Row Level Security (RLS)
+ALTER TABLE public.subscription_plans ENABLE ROW LEVEL SECURITY;
+
 -- Insertar los planes iniciales
 INSERT INTO public.subscription_plans (id, price, duration_hours) VALUES
-('micro_24h', 0.49, 24),
-('micro_72h', 1.47, 72),
-('micro_120h', 2.45, 120),
-('medium_30d', 9.99, 720),
-('medium_90d', 29.97, 2160),
-('medium_150d', 49.95, 3600),
-('max_180d', 49.99, 4320),
-('max_240d', 79.99, 5760),
-('max_365d', 99.99, 8760);
+-- Plus
+('plus_1d', 0.24, 24),
+('plus_1w', 1.58, 168),
+('plus_1m', 5.99, 720),
+('plus_1y', 59.99, 8760),
+-- Pro
+('pro_1d', 0.49, 24),
+('pro_1w', 2.99, 168),
+('pro_1m', 9.99, 720),
+('pro_1y', 99.99, 8760),
+-- Ultra
+('ultra_1d', 0.99, 24),
+('ultra_1w', 5.99, 168),
+('ultra_1m', 19.99, 720),
+('ultra_1y', 199.99, 8760);
 
 -- Tabla de Transacciones de Pago (Payment Transactions)
 CREATE TABLE public.payment_transactions (
@@ -67,6 +81,9 @@ CREATE TABLE public.payment_transactions (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
+
+-- Habilitar Row Level Security (RLS)
+ALTER TABLE public.payment_transactions ENABLE ROW LEVEL SECURITY;
 
 -- Trigger para ejecutar la función en cada UPDATE de la tabla payment_transactions
 CREATE TRIGGER update_payment_transactions_updated_at

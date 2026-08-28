@@ -68,4 +68,67 @@ class SubscriptionService {
     final message = response.body.isNotEmpty ? response.body : 'Verificación de compra fallida.';
     throw ApiException(message, statusCode: response.statusCode);
   }
+
+  static Future<bool> subscribeCreator({
+    required String subscriptionId,
+    required String purchaseToken,
+    required String creatorId,
+    String? sessionToken,
+  }) async {
+    final response = await ApiClient.post(
+      '/api/v1/finance/subscribe_creator',
+      authenticated: true,
+      sessionToken: sessionToken,
+      body: {
+        'subscription_id': subscriptionId,
+        'purchase_token': purchaseToken,
+        'creator_id': creatorId,
+      },
+    );
+
+    if (response.statusCode == 200) {
+      return true;
+    }
+    
+    final message = response.body.isNotEmpty ? response.body : 'Verificación de suscripción al creador fallida.';
+    throw ApiException(message, statusCode: response.statusCode);
+  }
+
+  static Future<bool> subscribeGroup({
+    required String subscriptionId,
+    required String purchaseToken,
+    required String groupId,
+    String? sessionToken,
+  }) async {
+    final response = await ApiClient.post(
+      '/api/v1/finance/subscribe_group',
+      authenticated: true,
+      sessionToken: sessionToken,
+      body: {
+        'subscription_id': subscriptionId,
+        'purchase_token': purchaseToken,
+        'group_id': groupId,
+      },
+    );
+
+    if (response.statusCode == 200) {
+      return true;
+    }
+    
+    final message = response.body.isNotEmpty ? response.body : 'Verificación de suscripción al grupo fallida.';
+    throw ApiException(message, statusCode: response.statusCode);
+  }
+
+  static Future<List<dynamic>> getMyPackages({String? sessionToken}) async {
+    final response = await ApiClient.get(
+      '/api/v1/store/my_packages',
+      authenticated: true,
+      sessionToken: sessionToken,
+    );
+
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body) as List<dynamic>;
+    }
+    return [];
+  }
 }

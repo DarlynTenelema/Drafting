@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 
 import '../core/services/session_service.dart';
 import '../theme/app_theme.dart';
-import 'index_screen.dart';
 import 'login_screen.dart';
+import 'main_layout.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -26,7 +26,7 @@ class _SplashScreenState extends State<SplashScreen> {
 
     if (sessionToken != null && sessionToken.isNotEmpty) {
       Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => IndexScreen(sessionToken: sessionToken)),
+        MaterialPageRoute(builder: (_) => MainLayoutScreen(sessionToken: sessionToken)),
       );
       return;
     }

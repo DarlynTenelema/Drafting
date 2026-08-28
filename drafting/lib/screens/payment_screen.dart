@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:in_app_purchase/in_app_purchase.dart';
@@ -9,9 +8,19 @@ import '../core/services/api_client.dart';
 import '../core/services/subscription_service.dart';
 import '../theme/app_theme.dart';
 
+class _PlanFeature {
+  final String text;
+  final Widget Function(Color color)? iconBuilder;
+  final IconData? iconData;
+
+  _PlanFeature(this.text, {this.iconBuilder, this.iconData});
+}
+
 class PaymentScreen extends StatefulWidget {
   final String sessionToken;
-  const PaymentScreen({super.key, required this.sessionToken});
+  final String? creatorId;
+  final bool isGroup;
+  const PaymentScreen({super.key, required this.sessionToken, this.creatorId, this.isGroup = false});
 
   @override
   State<PaymentScreen> createState() => _PaymentScreenState();
@@ -29,15 +38,9 @@ class _PaymentScreenState extends State<PaymentScreen> {
   final Set<String> _processedPurchaseKeys = {};
 
   static const Set<String> _kProductIds = {
-    'sub_micro_24h',
-    'sub_micro_72h',
-    'sub_micro_120h',
-    'sub_medium_30d',
-    'sub_medium_90d',
-    'sub_medium_150d',
-    'sub_max_180d',
-    'sub_max_240d',
-    'sub_max_365d',
+    'plus_1d', 'plus_1w', 'plus_1m', 'plus_1y',
+    'pro_1d', 'pro_1w', 'pro_1m', 'pro_1y',
+    'ultra_1d', 'ultra_1w', 'ultra_1m', 'ultra_1y',
   };
 
   @override
@@ -71,23 +74,57 @@ class _PaymentScreenState extends State<PaymentScreen> {
 
   Future<void> _initStoreInfo() async {
     final bool isAvailable = await _inAppPurchase.isAvailable();
-    if (!isAvailable) {
-      if (mounted) {
-        setState(() {
-          _isAvailable = false;
-          _products = [];
-          _loading = false;
-        });
-      }
-      return;
+    List<ProductDetails> products = [];
+
+    if (isAvailable) {
+      final productDetailResponse = await _inAppPurchase.queryProductDetails(_kProductIds);
+      products = productDetailResponse.productDetails;
     }
 
-    final productDetailResponse = await _inAppPurchase.queryProductDetails(_kProductIds);
+    
+    // --- INICIO MOCK DATA ---
+    if (products.isEmpty) {
+      products = _kProductIds.map((id) {
+        String title = 'Plan';
+        String price = '\$0.99';
+
+        if (id.startsWith('plus')) {
+          title = 'Plus';
+          if (id.contains('1d')) price = '\$0.24';
+          else if (id.contains('1w')) price = '\$1.58';
+          else if (id.contains('1m')) price = '\$5.99';
+          else if (id.contains('1y')) price = '\$59.99';
+        } else if (id.startsWith('pro')) {
+          title = 'Pro';
+          if (id.contains('1d')) price = '\$0.49';
+          else if (id.contains('1w')) price = '\$2.99';
+          else if (id.contains('1m')) price = '\$9.99';
+          else if (id.contains('1y')) price = '\$99.99';
+        } else if (id.startsWith('ultra')) {
+          title = 'Ultra';
+          if (id.contains('1d')) price = '\$0.99';
+          else if (id.contains('1w')) price = '\$5.99';
+          else if (id.contains('1m')) price = '\$19.99';
+          else if (id.contains('1y')) price = '\$199.99';
+        }
+        
+        return ProductDetails(
+          id: id,
+          title: title,
+          description: 'Suscripción de prueba (Prepago)',
+          price: price,
+          rawPrice: 1.0,
+          currencyCode: 'USD',
+        );
+      }).toList();
+    }
+    // --- FIN MOCK DATA ---
+
     if (!mounted) return;
 
     setState(() {
-      _isAvailable = isAvailable;
-      _products = productDetailResponse.productDetails;
+      _isAvailable = isAvailable || products.isNotEmpty;
+      _products = products;
       _loading = false;
     });
   }
@@ -138,28 +175,58 @@ class _PaymentScreenState extends State<PaymentScreen> {
     _showMessage('Pago recibido. Validando en el servidor...');
 
     try {
-      final endsAt = await SubscriptionService.verifyPurchase(
-        productId: purchase.productID,
-        purchaseToken: purchaseToken,
-        sessionToken: widget.sessionToken,
-      );
-
-      _processedPurchaseKeys.add(key);
-
-      if (mounted) {
-        setState(() {
-          _verifying = false;
-          _subscriptionStatus = SubscriptionStatus(
-            hasActiveSubscription: true,
-            globalFreeTrialActive: _subscriptionStatus?.globalFreeTrialActive ?? false,
-            canAccessService: true,
-            endsAt: endsAt,
+      if (widget.creatorId != null) {
+        if (widget.isGroup) {
+          await SubscriptionService.subscribeGroup(
+            subscriptionId: purchase.productID,
+            purchaseToken: purchaseToken,
+            sessionToken: widget.sessionToken,
+            groupId: widget.creatorId!,
           );
-        });
-      }
+        } else {
+          await SubscriptionService.subscribeCreator(
+            subscriptionId: purchase.productID,
+            purchaseToken: purchaseToken,
+            sessionToken: widget.sessionToken,
+            creatorId: widget.creatorId!,
+          );
+        }
+        _processedPurchaseKeys.add(key);
 
-      _showMessage('Suscripción activada correctamente.');
-      return true;
+        if (mounted) {
+          setState(() {
+            _verifying = false;
+          });
+          _showMessage('¡Sistema de IA activado correctamente!');
+          Future.delayed(const Duration(seconds: 1), () {
+            if (mounted) Navigator.pop(context, true);
+          });
+        }
+        return true;
+      } else {
+        final endsAt = await SubscriptionService.verifyPurchase(
+          productId: purchase.productID,
+          purchaseToken: purchaseToken,
+          sessionToken: widget.sessionToken,
+        );
+
+        _processedPurchaseKeys.add(key);
+
+        if (mounted) {
+          setState(() {
+            _verifying = false;
+            _subscriptionStatus = SubscriptionStatus(
+              hasActiveSubscription: true,
+              globalFreeTrialActive: _subscriptionStatus?.globalFreeTrialActive ?? false,
+              canAccessService: true,
+              endsAt: endsAt,
+            );
+          });
+        }
+
+        _showMessage('Suscripción activada correctamente.');
+        return true;
+      }
     } on ApiException catch (e) {
       if (mounted) setState(() => _verifying = false);
       _showMessage(e.message, isError: true);
@@ -175,46 +242,12 @@ class _PaymentScreenState extends State<PaymentScreen> {
     if (_verifying) return;
 
     final purchaseParam = PurchaseParam(productDetails: product);
-    await _inAppPurchase.buyConsumable(purchaseParam: purchaseParam);
+    // Para suscripciones recurrentes vs pre-pagos, Google Play Console lo maneja internamente.
+    // Nosotros simplemente compramos el producto seleccionado (ya sea el sufijo _auto o el normal).
+    await _inAppPurchase.buyNonConsumable(purchaseParam: purchaseParam);
   }
 
-  Future<void> _simulateDevPurchase(String productId) async {
-    if (_verifying) return;
-    if (!kDebugMode) {
-      _showMessage('Las compras simuladas solo están disponibles en modo debug.', isError: true);
-      return;
-    }
 
-    setState(() => _verifying = true);
-    _showMessage('Simulando compra de $productId...');
-
-    try {
-      final token = 'dev_${productId}_${DateTime.now().millisecondsSinceEpoch}';
-      final endsAt = await SubscriptionService.verifyPurchase(
-        productId: productId,
-        purchaseToken: token,
-        sessionToken: widget.sessionToken,
-      );
-
-      if (!mounted) return;
-      setState(() {
-        _verifying = false;
-        _subscriptionStatus = SubscriptionStatus(
-          hasActiveSubscription: true,
-          globalFreeTrialActive: _subscriptionStatus?.globalFreeTrialActive ?? false,
-          canAccessService: true,
-          endsAt: endsAt,
-        );
-      });
-      _showMessage('Compra simulada activada.');
-    } on ApiException catch (e) {
-      if (mounted) setState(() => _verifying = false);
-      _showMessage(e.message, isError: true);
-    } catch (_) {
-      if (mounted) setState(() => _verifying = false);
-      _showMessage('No se pudo simular la compra.', isError: true);
-    }
-  }
 
   void _showMessage(String message, {bool isError = false}) {
     if (!mounted) return;
@@ -262,6 +295,8 @@ class _PaymentScreenState extends State<PaymentScreen> {
     required String title,
     required String description,
     required String price,
+    required List<_PlanFeature> features,
+    required Color color,
     required VoidCallback onPressed,
   }) {
     return Container(
@@ -269,37 +304,51 @@ class _PaymentScreenState extends State<PaymentScreen> {
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         color: AppTheme.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppTheme.primary.withValues(alpha: 0.5), width: 1.5),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color.withValues(alpha: 0.6), width: 2),
         boxShadow: [
           BoxShadow(
-            color: AppTheme.primary.withValues(alpha: 0.1),
-            blurRadius: 10,
-            spreadRadius: 2,
+            color: color.withValues(alpha: 0.15),
+            blurRadius: 15,
+            spreadRadius: 4,
           ),
         ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            title,
-            style: GoogleFonts.outfit(
-              fontSize: 22,
-              fontWeight: FontWeight.bold,
-              color: AppTheme.textLight,
-            ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: Text(
+                  title,
+                  style: GoogleFonts.outfit(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+              Icon(Icons.stars, color: color, size: 28),
+            ],
           ),
-          const SizedBox(height: 12),
-          Text(
-            price,
-            style: GoogleFonts.outfit(
-              fontSize: 32,
-              fontWeight: FontWeight.bold,
-              color: AppTheme.primary,
-            ),
+          const SizedBox(height: 16),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.baseline,
+            textBaseline: TextBaseline.alphabetic,
+            children: [
+              Text(
+                price,
+                style: GoogleFonts.outfit(
+                  fontSize: 36,
+                  fontWeight: FontWeight.w900,
+                  color: color,
+                ),
+              ),
+            ],
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 8),
           Text(
             description,
             style: GoogleFonts.inter(
@@ -312,9 +361,9 @@ class _PaymentScreenState extends State<PaymentScreen> {
             width: double.infinity,
             child: ElevatedButton(
               style: ElevatedButton.styleFrom(
-                backgroundColor: AppTheme.primary,
+                backgroundColor: color,
                 padding: const EdgeInsets.symmetric(vertical: 16),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               ),
               onPressed: _verifying ? null : onPressed,
               child: Text(
@@ -328,30 +377,38 @@ class _PaymentScreenState extends State<PaymentScreen> {
             ),
           ),
           const SizedBox(height: 24),
-          const Divider(color: AppTheme.textMuted, height: 1),
+          const Divider(color: Colors.white24, height: 1),
           const SizedBox(height: 24),
-          _buildFeatureRow('Límites de uso ilimitados por la duración.'),
-          const SizedBox(height: 12),
-          _buildFeatureRow('Acceso al modelo de IA avanzado para Draft.'),
-          const SizedBox(height: 12),
-          _buildFeatureRow('Recomendaciones instantáneas de campeones.'),
+          ...features.map((f) => Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: _buildFeatureRow(f, color),
+          )),
         ],
       ),
     );
   }
 
-  Widget _buildFeatureRow(String text) {
+  Widget _buildFeatureRow(_PlanFeature feature, Color iconColor) {
+    Widget iconWidget;
+    if (feature.iconBuilder != null) {
+      iconWidget = feature.iconBuilder!(iconColor);
+    } else if (feature.iconData != null) {
+      iconWidget = Icon(feature.iconData, color: iconColor, size: 20);
+    } else {
+      iconWidget = Icon(Icons.check_circle, color: iconColor, size: 20);
+    }
+
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Icon(Icons.check, color: AppTheme.primary, size: 20),
+        iconWidget,
         const SizedBox(width: 12),
         Expanded(
           child: Text(
-            text,
+            feature.text,
             style: GoogleFonts.inter(
               fontSize: 14,
-              color: AppTheme.textLight,
+              color: Colors.white70,
               height: 1.4,
             ),
           ),
@@ -360,27 +417,28 @@ class _PaymentScreenState extends State<PaymentScreen> {
     );
   }
 
-  List<Widget> _getMockCardsForPrefix(String prefix) {
-    if (prefix == 'micro') {
-      return [
-        _buildSubscriptionCard(title: 'Micro - 24 horas', description: 'Solo debug', price: '\$0.49', onPressed: () => _simulateDevPurchase('sub_micro_24h')),
-        _buildSubscriptionCard(title: 'Micro - 72 horas', description: 'Solo debug', price: '\$1.47', onPressed: () => _simulateDevPurchase('sub_micro_72h')),
-        _buildSubscriptionCard(title: 'Micro - 120 horas', description: 'Solo debug', price: '\$2.45', onPressed: () => _simulateDevPurchase('sub_micro_120h')),
-      ];
-    } else if (prefix == 'medium') {
-      return [
-        _buildSubscriptionCard(title: 'Medium - 30 días', description: 'Solo debug', price: '\$9.99', onPressed: () => _simulateDevPurchase('sub_medium_30d')),
-        _buildSubscriptionCard(title: 'Medium - 90 días', description: 'Solo debug', price: '\$29.97', onPressed: () => _simulateDevPurchase('sub_medium_90d')),
-        _buildSubscriptionCard(title: 'Medium - 150 días', description: 'Solo debug', price: '\$49.95', onPressed: () => _simulateDevPurchase('sub_medium_150d')),
-      ];
-    } else {
-      return [
-        _buildSubscriptionCard(title: 'Max - 180 días', description: 'Solo debug', price: '\$49.99', onPressed: () => _simulateDevPurchase('sub_max_180d')),
-        _buildSubscriptionCard(title: 'Max - 240 días', description: 'Solo debug', price: '\$79.99', onPressed: () => _simulateDevPurchase('sub_max_240d')),
-        _buildSubscriptionCard(title: 'Max - 365 días', description: 'Solo debug', price: '\$99.99', onPressed: () => _simulateDevPurchase('sub_max_365d')),
-      ];
-    }
+  Widget _buildAdsBlockIcon(Color color) {
+    return SizedBox(
+      width: 20,
+      height: 20,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          Text(
+            'ADS',
+            style: GoogleFonts.outfit(
+              fontSize: 8,
+              fontWeight: FontWeight.w900,
+              color: color.withValues(alpha: 0.7),
+            ),
+          ),
+          Icon(Icons.block, color: color, size: 20),
+        ],
+      ),
+    );
   }
+
+
 
   String _cleanTitle(String rawTitle) {
     // Google Play siempre añade " (NombreApp)" al final del título.
@@ -391,41 +449,110 @@ class _PaymentScreenState extends State<PaymentScreen> {
     return rawTitle;
   }
 
-  Widget _buildTabContent(List<ProductDetails> tabProducts, String prefix) {
+
+  Widget _buildDurationTab(List<ProductDetails> tabProducts) {
+    if (!_isAvailable) {
+      return const Padding(
+        padding: EdgeInsets.all(24),
+        child: Text('Google Play Billing no está disponible.', style: TextStyle(color: Colors.orange)),
+      );
+    }
+    
+    // Sort products: plus -> pro -> ultra
+    tabProducts.sort((a, b) {
+      final order = {'plus': 0, 'pro': 1, 'ultra': 2};
+      int wA = order[a.id.split('_').first] ?? 0;
+      int wB = order[b.id.split('_').first] ?? 0;
+      return wA.compareTo(wB);
+    });
+
     return ListView(
       padding: const EdgeInsets.all(24),
       children: [
         _buildStatusBanner(),
-        if (!_isAvailable)
-          const Padding(
-            padding: EdgeInsets.only(bottom: 16),
-            child: Text(
-              'Google Play Billing no está disponible en este dispositivo.',
-              style: TextStyle(color: Colors.orange),
-            ),
+        
+        Container(
+          margin: const EdgeInsets.only(bottom: 24),
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: AppTheme.surface,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.greenAccent.withValues(alpha: 0.3)),
           ),
-        ...tabProducts.map((p) => _buildSubscriptionCard(
-              title: _cleanTitle(p.title),
-              description: p.description,
-              price: p.price,
-              onPressed: () => _buyProduct(p),
-            )),
-        if (_products.isEmpty && kDebugMode) ..._getMockCardsForPrefix(prefix),
+          child: Row(
+            children: [
+              const Icon(Icons.info_outline, color: Colors.greenAccent),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  'Todos nuestros planes son In-App Purchases de pago único. Tú decides cuándo renovar.',
+                  style: GoogleFonts.inter(color: Colors.greenAccent, fontSize: 13),
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        ...tabProducts.map((p) {
+          final isPlus = p.id.startsWith('plus');
+          final isPro = p.id.startsWith('pro');
+          final isUltra = p.id.startsWith('ultra');
+          
+          Color tierColor = Colors.blueAccent;
+          List<_PlanFeature> features = [];
+          
+          if (isPlus) {
+            tierColor = Colors.blueAccent;
+            features = [
+              _PlanFeature('Consulta el mejor pick para tu partida.', iconBuilder: (c) => Image.asset('assets/images/rift_outline.png', color: c, width: 20, height: 20)),
+              _PlanFeature('10 consultas por hora.', iconData: Icons.hourglass_empty),
+              _PlanFeature('Sin anuncios.', iconBuilder: (c) => _buildAdsBlockIcon(c)),
+            ];
+          } else if (isPro) {
+            tierColor = Colors.purpleAccent;
+            features = [
+              _PlanFeature('Consulta el mejor pick para tu partida.', iconBuilder: (c) => Image.asset('assets/images/rift_outline.png', color: c, width: 20, height: 20)),
+              _PlanFeature('Consulta mejores runas y hechizos para tu OTP.', iconBuilder: (c) => Image.asset('assets/images/mastery_outline.png', color: c, width: 20, height: 20)),
+              _PlanFeature('20 consultas por partida.', iconData: Icons.help_outline),
+              _PlanFeature('Sin anuncios.', iconBuilder: (c) => _buildAdsBlockIcon(c)),
+            ];
+          } else if (isUltra) {
+            tierColor = Colors.orangeAccent;
+            features = [
+              _PlanFeature('Consulta el mejor pick, runas y objetos.', iconBuilder: (c) => Image.asset('assets/images/rift_outline.png', color: c, width: 20, height: 20)),
+              _PlanFeature('Consultas ILIMITADAS.', iconData: Icons.all_inclusive),
+              _PlanFeature('Chat Coach (CC) activo.', iconData: Icons.headset_mic),
+              _PlanFeature('Más campos de texto para IA (Otp, Main 1, Main 2).', iconData: Icons.build),
+              _PlanFeature('1,000 esencias azules de regalo.', iconBuilder: (c) => Image.asset('assets/images/crystal_coin_outline.png', color: c, width: 20, height: 20)),
+            ];
+          }
+
+          return _buildSubscriptionCard(
+            title: _cleanTitle(p.title),
+            description: p.description,
+            price: p.price,
+            features: features,
+            color: tierColor,
+            onPressed: () => _buyProduct(p),
+          );
+        }).toList(),
       ],
     );
   }
 
+
   @override
   Widget build(BuildContext context) {
-    final microProducts = _products.where((p) => p.id.startsWith('sub_micro')).toList();
-    final mediumProducts = _products.where((p) => p.id.startsWith('sub_medium')).toList();
-    final maxProducts = _products.where((p) => p.id.startsWith('sub_max')).toList();
+    final dailyProducts = _products.where((p) => p.id.endsWith('_1d')).toList();
+    final weeklyProducts = _products.where((p) => p.id.endsWith('_1w')).toList();
+    final monthlyProducts = _products.where((p) => p.id.endsWith('_1m')).toList();
+    final yearlyProducts = _products.where((p) => p.id.endsWith('_1y')).toList();
 
     return DefaultTabController(
-      length: 3,
+      length: 4,
       child: Scaffold(
         appBar: AppBar(
-          title: Text('Suscripciones', style: GoogleFonts.outfit(color: AppTheme.textLight)),
+          title: Text('Planes y Accesos', style: GoogleFonts.outfit(color: AppTheme.textLight)),
           backgroundColor: AppTheme.background,
           elevation: 0,
           iconTheme: const IconThemeData(color: AppTheme.textLight),
@@ -434,10 +561,12 @@ class _PaymentScreenState extends State<PaymentScreen> {
             labelColor: AppTheme.primary,
             unselectedLabelColor: AppTheme.textMuted,
             labelStyle: GoogleFonts.outfit(fontWeight: FontWeight.bold),
+            isScrollable: true,
             tabs: const [
-              Tab(text: 'Micro'),
-              Tab(text: 'Medium'),
-              Tab(text: 'Max'),
+              Tab(text: 'Diario'),
+              Tab(text: 'Semanal'),
+              Tab(text: 'Mensual'),
+              Tab(text: 'Anual'),
             ],
           ),
         ),
@@ -448,9 +577,10 @@ class _PaymentScreenState extends State<PaymentScreen> {
                 children: [
                   TabBarView(
                     children: [
-                      _buildTabContent(microProducts, 'micro'),
-                      _buildTabContent(mediumProducts, 'medium'),
-                      _buildTabContent(maxProducts, 'max'),
+                      _buildDurationTab(dailyProducts),
+                      _buildDurationTab(weeklyProducts),
+                      _buildDurationTab(monthlyProducts),
+                      _buildDurationTab(yearlyProducts),
                     ],
                   ),
                   if (_verifying)

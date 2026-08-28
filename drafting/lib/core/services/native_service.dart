@@ -17,6 +17,9 @@ class NativeService {
     required String mainRole,
     required String secondaryRole,
     required String autofillRole,
+    required bool isPremium,
+    required String otpChampions,
+    required String? activeCreatorId,
   }) async {
     try {
       final bool result = await _channel.invokeMethod('startService', {
@@ -25,6 +28,9 @@ class NativeService {
         'mainRole': mainRole,
         'secondaryRole': secondaryRole,
         'autofillRole': autofillRole,
+        'isPremium': isPremium,
+        'otpChampions': otpChampions,
+        'activeCreatorId': activeCreatorId ?? '',
       });
       return result;
     } on PlatformException catch (e) {

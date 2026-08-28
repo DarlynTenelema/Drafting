@@ -71,3 +71,21 @@ func (v *Verifier) VerifyProductPurchase(ctx context.Context, productID, purchas
 
 	return nil
 }
+
+// VerifySubscriptionPurchase validates an auto-renewing subscription token.
+func (v *Verifier) VerifySubscriptionPurchase(ctx context.Context, purchaseToken string) error {
+	if !v.enabled {
+		return ErrVerificationDisabled
+	}
+
+	sub, err := v.service.Purchases.Subscriptionsv2.Get(v.packageName, purchaseToken).Context(ctx).Do()
+	if err != nil {
+		return fmt.Errorf("google play subscription verification failed: %w", err)
+	}
+
+	if sub.SubscriptionState != "SUBSCRIPTION_STATE_ACTIVE" && sub.SubscriptionState != "SUBSCRIPTION_STATE_IN_GRACE_PERIOD" {
+		return fmt.Errorf("subscription state is not active (state=%s)", sub.SubscriptionState)
+	}
+
+	return nil
+}

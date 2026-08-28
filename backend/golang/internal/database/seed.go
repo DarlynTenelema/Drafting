@@ -8,15 +8,21 @@ import (
 
 func seedSubscriptionPlans() {
 	plans := []models.SubscriptionPlan{
-		{ID: "micro_24h", Price: 0.49, DurationHours: 24},
-		{ID: "micro_72h", Price: 1.47, DurationHours: 72},
-		{ID: "micro_120h", Price: 2.45, DurationHours: 120},
-		{ID: "medium_30d", Price: 9.99, DurationHours: 720},
-		{ID: "medium_90d", Price: 29.97, DurationHours: 2160},
-		{ID: "medium_150d", Price: 49.95, DurationHours: 3600},
-		{ID: "max_180d", Price: 49.99, DurationHours: 4320},
-		{ID: "max_240d", Price: 79.99, DurationHours: 5760},
-		{ID: "max_365d", Price: 99.99, DurationHours: 8760},
+		// Plus
+		{ID: "plus_1d", Price: 0.24, DurationHours: 24},
+		{ID: "plus_1w", Price: 1.58, DurationHours: 168},
+		{ID: "plus_1m", Price: 5.99, DurationHours: 720},
+		{ID: "plus_1y", Price: 59.99, DurationHours: 8760},
+		// Pro
+		{ID: "pro_1d", Price: 0.49, DurationHours: 24},
+		{ID: "pro_1w", Price: 2.99, DurationHours: 168},
+		{ID: "pro_1m", Price: 9.99, DurationHours: 720},
+		{ID: "pro_1y", Price: 99.99, DurationHours: 8760},
+		// Ultra
+		{ID: "ultra_1d", Price: 0.99, DurationHours: 24},
+		{ID: "ultra_1w", Price: 5.99, DurationHours: 168},
+		{ID: "ultra_1m", Price: 19.99, DurationHours: 720},
+		{ID: "ultra_1y", Price: 199.99, DurationHours: 8760},
 	}
 
 	for _, plan := range plans {

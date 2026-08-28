@@ -17,11 +17,13 @@ import (
 type ManualRegisterRequest struct {
 	Email    string `json:"email"`
 	Password string `json:"password"`
+	DeviceID string `json:"device_id"`
 }
 
 type ManualLoginRequest struct {
 	Email    string `json:"email"`
 	Password string `json:"password"`
+	DeviceID string `json:"device_id"`
 }
 
 func ManualRegister(w http.ResponseWriter, r *http.Request) {
@@ -34,6 +36,14 @@ func ManualRegister(w http.ResponseWriter, r *http.Request) {
 	if req.Email == "" || req.Password == "" {
 		http.Error(w, "Email and password are required", http.StatusBadRequest)
 		return
+	}
+
+	if req.DeviceID != "" {
+		var bannedUser models.User
+		if err := database.DB.Where("device_id = ? AND banned = ?", req.DeviceID, true).First(&bannedUser).Error; err == nil {
+			http.Error(w, "Este dispositivo ha sido bloqueado por violar las normas de la comunidad.", http.StatusForbidden)
+			return
+		}
 	}
 
 	// Check if user already exists
@@ -57,6 +67,7 @@ func ManualRegister(w http.ResponseWriter, r *http.Request) {
 	user := models.User{
 		Email:        req.Email,
 		PasswordHash: string(hashedPassword),
+		DeviceID:     req.DeviceID,
 	}
 
 	if err := database.DB.Create(&user).Error; err != nil {
@@ -99,6 +110,15 @@ func ManualLogin(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "Database error", http.StatusInternalServerError)
 		}
 		return
+	}
+
+	if user.Banned {
+		http.Error(w, "Tu cuenta ha sido bloqueada.", http.StatusForbidden)
+		return
+	}
+
+	if req.DeviceID != "" && user.DeviceID != req.DeviceID {
+		user.DeviceID = req.DeviceID
 	}
 
 	if user.PasswordHash == "" {

@@ -9,6 +9,7 @@ class AppTheme {
   static const Color primaryDark = Color(0xFF2563EB); // Blue 600
   static const Color textLight = Color(0xFFF8FAFC); // Slate 50
   static const Color textMuted = Color(0xFF94A3B8); // Slate 400
+  static const Color accent = Color(0xFF38BDF8); // Light Blue
 
   static ThemeData get darkTheme {
     return ThemeData(

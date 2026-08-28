@@ -57,6 +57,9 @@ class CaptureService : Service() {
     private var mainRole: String? = null
     private var secondaryRole: String? = null
     private var autofillRole: String? = null
+    private var isPremium: Boolean = false
+    private var otpChampions: String = ""
+    private var activeCreatorId: String? = null
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -93,6 +96,9 @@ class CaptureService : Service() {
         mainRole = intent.getStringExtra("mainRole")
         secondaryRole = intent.getStringExtra("secondaryRole")
         autofillRole = intent.getStringExtra("autofillRole")
+        isPremium = intent.getBooleanExtra("isPremium", false)
+        otpChampions = intent.getStringExtra("otpChampions") ?: ""
+        activeCreatorId = intent.getStringExtra("activeCreatorId")
 
         if (code != android.app.Activity.RESULT_OK || data == null) {
             notifyCaptureError("Invalid capture permission data.")
@@ -182,11 +188,36 @@ class CaptureService : Service() {
         val inflater = getSystemService(Context.LAYOUT_INFLATER_SERVICE) as LayoutInflater
         floatingView = inflater.inflate(R.layout.layout_overlay, null)
 
-        val btnCapture = floatingView.findViewById<ImageButton>(R.id.btnCapture)
+        val btnCaptureAutofill = floatingView.findViewById<ImageButton>(R.id.btnCaptureAutofill)
+        val btnCaptureOTP = floatingView.findViewById<ImageButton>(R.id.btnCaptureOTP)
+        val btnCaptureInGame = floatingView.findViewById<ImageButton>(R.id.btnCaptureInGame)
         val btnClose = floatingView.findViewById<ImageButton>(R.id.btnClose)
 
-        btnCapture.setOnClickListener {
-            captureScreenAndSend()
+        if (!isPremium) {
+            btnCaptureOTP.setImageResource(android.R.drawable.ic_secure)
+            btnCaptureInGame.setImageResource(android.R.drawable.ic_secure)
+        }
+
+        btnCaptureAutofill.setOnClickListener {
+            captureScreenAndSend("autofill", 0)
+        }
+        
+        btnCaptureOTP.setOnClickListener {
+            if (isPremium) {
+                captureScreenAndSend("otp", 0)
+            } else {
+                sendResultToActivity("PAYMENT_REQUIRED", 402, "Premium required")
+                Toast.makeText(this, "Requiere plan Premium", Toast.LENGTH_SHORT).show()
+            }
+        }
+        
+        btnCaptureInGame.setOnClickListener {
+            if (isPremium) {
+                captureScreenAndSend("in_game", 0)
+            } else {
+                sendResultToActivity("PAYMENT_REQUIRED", 402, "Premium required")
+                Toast.makeText(this, "Requiere plan Premium", Toast.LENGTH_SHORT).show()
+            }
         }
         
         btnClose.setOnClickListener {
@@ -263,7 +294,7 @@ class CaptureService : Service() {
         })
     }
 
-    private fun captureScreenAndSend(retryCount: Int = 0) {
+    private fun captureScreenAndSend(queryType: String, retryCount: Int = 0) {
         // Show Loading State
         if (retryCount == 0) {
             Handler(Looper.getMainLooper()).post {
@@ -274,11 +305,11 @@ class CaptureService : Service() {
         }
 
         try {
-
             val image = imageReader?.acquireLatestImage()
+
             if (image == null) {
                 if (retryCount < 3) {
-                    Handler(Looper.getMainLooper()).postDelayed({ captureScreenAndSend(retryCount + 1) }, 500)
+                    Handler(Looper.getMainLooper()).postDelayed({ captureScreenAndSend(queryType, retryCount + 1) }, 500)
                     return
                 }
                 notifyCaptureError("No image available from screen capture.")
@@ -331,16 +362,16 @@ class CaptureService : Service() {
             croppedBitmap.recycle()
             bitmap.recycle()
 
-            sendToBackend(base64Image)
+            sendToBackend(base64Image, queryType)
         } catch (e: Exception) {
             if (retryCount < 3) {
-                Handler(Looper.getMainLooper()).postDelayed({ captureScreenAndSend(retryCount + 1) }, 500)
+                Handler(Looper.getMainLooper()).postDelayed({ captureScreenAndSend(queryType, retryCount + 1) }, 500)
             } else {
                 notifyCaptureError("Fallo al capturar: ${e.message}")
             }
         } catch (e: Error) {
             if (retryCount < 3) {
-                Handler(Looper.getMainLooper()).postDelayed({ captureScreenAndSend(retryCount + 1) }, 500)
+                Handler(Looper.getMainLooper()).postDelayed({ captureScreenAndSend(queryType, retryCount + 1) }, 500)
             } else {
                 notifyCaptureError("Error crítico: ${e.message}")
             }
@@ -356,7 +387,7 @@ class CaptureService : Service() {
         sendBroadcast(intent)
     }
 
-    private fun sendToBackend(base64Image: String) {
+    private fun sendToBackend(base64Image: String, queryType: String) {
         showToast("Analizando...")
         thread {
             try {
@@ -383,6 +414,11 @@ class CaptureService : Service() {
                 jsonParam.put("main_role", mainRole)
                 jsonParam.put("secondary_role", secondaryRole)
                 jsonParam.put("autofill_role", autofillRole)
+                jsonParam.put("query_type", queryType)
+                jsonParam.put("otp_champions", otpChampions)
+                if (activeCreatorId != null && activeCreatorId!!.isNotEmpty()) {
+                    jsonParam.put("active_creator_id", activeCreatorId)
+                }
 
                 conn.outputStream.use { out ->
                     OutputStreamWriter(out, Charsets.UTF_8).use { writer ->

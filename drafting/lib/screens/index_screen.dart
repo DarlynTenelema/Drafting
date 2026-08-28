@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:google_sign_in/google_sign_in.dart';
@@ -9,36 +10,48 @@ import '../theme/app_theme.dart';
 import 'login_screen.dart';
 import 'payment_screen.dart';
 import 'info_screen.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'economy_screen.dart';
 import '../shared/widgets/hextech_orb.dart';
+import 'entrepreneur_onboarding_screen.dart';
+import 'settings_screen.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'appeal_screen.dart';
+import 'dart:convert';
+import '../core/services/api_client.dart';
+import '../core/state/active_product_state.dart';
+
 
 class IndexScreen extends StatefulWidget {
   final String? sessionToken;
-  const IndexScreen({super.key, this.sessionToken});
+  final String? groupName; // Optional group name banner
+  const IndexScreen({super.key, this.sessionToken, this.groupName});
 
   @override
   State<IndexScreen> createState() => _IndexScreenState();
 }
 
 class _IndexScreenState extends State<IndexScreen> {
-  final TextEditingController mainRoleController = TextEditingController();
-  final TextEditingController secondaryRoleController = TextEditingController();
-  final TextEditingController autofillRoleController = TextEditingController();
-
+  StreamSubscription? _eventSubscription;
   final GoogleSignIn _googleSignIn = GoogleSignIn.instance;
   GoogleSignInAccount? _currentUser;
   
   late String _sessionToken;
   bool _isActive = false;
-  StreamSubscription? _eventSubscription;
+  bool _isPremium = false;
+  String _userTier = 'plus';
+  int _visibleFields = 1;
+  
+  final List<TextEditingController> _otpControllers = List.generate(5, (_) => TextEditingController());
 
   @override
   void initState() {
     super.initState();
     _sessionToken = widget.sessionToken ?? '';
     _loadSession();
+    if (_sessionToken.isNotEmpty) {
+      _fetchUserData();
+    }
     _loadUser();
-    _loadRoles();
     
     _eventSubscription = NativeService.onEvent.listen((event) {
       if (event['code'] == 402) {
@@ -54,7 +67,7 @@ class _IndexScreenState extends State<IndexScreen> {
       } else if (event['code'] == 429) {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Debes esperar 20 minutos entre consultas.')),
+          const SnackBar(content: Text('Has alcanzado el límite de 10 consultas. Debes esperar 60 minutos.')),
         );
       }
     });
@@ -67,23 +80,35 @@ class _IndexScreenState extends State<IndexScreen> {
       setState(() {
         _sessionToken = token;
       });
+      // After session token is loaded, fetch user data
+      _fetchUserData();
     }
   }
 
-  Future<void> _loadRoles() async {
-    final prefs = await SharedPreferences.getInstance();
-    if (mounted) {
-      setState(() {
-        mainRoleController.text = prefs.getString('mainRole') ?? '';
-        secondaryRoleController.text = prefs.getString('secondaryRole') ?? '';
-        autofillRoleController.text = prefs.getString('autofillRole') ?? '';
-      });
+  Future<void> _fetchUserData() async {
+    try {
+      final response = await ApiClient.get('/api/v1/auth/me');
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        if (mounted) {
+          setState(() {
+            _isPremium = data['is_premium'] == true;
+            _userTier = data['plan_tier'] ?? 'plus';
+            if (_userTier == 'pro') _visibleFields = 2;
+            if (_userTier == 'ultra') _visibleFields = 1; // Start with 1, can add up to 5
+          });
+        }
+        if (data['is_pending_ban'] == true) {
+          if (!mounted) return;
+          // Force navigate to AppealScreen
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(builder: (_) => AppealScreen(sessionToken: _sessionToken)),
+          );
+        }
+      }
+    } catch (e) {
+      debugPrint('Error fetching user data: $e');
     }
-  }
-
-  Future<void> _saveRole(String key, String value) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(key, value);
   }
 
   void _loadUser() async {
@@ -182,12 +207,19 @@ class _IndexScreenState extends State<IndexScreen> {
         return;
       }
 
+      String otpString = _otpControllers.map((c) => c.text.trim()).where((t) => t.isNotEmpty).join(', ');
+
+      String? activeCreatorId = ActiveProductState().activeCreatorIdNotifier.value;
+
       bool started = await NativeService.startCaptureService(
         baseUrl: AppConfig.apiBaseUrl,
         sessionToken: _sessionToken,
-        mainRole: mainRoleController.text.isEmpty ? "Top" : mainRoleController.text,
-        secondaryRole: secondaryRoleController.text.isEmpty ? "Mid" : secondaryRoleController.text,
-        autofillRole: autofillRoleController.text.isEmpty ? "Support" : autofillRoleController.text,
+        mainRole: "Auto",
+        secondaryRole: "Auto",
+        autofillRole: "Auto",
+        isPremium: _isPremium,
+        otpChampions: otpString,
+        activeCreatorId: activeCreatorId,
       );
 
       if (started) {
@@ -203,25 +235,75 @@ class _IndexScreenState extends State<IndexScreen> {
     }
   }
 
-  Widget _buildTextField(String label, String hint, IconData icon, TextEditingController controller, String prefKey) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 16.0),
-      child: TextField(
-        controller: controller,
-        onChanged: (val) => _saveRole(prefKey, val),
-        style: const TextStyle(color: AppTheme.textLight),
-        decoration: InputDecoration(
-          labelText: label,
-          hintText: hint,
-          prefixIcon: Icon(icon, color: AppTheme.primary),
-        ),
-      ),
-    );
-  }
+  // Removed _buildTextField
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      drawer: Drawer(
+        backgroundColor: AppTheme.surface,
+        child: Column(
+          children: [
+            DrawerHeader(
+              decoration: const BoxDecoration(color: AppTheme.background),
+              child: Center(
+                child: Text(
+                  'Drafting',
+                  style: GoogleFonts.outfit(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold),
+                ),
+              ),
+            ),
+            ListTile(
+              leading: Image.asset('assets/images/scroll_outline.png', width: 36, height: 36),
+              title: const Text('Emprender', style: TextStyle(color: Colors.white)),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.of(context).push(MaterialPageRoute(builder: (_) => const EntrepreneurOnboardingScreen()));
+              },
+            ),
+            ListTile(
+              leading: Image.asset('assets/images/crystal_coin_outline.png', width: 36, height: 36),
+              title: const Text('Compra de monedas', style: TextStyle(color: Colors.white)),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.of(context).push(MaterialPageRoute(builder: (_) => const EconomyScreen()));
+              },
+            ),
+            ListTile(
+              leading: Image.asset('assets/images/chest_outline.png', width: 36, height: 36),
+              title: const Text('Planes de pago', style: TextStyle(color: Colors.white)),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.of(context).push(MaterialPageRoute(builder: (_) => PaymentScreen(sessionToken: _sessionToken)));
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.settings, color: Colors.white),
+              title: const Text('Ajustes / Configuración', style: TextStyle(color: Colors.white)),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.of(context).push(MaterialPageRoute(builder: (_) => SettingsScreen(sessionToken: _sessionToken)));
+              },
+            ),
+            const Spacer(),
+            const Divider(color: Colors.white24),
+            ListTile(
+              leading: CircleAvatar(
+                backgroundColor: AppTheme.background,
+                backgroundImage: _currentUser?.photoUrl != null ? NetworkImage(_currentUser!.photoUrl!) : null,
+                radius: 16,
+                child: _currentUser?.photoUrl == null ? const Icon(Icons.person, color: AppTheme.textMuted, size: 20) : null,
+              ),
+              title: Text(_currentUser?.displayName ?? 'Jugador', style: const TextStyle(color: Colors.white, fontSize: 14)),
+              trailing: IconButton(
+                icon: const Icon(Icons.logout, color: Colors.redAccent),
+                onPressed: _handleLogout,
+              ),
+            ),
+            const SizedBox(height: 16),
+          ],
+        ),
+      ),
       body: Container(
         width: double.infinity,
         decoration: const BoxDecoration(
@@ -243,15 +325,13 @@ class _IndexScreenState extends State<IndexScreen> {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    IconButton(
-                      icon: const Icon(Icons.info_outline, color: AppTheme.textMuted),
-                      onPressed: () {
-                        Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (_) => const InfoScreen(),
-                          ),
-                        );
-                      },
+                    Builder(
+                      builder: (context) => IconButton(
+                        icon: const Icon(Icons.menu, color: AppTheme.textMuted),
+                        onPressed: () {
+                          Scaffold.of(context).openDrawer();
+                        },
+                      ),
                     ),
                     Text(
                       'Drafting',
@@ -263,8 +343,12 @@ class _IndexScreenState extends State<IndexScreen> {
                       ),
                     ),
                     IconButton(
-                      icon: const Icon(Icons.logout, color: AppTheme.textMuted),
-                      onPressed: _handleLogout,
+                      icon: const Icon(Icons.info_outline, color: AppTheme.textMuted),
+                      onPressed: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(builder: (_) => const InfoScreen()),
+                        );
+                      },
                     ),
                   ],
                 ),
@@ -275,84 +359,142 @@ class _IndexScreenState extends State<IndexScreen> {
                   padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 32.0),
                   child: Column(
                     children: [
-                      // Text Fields
-                      _buildTextField(
-                        'Línea Main',
-                        'Ej: Mid Lane',
-                        Icons.star_border_outlined,
-                        mainRoleController,
-                        'mainRole',
+                      // Active Product Banner
+                      ValueListenableBuilder<String?>(
+                        valueListenable: ActiveProductState().activeProductNotifier,
+                        builder: (context, activeProduct, child) {
+                          if (activeProduct == null) return const SizedBox.shrink();
+                          
+                          return Container(
+                            margin: const EdgeInsets.only(bottom: 24.0),
+                            padding: const EdgeInsets.symmetric(vertical: 12.0, horizontal: 16.0),
+                            decoration: BoxDecoration(
+                              color: Colors.greenAccent.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: Colors.greenAccent.withValues(alpha: 0.5), width: 1),
+                            ),
+                            child: Column(
+                              children: [
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    const Icon(Icons.star, color: Colors.greenAccent, size: 20),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Text(
+                                        '✨ Sistema Activo: $activeProduct',
+                                        style: const TextStyle(
+                                          color: Colors.greenAccent,
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 14,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 12),
+                                SizedBox(
+                                  width: double.infinity,
+                                  child: ElevatedButton.icon(
+                                    onPressed: () async {
+                                      // Desactivar lógica
+                                      await ActiveProductState().clearActiveProduct();
+                                      if (_isActive) {
+                                        _toggleService(); // Stop the service if running
+                                      }
+                                      if (mounted) {
+                                        ScaffoldMessenger.of(context).showSnackBar(
+                                          const SnackBar(content: Text('Sistema de tienda desactivado. Usa el modo por defecto.')),
+                                        );
+                                      }
+                                    },
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: Colors.redAccent.withValues(alpha: 0.2),
+                                      foregroundColor: Colors.redAccent,
+                                      elevation: 0,
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(8),
+                                        side: BorderSide(color: Colors.redAccent.withValues(alpha: 0.5)),
+                                      ),
+                                    ),
+                                    icon: const Icon(Icons.power_settings_new, size: 18),
+                                    label: const Text('Desactivar Sistema', style: TextStyle(fontWeight: FontWeight.bold)),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        },
                       ),
-                      _buildTextField(
-                        'Segunda Línea',
-                        'Ej: Jungla',
-                        Icons.swap_calls,
-                        secondaryRoleController,
-                        'secondaryRole',
-                      ),
-                      _buildTextField(
-                        'Rol Autofill',
-                        'Ej: Support',
-                        Icons.shield_outlined,
-                        autofillRoleController,
-                        'autofillRole',
-                      ),
-                      
-                      const SizedBox(height: 60),
+
+                      if (_isPremium && (_userTier == 'pro' || _userTier == 'ultra')) ...[
+                        const SizedBox(height: 16),
+                        Text(
+                          'Tus Campeones y Roles (IA)',
+                          style: GoogleFonts.outfit(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: AppTheme.textLight,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Especifica parámetros exactos para la IA. Pro: 2 campos. Ultra: Hasta 5 campos.',
+                          style: TextStyle(color: AppTheme.textMuted, fontSize: 13),
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 16),
+                        ...List.generate(_visibleFields, (index) {
+                          List<String> labels = ['Otp', 'Main 1', 'Main 2', 'Linea main 1', 'Linea main 2'];
+                          if (_userTier == 'pro') labels = ['Otp', 'Main'];
+                          
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 12.0),
+                            child: TextField(
+                              controller: _otpControllers[index],
+                              style: const TextStyle(color: AppTheme.textLight),
+                              decoration: InputDecoration(
+                                labelText: index < labels.length ? labels[index] : 'Extra',
+                                labelStyle: const TextStyle(color: AppTheme.textMuted),
+                                filled: true,
+                                fillColor: AppTheme.background,
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                  borderSide: const BorderSide(color: Colors.white12),
+                                ),
+                                enabledBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                  borderSide: const BorderSide(color: Colors.white12),
+                                ),
+                                focusedBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                  borderSide: const BorderSide(color: AppTheme.primary),
+                                ),
+                              ),
+                            ),
+                          );
+                        }),
+                        if (_userTier == 'ultra' && _visibleFields < 5)
+                          TextButton.icon(
+                            onPressed: () {
+                              setState(() {
+                                _visibleFields++;
+                              });
+                            },
+                            icon: const Icon(Icons.add, color: AppTheme.primary),
+                            label: const Text('Añadir campo', style: TextStyle(color: AppTheme.primary)),
+                          ),
+                      ],
+
+                      const SizedBox(height: 40),
                       
                       // Central Action Button with Glow (Hextech Orb)
                       HextechOrb(
                         isActive: _isActive,
                         onTap: _toggleService,
                       ),
-                      
                     ],
                   ),
-                ),
-              ),
-              
-              // Bottom Bar
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    // User Profile
-                    Row(
-                      children: [
-                        CircleAvatar(
-                          backgroundColor: AppTheme.surface,
-                          backgroundImage: _currentUser?.photoUrl != null
-                              ? NetworkImage(_currentUser!.photoUrl!)
-                              : null,
-                          child: _currentUser?.photoUrl == null
-                              ? const Icon(Icons.person, color: AppTheme.textMuted)
-                              : null,
-                        ),
-                        const SizedBox(width: 12),
-                        Text(
-                          _currentUser?.displayName ?? 'Jugador',
-                          style: GoogleFonts.inter(
-                            fontSize: 16,
-                            color: AppTheme.textLight,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ],
-                    ),
-                    
-                    // Settings / Subscription
-                    IconButton(
-                      icon: const Icon(Icons.stars, color: AppTheme.primary),
-                      onPressed: () {
-                        Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (_) => PaymentScreen(sessionToken: _sessionToken),
-                          ),
-                        );
-                      },
-                    ),
-                  ],
                 ),
               ),
             ],
@@ -365,9 +507,9 @@ class _IndexScreenState extends State<IndexScreen> {
   @override
   void dispose() {
     _eventSubscription?.cancel();
-    mainRoleController.dispose();
-    secondaryRoleController.dispose();
-    autofillRoleController.dispose();
+    for (var controller in _otpControllers) {
+      controller.dispose();
+    }
     super.dispose();
   }
 }

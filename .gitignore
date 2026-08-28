@@ -5,7 +5,7 @@ backend/.env
 
 # Generic env files
 *.env
-
+.env
 # Markdown files (User requested to ignore)
 *.md
 
@@ -21,3 +21,4 @@ backend/golang/*.exe
 
 # Android build reports and artifacts
 drafting/android/build/
+*.apk

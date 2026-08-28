@@ -27,6 +27,9 @@ class MainActivity : FlutterActivity() {
     private var pendingMainRole: String? = null
     private var pendingSecondaryRole: String? = null
     private var pendingAutofillRole: String? = null
+    private var pendingIsPremium: Boolean = false
+    private var pendingOtpChampions: String? = ""
+    private var pendingActiveCreatorId: String? = ""
     private var awaitingOverlayPermission: Boolean = false
 
     private val resultReceiver = object : BroadcastReceiver() {
@@ -93,6 +96,9 @@ class MainActivity : FlutterActivity() {
                 pendingMainRole = call.argument("mainRole")
                 pendingSecondaryRole = call.argument("secondaryRole")
                 pendingAutofillRole = call.argument("autofillRole")
+                pendingIsPremium = call.argument("isPremium") ?: false
+                pendingOtpChampions = call.argument("otpChampions") ?: ""
+                pendingActiveCreatorId = call.argument("activeCreatorId") ?: ""
 
                 startMediaProjectionRequest()
                 result.success(true)
@@ -129,6 +135,9 @@ class MainActivity : FlutterActivity() {
                 serviceIntent.putExtra("mainRole", pendingMainRole)
                 serviceIntent.putExtra("secondaryRole", pendingSecondaryRole)
                 serviceIntent.putExtra("autofillRole", pendingAutofillRole)
+                serviceIntent.putExtra("isPremium", pendingIsPremium)
+                serviceIntent.putExtra("otpChampions", pendingOtpChampions)
+                serviceIntent.putExtra("activeCreatorId", pendingActiveCreatorId)
 
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                     startForegroundService(serviceIntent)

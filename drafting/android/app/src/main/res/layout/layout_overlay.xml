@@ -75,17 +75,51 @@
             android:src="@drawable/ic_drag_handle"
             android:contentDescription="Arrastrar" />
         
-        <!-- Botón de Captura -->
-        <ImageButton
-            android:id="@+id/btnCapture"
-            android:layout_width="56dp"
-            android:layout_height="56dp"
-            android:background="@drawable/bg_hextech_button"
-            android:src="@android:drawable/ic_menu_camera"
-            android:tint="#C89B3C"
-            android:scaleType="centerInside"
-            android:elevation="6dp"
-            android:contentDescription="Tomar Captura" />
+        <!-- Botones de Captura (Autofill, OTP, In-Game) -->
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center">
+
+            <!-- Botón Autofill -->
+            <ImageButton
+                android:id="@+id/btnCaptureAutofill"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:layout_marginEnd="8dp"
+                android:background="@drawable/bg_hextech_button"
+                android:src="@android:drawable/ic_menu_camera"
+                android:tint="#C89B3C"
+                android:scaleType="centerInside"
+                android:elevation="6dp"
+                android:contentDescription="Autofill" />
+
+            <!-- Botón OTP -->
+            <ImageButton
+                android:id="@+id/btnCaptureOTP"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:layout_marginEnd="8dp"
+                android:background="@drawable/bg_hextech_button"
+                android:src="@android:drawable/ic_menu_myplaces"
+                android:tint="#C89B3C"
+                android:scaleType="centerInside"
+                android:elevation="6dp"
+                android:contentDescription="OTP" />
+
+            <!-- Botón In-Game -->
+            <ImageButton
+                android:id="@+id/btnCaptureInGame"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:background="@drawable/bg_hextech_button"
+                android:src="@android:drawable/ic_menu_sort_by_size"
+                android:tint="#C89B3C"
+                android:scaleType="centerInside"
+                android:elevation="6dp"
+                android:contentDescription="En Partida" />
+        </LinearLayout>
             
         <!-- Botón de Cerrar -->
         <ImageButton

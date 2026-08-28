@@ -1,16 +1,37 @@
 import 'package:flutter/material.dart';
 import 'package:google_sign_in/google_sign_in.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show kIsWeb, PlatformDispatcher;
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'theme/app_theme.dart';
 import 'screens/splash_screen.dart';
+import 'core/state/active_product_state.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
+  // Inicializar Firebase y Crashlytics para reporte de errores en producción
+  try {
+    await Firebase.initializeApp();
+    if (!kIsWeb) {
+      // Capturar errores de Flutter (UI)
+      FlutterError.onError = FirebaseCrashlytics.instance.recordFlutterFatalError;
+      // Capturar errores asíncronos que no captura FlutterError
+      PlatformDispatcher.instance.onError = (error, stack) {
+        FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
+        return true;
+      };
+    }
+  } catch (e) {
+    debugPrint("Advertencia: Firebase initialization failed: $e");
+  }
+
   await GoogleSignIn.instance.initialize(
     clientId: kIsWeb ? '373092520666-n6h8cn0tpllr3tacqu2vh4o2efnjf8v9.apps.googleusercontent.com' : null,
     serverClientId: '373092520666-n6h8cn0tpllr3tacqu2vh4o2efnjf8v9.apps.googleusercontent.com',
   );
+
+  await ActiveProductState().init();
 
   runApp(const DraftingApp());
 }
