@@ -119,6 +119,7 @@ func main() {
 			r.Post("/chat-coach/threads/{id}/message", handlers.PostChatCoachMessage)
 			r.Post("/chat-coach/threads/{id}/video-message", handlers.PostChatCoachVideoMessage)
 			r.Post("/chat-coach/threads/{id}/tutor-message", handlers.PostTutorMessage)
+			r.Delete("/chat-coach/threads/{id}", handlers.DeleteChatCoachThread)
 
 			// Group/Entrepreneur Routes (Version 2)
 			r.Get("/group/champions", handlers.GetMyChampions)

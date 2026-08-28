@@ -409,3 +409,33 @@ func PostTutorMessage(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(aiMsg)
 }
 
+
+// DeleteChatCoachThread deletes a chat thread and all its messages
+func DeleteChatCoachThread(w http.ResponseWriter, r *http.Request) {
+	threadID := chi.URLParam(r, "id")
+
+	user, ok := r.Context().Value(middleware.UserContextKey).(*models.User)
+	if !ok {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	var thread models.MatchChatThread
+	if err := database.DB.Where("id = ?", threadID).First(&thread).Error; err != nil {
+		http.Error(w, "Thread not found", http.StatusNotFound)
+		return
+	}
+
+	var session models.MatchSession
+	if err := database.DB.Where("id = ? AND user_id = ?", thread.MatchSessionID, user.ID).First(&session).Error; err != nil {
+		http.Error(w, "Unauthorized thread access", http.StatusUnauthorized)
+		return
+	}
+
+	database.DB.Where("thread_id = ?", threadID).Delete(&models.MatchChatMessage{})
+	database.DB.Delete(&thread)
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{"success": true})
+}
+

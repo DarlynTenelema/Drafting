@@ -45,7 +45,7 @@ func CreateChannel(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := database.DB.Create(&channel).Error; err != nil {
-		http.Error(w, "Failed to create channel", http.StatusInternalServerError)
+		http.Error(w, "Failed to create channel: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 

@@ -6,6 +6,7 @@ class FanartService {
   Future<List<FanartModel>> getFanarts() async {
     try {
       final response = await ApiClient.get('/api/v1/content/approved?type=fanarts', authenticated: true);
+      debugPrint('getFanarts response: \${response.statusCode} - \${response.body}');
       if (response.statusCode == 200) {
         final List<dynamic> data = jsonDecode(response.body);
         return data.map((json) => FanartModel.fromJson(json)).toList();
@@ -13,6 +14,7 @@ class FanartService {
         throw ApiException('Hubo un problema al cargar los fanarts. Intenta más tarde.');
       }
     } catch (e) {
+      debugPrint('getFanarts error: $e');
       throw ApiException(e.toString());
     }
   }

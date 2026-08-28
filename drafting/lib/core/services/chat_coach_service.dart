@@ -27,6 +27,13 @@ class ChatCoachService {
     }
   }
 
+  static Future<void> deleteThread(String threadId) async {
+    final response = await ApiClient.delete('/chat-coach/threads/$threadId', authenticated: true);
+    if (response.statusCode != 200) {
+      throw Exception('Failed to delete thread: ${response.statusCode}');
+    }
+  }
+
   static Future<List<MatchChatMessage>> getMessages(String threadId) async {
     final response = await ApiClient.get('/chat-coach/threads/$threadId/messages', authenticated: true);
 

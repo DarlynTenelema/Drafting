@@ -46,19 +46,19 @@ class _CreateChannelScreenState extends State<CreateChannelScreen> {
           ? _selectedImage!.path 
           : 'https://ui-avatars.com/api/?name=${Uri.encodeComponent(name)}&background=random';
       
-      final success = await VideoService().createChannel(name, avatarUrl);
+      final errorMsg = await VideoService().createChannel(name, avatarUrl);
       
       if (mounted) {
         setState(() => _isCreating = false);
 
-        if (success) {
+        if (errorMsg == null) {
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(builder: (_) => const UploadVideoScreen()),
           );
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Error al crear el canal en el servidor'), backgroundColor: Colors.red),
+            SnackBar(content: Text(errorMsg), backgroundColor: Colors.red),
           );
         }
       }

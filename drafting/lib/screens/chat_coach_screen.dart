@@ -606,6 +606,38 @@ class _ChatCoachScreenState extends State<ChatCoachScreen> {
                         fontSize: 14,
                       ),
                     ),
+                    trailing: IconButton(
+                      icon: const Icon(Icons.delete, color: Colors.redAccent, size: 18),
+                      onPressed: () async {
+                        // Confirm deletion
+                        final confirm = await showDialog<bool>(
+                          context: context,
+                          builder: (c) => AlertDialog(
+                            backgroundColor: AppTheme.surface,
+                            title: const Text('Eliminar Chat', style: TextStyle(color: Colors.white)),
+                            content: const Text('¿Estás seguro de que deseas eliminar este chat?', style: TextStyle(color: Colors.white70)),
+                            actions: [
+                              TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Cancelar')),
+                              TextButton(
+                                onPressed: () => Navigator.pop(c, true), 
+                                child: const Text('Eliminar', style: TextStyle(color: Colors.redAccent))
+                              ),
+                            ],
+                          ),
+                        );
+                        if (confirm == true) {
+                          try {
+                            setState(() => _isLoading = true);
+                            await ChatCoachService.deleteThread(thread.id);
+                            _loadMatches(); // Reload matches after deletion
+                          } catch (e) {
+                            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Error al eliminar chat')));
+                          } finally {
+                            if (mounted) setState(() => _isLoading = false);
+                          }
+                        }
+                      },
+                    ),
                     onTap: () {
                       Navigator.pop(context); // Close drawer
                       setState(() {

@@ -49,16 +49,16 @@ func (v *VideoEmbed) BeforeCreate(tx *gorm.DB) (err error) {
 }
 
 type Fanart struct {
-	ID        uuid.UUID `gorm:"type:uuid;primary_key;default:gen_random_uuid()"`
-	CreatorID uuid.UUID `gorm:"type:uuid;not null;index"`
-	Title     string    `gorm:"type:varchar(255);not null"`
-	ImageURL  string    `gorm:"type:varchar(512);not null"`
-	PriceCoin float64   `gorm:"type:decimal(10,2);not null"` // Price in GoldenCoins
-	Status    string    `gorm:"type:varchar(50);default:'pending'"` // pending, approved, rejected
-	Tags      string    `gorm:"type:varchar(255)"` // Comma separated
-	Likes     int       `gorm:"default:0"`
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	ID        uuid.UUID `gorm:"type:uuid;primary_key;default:gen_random_uuid()" json:"id"`
+	CreatorID uuid.UUID `gorm:"type:uuid;not null;index" json:"creator_id"`
+	Title     string    `gorm:"type:varchar(255);not null" json:"title"`
+	ImageURL  string    `gorm:"type:varchar(512);not null" json:"image_url"`
+	PriceCoin float64   `gorm:"type:decimal(10,2);not null" json:"price_coin"` // Price in GoldenCoins
+	Status    string    `gorm:"type:varchar(50);default:'pending'" json:"status"` // pending, approved, rejected
+	Tags      string    `gorm:"type:varchar(255)" json:"tags"` // Comma separated
+	Likes     int       `gorm:"default:0" json:"likes"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
 }
 
 func (f *Fanart) BeforeCreate(tx *gorm.DB) (err error) {

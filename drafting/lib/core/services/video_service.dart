@@ -18,7 +18,7 @@ class VideoService extends ChangeNotifier {
 
   List<VideoModel> get videos => _videos;
 
-  Future<bool> createChannel(String name, String avatarPath) async {
+  Future<String?> createChannel(String name, String avatarPath) async {
     isLoading = true;
     notifyListeners();
     try {
@@ -43,14 +43,14 @@ class VideoService extends ChangeNotifier {
       if (response.statusCode == 201) {
         final data = jsonDecode(response.body);
         currentUserChannel = ChannelModel.fromJson(data);
-        return true;
+        return null; // Success
       } else {
-        debugPrint('Error creating channel: ${response.statusCode}');
-        return false;
+        debugPrint('Error creating channel: ${response.statusCode} - ${response.body}');
+        return 'Error ${response.statusCode}: ${response.body}';
       }
     } catch (e) {
       debugPrint('Exception creating channel: $e');
-      return false;
+      return 'Exception: $e';
     } finally {
       isLoading = false;
       notifyListeners();

@@ -7,7 +7,6 @@ import '../core/services/api_client.dart';
 import '../core/services/session_service.dart';
 import '../theme/app_theme.dart';
 import 'index_screen.dart';
-import 'register_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -18,61 +17,11 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen> {
   final GoogleSignIn _googleSignIn = GoogleSignIn.instance;
-  final TextEditingController _emailController = TextEditingController();
-  final TextEditingController _passwordController = TextEditingController();
   bool _isLoading = false;
-  bool _obscurePassword = true;
 
   @override
   void initState() {
     super.initState();
-  }
-
-  Future<void> _handleManualLogin() async {
-    final email = _emailController.text.trim();
-    final password = _passwordController.text;
-
-    if (email.isEmpty || password.isEmpty) {
-      _showError('Por favor ingresa correo y contraseña');
-      return;
-    }
-
-    setState(() {
-      _isLoading = true;
-    });
-
-    try {
-      final response = await ApiClient.post(
-        '/api/v1/auth/login',
-        body: {'email': email, 'password': password},
-      );
-
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        final sessionToken = data['session_token'] as String;
-
-        await SessionService.saveSessionToken(sessionToken);
-
-        if (!mounted) return;
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(
-            builder: (_) => IndexScreen(sessionToken: sessionToken),
-          ),
-        );
-      } else if (response.statusCode == 403) {
-        _showError('Esta cuenta usa Google Login. Espera a que se habilite.');
-      } else {
-        _showError('Credenciales incorrectas');
-      }
-    } catch (error) {
-      _showError('Error de red: ${error.toString()}');
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
-    }
   }
 
   Future<void> _handleGoogleSignIn() async {
@@ -83,8 +32,7 @@ class _LoginScreenState extends State<LoginScreen> {
     try {
       final googleUser = await _googleSignIn.authenticate();
 
-      final GoogleSignInAuthentication googleAuth = googleUser.authentication;
-      // Google API sends an idToken when authenticated
+      final GoogleSignInAuthentication googleAuth = googleUser!.authentication;
       final String? idToken = googleAuth.idToken;
 
       if (idToken != null) {
@@ -192,66 +140,7 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
               const Spacer(flex: 1),
               
-              // Email Field
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 32.0),
-                child: TextField(
-                  controller: _emailController,
-                  keyboardType: TextInputType.emailAddress,
-                  style: const TextStyle(color: Colors.white),
-                  decoration: InputDecoration(
-                    labelText: 'Correo Electrónico',
-                    labelStyle: const TextStyle(color: AppTheme.textMuted),
-                    enabledBorder: OutlineInputBorder(
-                      borderSide: BorderSide(color: AppTheme.primary.withValues(alpha: 0.5)),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderSide: const BorderSide(color: AppTheme.primary),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    prefixIcon: const Icon(Icons.email, color: AppTheme.primary),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-              
-              // Password Field
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 32.0),
-                child: TextField(
-                  controller: _passwordController,
-                  obscureText: _obscurePassword,
-                  style: const TextStyle(color: Colors.white),
-                  decoration: InputDecoration(
-                    labelText: 'Contraseña',
-                    labelStyle: const TextStyle(color: AppTheme.textMuted),
-                    enabledBorder: OutlineInputBorder(
-                      borderSide: BorderSide(color: AppTheme.primary.withValues(alpha: 0.5)),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderSide: const BorderSide(color: AppTheme.primary),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    prefixIcon: const Icon(Icons.lock, color: AppTheme.primary),
-                    suffixIcon: IconButton(
-                      icon: Icon(
-                        _obscurePassword ? Icons.visibility : Icons.visibility_off,
-                        color: AppTheme.textMuted,
-                      ),
-                      onPressed: () {
-                        setState(() {
-                          _obscurePassword = !_obscurePassword;
-                        });
-                      },
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 24),
-              
-              // Login Button
+              // Botón de Google Principal
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 32.0),
                 child: SizedBox(
@@ -259,86 +148,42 @@ class _LoginScreenState extends State<LoginScreen> {
                   child: _isLoading
                       ? const Center(child: CircularProgressIndicator(color: AppTheme.primary))
                       : ElevatedButton(
-                          onPressed: _handleManualLogin,
+                          onPressed: _handleGoogleSignIn,
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: AppTheme.primary,
+                            backgroundColor: Colors.white,
+                            foregroundColor: Colors.black87,
                             padding: const EdgeInsets.symmetric(vertical: 16),
                             shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
+                              borderRadius: BorderRadius.circular(30),
                             ),
+                            elevation: 8,
+                            shadowColor: AppTheme.primary.withValues(alpha: 0.3),
                           ),
-                          child: Text(
-                            'Iniciar Sesión',
-                            style: GoogleFonts.inter(
-                              fontSize: 18,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.white,
-                            ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Image.asset(
+                                'icon/google.img',
+                                height: 24,
+                                width: 24,
+                                errorBuilder: (context, error, stackTrace) => 
+                                  const Icon(Icons.g_mobiledata, size: 36, color: Colors.blue),
+                              ),
+                              const SizedBox(width: 12),
+                              Text(
+                                'Continuar con Google',
+                                style: GoogleFonts.inter(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
-                ),
-              ),
-              const SizedBox(height: 16),
-              
-              // Register Link
-              TextButton(
-                onPressed: () {
-                  Navigator.pushReplacement(
-                    context,
-                    MaterialPageRoute(builder: (context) => const RegisterScreen()),
-                  );
-                },
-                child: Text(
-                  '¿No tienes cuenta? Regístrate',
-                  style: GoogleFonts.inter(
-                    color: AppTheme.primary,
-                    fontWeight: FontWeight.w600,
-                  ),
                 ),
               ),
               
               const Spacer(flex: 1),
-
-              // Botón de Google Oculto
-              Visibility(
-                visible: false,
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 32.0),
-                  child: ElevatedButton(
-                    onPressed: _handleGoogleSignIn,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.white,
-                      foregroundColor: Colors.black87,
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(30),
-                      ),
-                      elevation: 8,
-                      shadowColor: AppTheme.primary.withValues(alpha: 0.3),
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Image.asset(
-                          'icon/google.img',
-                          height: 24,
-                          width: 24,
-                          errorBuilder: (context, error, stackTrace) => 
-                            const Icon(Icons.g_mobiledata, size: 36, color: Colors.blue),
-                        ),
-                        const SizedBox(width: 12),
-                        Text(
-                          'Continuar con Google',
-                          style: GoogleFonts.inter(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
               
               // Botón de Info (!)
               IconButton(
