@@ -10,7 +10,7 @@ class FanartService {
         final List<dynamic> data = jsonDecode(response.body);
         return data.map((json) => FanartModel.fromJson(json)).toList();
       } else {
-        throw ApiException('Failed to load fanarts: ${response.statusCode}');
+        throw ApiException('Hubo un problema al cargar los fanarts. Intenta más tarde.');
       }
     } catch (e) {
       throw ApiException(e.toString());
@@ -47,8 +47,12 @@ class FanartService {
         authenticated: true,
       );
       if (response.statusCode != 200) {
-        final data = jsonDecode(response.body);
-        return {'success': false, 'message': data['message'] ?? 'Failed to purchase fanart'};
+        try {
+          final data = jsonDecode(response.body);
+          return {'success': false, 'message': data['message'] ?? 'Failed to purchase fanart'};
+        } catch (_) {
+          return {'success': false, 'message': 'Error del servidor: ${response.statusCode}'};
+        }
       }
       return {'success': true};
     } catch (e) {

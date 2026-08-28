@@ -12,7 +12,9 @@ import '../core/services/chat_coach_service.dart';
 import 'chat_coach_prompts_screen.dart';
 
 class ChatCoachScreen extends StatefulWidget {
-  const ChatCoachScreen({super.key});
+  final Widget? bottomNavBar;
+
+  const ChatCoachScreen({super.key, this.bottomNavBar});
 
   @override
   State<ChatCoachScreen> createState() => _ChatCoachScreenState();
@@ -127,7 +129,14 @@ class _ChatCoachScreenState extends State<ChatCoachScreen> {
   }
 
   Future<void> _sendMessage() async {
-    if (_messageController.text.trim().isEmpty || _selectedThread == null) return;
+    if (_messageController.text.trim().isEmpty) return;
+
+    if (_selectedThread == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No hay ningún chat activo para enviar mensajes.')),
+      );
+      return;
+    }
 
     final text = _messageController.text.trim();
     setState(() {
@@ -228,6 +237,7 @@ class _ChatCoachScreenState extends State<ChatCoachScreen> {
         iconTheme: const IconThemeData(color: Colors.white),
       ),
       drawer: _buildDrawer(),
+      bottomNavigationBar: widget.bottomNavBar,
       body: _isLoading && _messages.isEmpty
           ? const Center(child: CircularProgressIndicator())
           : Column(
@@ -299,27 +309,8 @@ class _ChatCoachScreenState extends State<ChatCoachScreen> {
               ),
               const SizedBox(height: 40),
 
-              Wrap(
-                spacing: 12,
-                runSpacing: 12,
-                alignment: WrapAlignment.center,
-                children: [
-                  _buildQuickActionChip(
-                    'Analizar Draft',
-                    Icons.groups,
-                    _showDraftTooltip,
-                    'chat_coach_draft_tooltip',
-                    'Sube una captura de los 10 campeones y te diré las debilidades de tu composición.',
-                  ),
-                  _buildQuickActionChip(
-                    'Gráficos Post-Partida',
-                    Icons.bar_chart,
-                    _showStatsTooltip,
-                    'chat_coach_stats_tooltip',
-                    '¿Terminaste una partida? Sube tus gráficos de daño y oro para un análisis.',
-                  ),
-                ],
-              ),
+              // Buttons removed
+
             ],
           ),
         ),
@@ -327,51 +318,8 @@ class _ChatCoachScreenState extends State<ChatCoachScreen> {
     );
   }
 
-  Widget _buildQuickActionChip(String label, IconData icon, bool showTooltip, String tooltipKey, String tooltipText) {
-    return Column(
-      children: [
-        if (showTooltip)
-          Container(
-            margin: const EdgeInsets.only(bottom: 8),
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            decoration: BoxDecoration(
-              color: Colors.blueAccent.withOpacity(0.2),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.blueAccent.withOpacity(0.5)),
-            ),
-            width: 250,
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Icon(Icons.info_outline, color: Colors.blueAccent, size: 16),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    tooltipText,
-                    style: const TextStyle(color: Colors.white70, fontSize: 12),
-                  ),
-                ),
-                GestureDetector(
-                  onTap: () => _hideTooltip(tooltipKey),
-                  child: const Icon(Icons.close, color: Colors.white54, size: 16),
-                ),
-              ],
-            ),
-          ),
-        ActionChip(
-          backgroundColor: Colors.grey[900],
-          side: BorderSide(color: Colors.grey[800]!),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          label: Text(label, style: const TextStyle(color: Colors.white)),
-          avatar: Icon(icon, color: Colors.blueAccent, size: 18),
-          onPressed: () {
-            // Acción para pre-llenar el input o abrir cámara
-            _messageController.text = label;
-          },
-        ),
-      ],
-    );
-  }
+  // _buildQuickActionChip removed
+
 
   Widget _buildUserBubble(String content) {
     return Align(
@@ -539,16 +487,16 @@ class _ChatCoachScreenState extends State<ChatCoachScreen> {
                     : Container(
                         margin: const EdgeInsets.all(4.0),
                         decoration: BoxDecoration(
-                          color: isOverLimit || (text.isEmpty && _selectedMedia == null) ? Colors.transparent : Colors.white,
+                          color: isOverLimit || (text.isEmpty && _selectedMedia == null) || _selectedThread == null ? Colors.transparent : Colors.white,
                           shape: BoxShape.circle,
                         ),
                         child: IconButton(
                           icon: Icon(
                             Icons.arrow_upward, 
-                            color: isOverLimit || (text.isEmpty && _selectedMedia == null) ? Colors.grey : Colors.black,
+                            color: isOverLimit || (text.isEmpty && _selectedMedia == null) || _selectedThread == null ? Colors.grey : Colors.black,
                             size: 20,
                           ),
-                          onPressed: isOverLimit || (text.isEmpty && _selectedMedia == null) ? null : _sendMessage,
+                          onPressed: isOverLimit || (text.isEmpty && _selectedMedia == null) || _selectedThread == null ? null : _sendMessage,
                         ),
                       ),
                   ],
@@ -583,6 +531,18 @@ class _ChatCoachScreenState extends State<ChatCoachScreen> {
                 context,
                 MaterialPageRoute(builder: (_) => const ChatCoachPromptsScreen()),
               );
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.chat_bubble_outline, color: Colors.white),
+            title: const Text('Nueva Conversación', style: TextStyle(color: Colors.white)),
+            onTap: () {
+              Navigator.pop(context); // Close drawer
+              if (_matches.isNotEmpty) {
+                 _createNewThread(_matches.first);
+              } else {
+                 ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No hay partidas disponibles para analizar.')));
+              }
             },
           ),
           const Divider(color: Colors.grey),

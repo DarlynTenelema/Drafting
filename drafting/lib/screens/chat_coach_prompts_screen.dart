@@ -74,7 +74,6 @@ class _ChatCoachPromptsScreenState extends State<ChatCoachPromptsScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Instrucciones guardadas localmente.')),
       );
-      Navigator.pop(context);
     }
   }
 

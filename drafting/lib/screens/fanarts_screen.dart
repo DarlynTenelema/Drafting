@@ -13,7 +13,8 @@ import 'fanart_detail_screen.dart';
 import 'creator_setup_screen.dart';
 
 class FanartsScreen extends StatefulWidget {
-  const FanartsScreen({super.key});
+  final Widget? bottomNavBar;
+  const FanartsScreen({super.key, this.bottomNavBar});
 
   @override
   State<FanartsScreen> createState() => _FanartsScreenState();
@@ -49,7 +50,12 @@ class _FanartsScreenState extends State<FanartsScreen> {
           _isLoading = false;
         });
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error cargando fanarts: $e')),
+          SnackBar(
+            content: Text(e.toString()),
+            behavior: SnackBarBehavior.floating,
+            backgroundColor: AppTheme.surface,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
         );
       }
     }
@@ -68,6 +74,7 @@ class _FanartsScreenState extends State<FanartsScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppTheme.background,
+      bottomNavigationBar: widget.bottomNavBar,
       floatingActionButton: Padding(
         padding: const EdgeInsets.only(bottom: 60.0),
         child: FloatingActionButton(

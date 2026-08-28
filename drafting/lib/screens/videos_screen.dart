@@ -16,7 +16,8 @@ import '../widgets/app_drawer.dart';
 import '../widgets/report_dialog.dart';
 
 class VideosScreen extends StatefulWidget {
-  const VideosScreen({super.key});
+  final Widget? bottomNavBar;
+  const VideosScreen({super.key, this.bottomNavBar});
 
   @override
   State<VideosScreen> createState() => _VideosScreenState();
@@ -44,6 +45,7 @@ class _VideosScreenState extends State<VideosScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppTheme.background,
+      bottomNavigationBar: widget.bottomNavBar,
       drawer: const AppDrawer(),
       appBar: AppBar(
         backgroundColor: Colors.transparent,

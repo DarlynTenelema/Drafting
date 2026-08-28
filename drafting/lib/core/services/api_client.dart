@@ -1,5 +1,5 @@
 import 'dart:convert';
-
+import 'dart:io';
 import 'package:http/http.dart' as http;
 
 import '../config/app_config.dart';
@@ -7,6 +7,19 @@ import 'session_service.dart';
 
 class ApiClient {
   ApiClient._();
+
+  static Future<http.Response> _handleRequest(Future<http.Response> Function() requestFunc) async {
+    try {
+      return await requestFunc();
+    } on SocketException {
+      throw ApiException('Ups, tienes desconexión a internet. Verifica tu conexión.');
+    } catch (e) {
+      if (e.toString().contains('SocketException') || e.toString().contains('ClientException')) {
+        throw ApiException('Ups, tienes desconexión a internet. Verifica tu conexión.');
+      }
+      rethrow;
+    }
+  }
 
   static Future<http.Response> post(
     String path, {
@@ -26,11 +39,11 @@ class ApiClient {
       headers['Authorization'] = 'Bearer $token';
     }
 
-    return http.post(
+    return _handleRequest(() => http.post(
       AppConfig.apiUri(path),
       headers: headers,
       body: body == null ? null : jsonEncode(body),
-    );
+    ));
   }
 
   static Future<http.Response> get(
@@ -48,7 +61,7 @@ class ApiClient {
       headers['Authorization'] = 'Bearer $token';
     }
 
-    return http.get(AppConfig.apiUri(path), headers: headers);
+    return _handleRequest(() => http.get(AppConfig.apiUri(path), headers: headers));
   }
   static Future<http.Response> put(
     String path, {
@@ -68,11 +81,11 @@ class ApiClient {
       headers['Authorization'] = 'Bearer $token';
     }
 
-    return http.put(
+    return _handleRequest(() => http.put(
       AppConfig.apiUri(path),
       headers: headers,
       body: body == null ? null : jsonEncode(body),
-    );
+    ));
   }
 
   static Future<http.Response> delete(
@@ -90,7 +103,7 @@ class ApiClient {
       headers['Authorization'] = 'Bearer $token';
     }
 
-    return http.delete(AppConfig.apiUri(path), headers: headers);
+    return _handleRequest(() => http.delete(AppConfig.apiUri(path), headers: headers));
   }
 
   static Future<http.Response> multipartPost(
@@ -117,8 +130,10 @@ class ApiClient {
       request.headers['Authorization'] = 'Bearer $token';
     }
 
-    final streamedResponse = await request.send();
-    return await http.Response.fromStream(streamedResponse);
+    return _handleRequest(() async {
+      final streamedResponse = await request.send();
+      return await http.Response.fromStream(streamedResponse);
+    });
   }
 }
 

@@ -28,8 +28,12 @@ class CreatorService {
       if (response.statusCode == 201) {
         return {'success': true};
       } else {
-        final data = jsonDecode(response.body);
-        return {'success': false, 'message': data['message'] ?? 'Error al crear el perfil'};
+        try {
+          final data = jsonDecode(response.body);
+          return {'success': false, 'message': data['message'] ?? 'Error al crear el perfil'};
+        } catch (_) {
+          return {'success': false, 'message': 'Error del servidor: ${response.statusCode}'};
+        }
       }
     } catch (e) {
       return {'success': false, 'message': e.toString()};

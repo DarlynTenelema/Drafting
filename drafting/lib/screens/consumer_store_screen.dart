@@ -10,7 +10,8 @@ import 'payment_screen.dart';
 
 class ConsumerStoreScreen extends StatefulWidget {
   final String sessionToken;
-  const ConsumerStoreScreen({super.key, required this.sessionToken});
+  final Widget? bottomNavBar;
+  const ConsumerStoreScreen({super.key, required this.sessionToken, this.bottomNavBar});
 
   @override
   State<ConsumerStoreScreen> createState() => _ConsumerStoreScreenState();
@@ -102,7 +103,7 @@ class _ConsumerStoreScreenState extends State<ConsumerStoreScreen> with SingleTi
       }
     } catch (e) {
       setState(() {
-        _errorMessage = "Error de conexión: $e";
+        _errorMessage = e.toString();
         _isLoading = false;
       });
     }
@@ -249,6 +250,7 @@ class _ConsumerStoreScreenState extends State<ConsumerStoreScreen> with SingleTi
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppTheme.background,
+      bottomNavigationBar: widget.bottomNavBar,
       appBar: AppBar(
         backgroundColor: AppTheme.surface,
         elevation: 0,
@@ -289,7 +291,29 @@ class _ConsumerStoreScreenState extends State<ConsumerStoreScreen> with SingleTi
       return const Center(child: CircularProgressIndicator(color: AppTheme.primary));
     }
     if (_errorMessage != null) {
-      return Center(child: Text(_errorMessage!, style: const TextStyle(color: Colors.redAccent)));
+      return Center(
+        child: Container(
+          margin: const EdgeInsets.all(24),
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: AppTheme.surface,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.redAccent.withOpacity(0.3)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.wifi_off, color: Colors.redAccent, size: 48),
+              const SizedBox(height: 16),
+              Text(
+                _errorMessage!,
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: Colors.white, fontSize: 16),
+              ),
+            ],
+          ),
+        ),
+      );
     }
     if (_products.isEmpty) {
       return const Center(child: Text('No hay productos disponibles por ahora.', style: TextStyle(color: Colors.white)));

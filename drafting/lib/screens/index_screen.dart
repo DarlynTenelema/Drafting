@@ -24,7 +24,8 @@ import '../core/state/active_product_state.dart';
 class IndexScreen extends StatefulWidget {
   final String? sessionToken;
   final String? groupName; // Optional group name banner
-  const IndexScreen({super.key, this.sessionToken, this.groupName});
+  final Widget? bottomNavBar;
+  const IndexScreen({super.key, this.sessionToken, this.groupName, this.bottomNavBar});
 
   @override
   State<IndexScreen> createState() => _IndexScreenState();
@@ -240,6 +241,7 @@ class _IndexScreenState extends State<IndexScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      bottomNavigationBar: widget.bottomNavBar,
       drawer: Drawer(
         backgroundColor: AppTheme.surface,
         child: Column(

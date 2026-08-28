@@ -34,7 +34,7 @@ func ListStoreProducts(w http.ResponseWriter, r *http.Request) {
 		// Ignore
 	}
 
-	var products []StoreProductResponse
+	products := []StoreProductResponse{}
 
 	// Map Creator profiles (OTP)
 	for _, p := range otpProfiles {
@@ -125,7 +125,7 @@ func GetMyPackages(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	var products []StoreProductResponse
+	products := []StoreProductResponse{}
 
 	if len(creatorIDs) > 0 {
 		var otpProfiles []models.OTPProfile

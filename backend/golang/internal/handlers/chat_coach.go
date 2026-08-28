@@ -42,6 +42,24 @@ func GetChatCoachMatches(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if len(sessions) == 0 {
+		// Create a default session so the user has a place to start chatting
+		defaultSession := models.MatchSession{
+			UserID: user.ID.String(),
+			Status: "active",
+		}
+		if err := database.DB.Create(&defaultSession).Error; err == nil {
+			defaultThread := models.MatchChatThread{
+				MatchSessionID: defaultSession.ID,
+				Title:          "Chat Coach",
+			}
+			if err := database.DB.Create(&defaultThread).Error; err == nil {
+				defaultSession.Threads = []models.MatchChatThread{defaultThread}
+			}
+			sessions = append(sessions, defaultSession)
+		}
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(sessions)
 }
