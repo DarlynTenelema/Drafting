@@ -1,11 +1,14 @@
 package handlers
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"io"
 	"log"
 	"net/http"
-	"encoding/base64"
+	"os"
+	"strings"
+	"sync"
 	"time"
 
 	"backend/internal/database"
@@ -27,10 +30,29 @@ func GetChatCoachMatches(w http.ResponseWriter, r *http.Request) {
 	// 24H Cleanup Logic (Lazy Deletion)
 	cleanupTime := time.Now().Add(-24 * time.Hour)
 	var oldSessions []models.MatchSession
-	if err := database.DB.Where("created_at < ?", cleanupTime).Find(&oldSessions).Error; err == nil && len(oldSessions) > 0 {
+	if err := database.DB.Preload("Screenshots").Where("created_at < ?", cleanupTime).Find(&oldSessions).Error; err == nil && len(oldSessions) > 0 {
+		supabaseURL := os.Getenv("SUPABASE_URL")
+		supabaseKey := os.Getenv("SUPABASE_SERVICE_ROLE_KEY")
+
 		for _, oldSess := range oldSessions {
-			// Optional: delete from Supabase via HTTP call
-			// For now we just cascade delete from DB, Supabase will be cleaned if we had the API keys configured for deletion.
+			// Delete images from Supabase
+			if supabaseURL != "" && supabaseKey != "" {
+				for _, shot := range oldSess.Screenshots {
+					deleteURL := strings.Replace(shot.ImageURL, "/public/", "/", 1)
+					
+					req, err := http.NewRequest("DELETE", deleteURL, nil)
+					if err == nil {
+						req.Header.Set("Authorization", "Bearer "+supabaseKey)
+						client := &http.Client{Timeout: 10 * time.Second}
+						resp, err := client.Do(req)
+						if err == nil && resp != nil {
+							resp.Body.Close()
+						}
+					}
+				}
+			}
+			
+			// Cascade delete from DB
 			database.DB.Delete(&oldSess)
 		}
 	}
@@ -176,16 +198,26 @@ func PostChatCoachMessage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 4. Download images from Supabase to send to Gemini
+	// 4. Download images from Supabase to send to Gemini in parallel
 	var imagesBase64 []string
+	var mu sync.Mutex
+	var wg sync.WaitGroup
+
 	for _, screenshot := range session.Screenshots {
-		base64Str, err := downloadImageAsBase64Handler(screenshot.ImageURL)
-		if err == nil {
-			imagesBase64 = append(imagesBase64, base64Str)
-		} else {
-			log.Printf("ChatCoachHandler: Error downloading image %s: %v", screenshot.ImageURL, err)
-		}
+		wg.Add(1)
+		go func(url string) {
+			defer wg.Done()
+			base64Str, err := downloadImageAsBase64Handler(url)
+			if err == nil {
+				mu.Lock()
+				imagesBase64 = append(imagesBase64, base64Str)
+				mu.Unlock()
+			} else {
+				log.Printf("ChatCoachHandler: Error downloading image %s: %v", url, err)
+			}
+		}(screenshot.ImageURL)
 	}
+	wg.Wait()
 
 	// 5. Prepare chat history for Gemini
 	var geminiHistory []gemini.ChatCoachChatMessage
@@ -434,6 +466,63 @@ func DeleteChatCoachThread(w http.ResponseWriter, r *http.Request) {
 
 	database.DB.Where("thread_id = ?", threadID).Delete(&models.MatchChatMessage{})
 	database.DB.Delete(&thread)
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{"success": true})
+}
+
+// DeleteChatCoachMatch deletes a full match session, its threads, messages, and screenshots (including Supabase)
+func DeleteChatCoachMatch(w http.ResponseWriter, r *http.Request) {
+	matchID := chi.URLParam(r, "id")
+
+	user, ok := r.Context().Value(middleware.UserContextKey).(*models.User)
+	if !ok {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	var session models.MatchSession
+	if err := database.DB.Preload("Screenshots").Preload("Threads").Where("id = ? AND user_id = ?", matchID, user.ID).First(&session).Error; err != nil {
+		http.Error(w, "Match not found or unauthorized", http.StatusNotFound)
+		return
+	}
+
+	// 1. Delete images from Supabase
+	supabaseURL := os.Getenv("SUPABASE_URL")
+	supabaseKey := os.Getenv("SUPABASE_SERVICE_ROLE_KEY")
+	if supabaseURL != "" && supabaseKey != "" {
+		for _, shot := range session.Screenshots {
+			deleteURL := strings.Replace(shot.ImageURL, "/public/", "/", 1)
+			req, err := http.NewRequest("DELETE", deleteURL, nil)
+			if err == nil {
+				req.Header.Set("Authorization", "Bearer "+supabaseKey)
+				client := &http.Client{Timeout: 10 * time.Second}
+				resp, err := client.Do(req)
+				if err == nil && resp != nil {
+					resp.Body.Close()
+				}
+			}
+		}
+	}
+
+	// 2. Cascade delete records in DB
+	// Delete Messages for all threads
+	var threadIDs []string
+	for _, thread := range session.Threads {
+		threadIDs = append(threadIDs, thread.ID)
+	}
+	if len(threadIDs) > 0 {
+		database.DB.Where("thread_id IN ?", threadIDs).Delete(&models.MatchChatMessage{})
+	}
+	
+	// Delete Threads
+	database.DB.Where("match_session_id = ?", session.ID).Delete(&models.MatchChatThread{})
+	
+	// Delete Screenshots
+	database.DB.Where("match_session_id = ?", session.ID).Delete(&models.MatchScreenshot{})
+	
+	// Delete Session
+	database.DB.Delete(&session)
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{"success": true})

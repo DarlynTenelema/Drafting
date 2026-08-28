@@ -34,6 +34,14 @@ class ChatCoachService {
     }
   }
 
+  static Future<void> deleteMatch(String matchId) async {
+    final response = await ApiClient.delete('/chat-coach/matches/$matchId', authenticated: true);
+    if (response.statusCode != 200) {
+      throw Exception('Failed to delete match session: ${response.statusCode}');
+    }
+  }
+
+
   static Future<List<MatchChatMessage>> getMessages(String threadId) async {
     final response = await ApiClient.get('/chat-coach/threads/$threadId/messages', authenticated: true);
 

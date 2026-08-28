@@ -114,6 +114,7 @@ func main() {
 
 			// Chat Coach Routes
 			r.Get("/chat-coach/matches", handlers.GetChatCoachMatches)
+			r.Delete("/chat-coach/matches/{id}", handlers.DeleteChatCoachMatch)
 			r.Post("/chat-coach/matches/{id}/threads", handlers.CreateChatCoachThread)
 			r.Get("/chat-coach/threads/{id}/messages", handlers.GetChatCoachMessages)
 			r.Post("/chat-coach/threads/{id}/message", handlers.PostChatCoachMessage)

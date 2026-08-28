@@ -1,7 +1,10 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../core/services/api_client.dart';
 import '../theme/app_theme.dart';
 
@@ -19,7 +22,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
   String _profilePic = '';
 
   final TextEditingController _usernameController = TextEditingController();
-  final TextEditingController _profilePicController = TextEditingController();
+  
+  File? _selectedImage;
+  final ImagePicker _picker = ImagePicker();
+
+  Future<void> _pickImage() async {
+    final XFile? image = await _picker.pickImage(source: ImageSource.gallery);
+    if (image != null) {
+      setState(() {
+        _selectedImage = File(image.path);
+      });
+      // Re-trigger the dialog rebuild
+      if (mounted) {
+        Navigator.pop(context);
+        _showEditProfileDialog();
+      }
+    }
+  }
 
   @override
   void initState() {
@@ -37,7 +56,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
           _username = data['username'] ?? '';
           _profilePic = data['profile_pic'] ?? '';
           _usernameController.text = _username;
-          _profilePicController.text = _profilePic;
         });
       }
     } catch (e) {
@@ -50,12 +68,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _updateProfile() async {
     setState(() => _isLoading = true);
     try {
+      String finalProfilePic = _profilePic;
+      
+      if (_selectedImage != null) {
+        final file = _selectedImage!;
+        final fileName = '${DateTime.now().millisecondsSinceEpoch}_avatar.jpg';
+        await Supabase.instance.client.storage.from('avatars').upload(fileName, file);
+        finalProfilePic = Supabase.instance.client.storage.from('avatars').getPublicUrl(fileName);
+      }
+
       final response = await ApiClient.put(
         '/api/v1/auth/me',
         authenticated: true,
         body: {
           'username': _usernameController.text.trim(),
-          'profile_pic': _profilePicController.text.trim(),
+          'profile_pic': finalProfilePic,
         },
       );
       if (response.statusCode == 200) {
@@ -100,15 +127,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ),
                 ),
                 const SizedBox(height: 16),
-                TextField(
-                  controller: _profilePicController,
-                  style: const TextStyle(color: Colors.white),
-                  decoration: InputDecoration(
-                    labelText: 'URL de Foto de perfil',
-                    labelStyle: const TextStyle(color: AppTheme.textMuted),
-                    filled: true,
-                    fillColor: AppTheme.background,
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                Center(
+                  child: GestureDetector(
+                    onTap: _pickImage,
+                    child: CircleAvatar(
+                      radius: 50,
+                      backgroundColor: AppTheme.background,
+                      backgroundImage: _selectedImage != null 
+                          ? FileImage(_selectedImage!) 
+                          : (_profilePic.isNotEmpty ? NetworkImage(_profilePic) : null) as ImageProvider?,
+                      child: _selectedImage == null && _profilePic.isEmpty
+                          ? const Icon(Icons.camera_alt, size: 40, color: Colors.white54)
+                          : null,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Center(
+                  child: Text(
+                    'Cambiar Foto de Perfil',
+                    style: GoogleFonts.inter(color: AppTheme.textMuted, fontSize: 12),
                   ),
                 ),
               ],

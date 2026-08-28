@@ -29,6 +29,7 @@ class FanartModel {
     this.likes = 0,
   });
 
+
   factory FanartModel.fromJson(Map<String, dynamic> json) {
     List<String> parsedTags = [];
     final rawTags = json['tags'] ?? json['Tags'];
@@ -48,6 +49,9 @@ class FanartModel {
           : DateTime.now(),
       tags: parsedTags,
       likes: json['likes'] ?? json['Likes'] ?? 0,
+      creatorName: json['creator_name'] ?? 'Creator',
+      creatorAvatar: json['creator_avatar'] ?? 'https://i.pravatar.cc/150?img=1',
     );
   }
 }
+

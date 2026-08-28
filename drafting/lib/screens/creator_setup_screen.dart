@@ -1,8 +1,12 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../theme/app_theme.dart';
 import '../core/services/creator_service.dart';
+import '../core/services/api_client.dart';
 import 'upload_fanart_screen.dart';
 
 class CreatorSetupScreen extends StatefulWidget {
@@ -26,6 +30,18 @@ class _CreatorSetupScreenState extends State<CreatorSetupScreen> {
   final List<String> _selectedTags = [];
   bool _isLoading = false;
 
+  File? _selectedImage;
+  final ImagePicker _picker = ImagePicker();
+
+  Future<void> _pickImage() async {
+    final XFile? image = await _picker.pickImage(source: ImageSource.gallery);
+    if (image != null) {
+      setState(() {
+        _selectedImage = File(image.path);
+      });
+    }
+  }
+
   void _handleCreateProfile() async {
     final artistName = _artistNameController.text.trim();
     if (artistName.isEmpty) {
@@ -46,14 +62,34 @@ class _CreatorSetupScreenState extends State<CreatorSetupScreen> {
       _isLoading = true;
     });
 
-    final result = await CreatorService().createCreatorProfile(artistName, _selectedTags);
+    try {
+      String? profilePicUrl;
+      if (_selectedImage != null) {
+        final file = _selectedImage!;
+        final fileName = '${DateTime.now().millisecondsSinceEpoch}_avatar.jpg';
+        await Supabase.instance.client.storage.from('avatars').upload(fileName, file);
+        profilePicUrl = Supabase.instance.client.storage.from('avatars').getPublicUrl(fileName);
+      }
 
-    if (!mounted) return;
-    setState(() {
-      _isLoading = false;
-    });
+      // 1. Update Global Profile (Username and Pic)
+      await ApiClient.put(
+        '/api/v1/auth/me',
+        authenticated: true,
+        body: {
+          'username': artistName,
+          if (profilePicUrl != null) 'profile_pic': profilePicUrl,
+        },
+      );
 
-    if (result['success']) {
+      // 2. Create Creator Profile
+      final result = await CreatorService().createCreatorProfile(artistName, _selectedTags);
+
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+      });
+
+      if (result['success']) {
       // Redirigir a UploadFanartScreen reemplazando esta pantalla
       Navigator.pushReplacement(
         context,
@@ -62,6 +98,12 @@ class _CreatorSetupScreenState extends State<CreatorSetupScreen> {
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(result['message'] ?? 'Error desconocido'), backgroundColor: Colors.red),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
       );
     }
   }
@@ -105,9 +147,32 @@ class _CreatorSetupScreenState extends State<CreatorSetupScreen> {
             ),
             const SizedBox(height: 32),
 
+            // Profile Picture
+            Center(
+              child: GestureDetector(
+                onTap: _pickImage,
+                child: CircleAvatar(
+                  radius: 50,
+                  backgroundColor: AppTheme.surface,
+                  backgroundImage: _selectedImage != null ? FileImage(_selectedImage!) : null,
+                  child: _selectedImage == null
+                      ? const Icon(Icons.camera_alt, size: 40, color: Colors.white54)
+                      : null,
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Center(
+              child: Text(
+                'Toca para subir tu Foto de Perfil',
+                style: GoogleFonts.inter(color: AppTheme.textMuted, fontSize: 14),
+              ),
+            ),
+            const SizedBox(height: 32),
+
             // Artist Name
             Text(
-              'Nombre de Artista (Único)',
+              'Nombre de Usuario (Artista)',
               style: GoogleFonts.inter(
                 color: Colors.white,
                 fontWeight: FontWeight.w600,

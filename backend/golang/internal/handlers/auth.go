@@ -120,9 +120,14 @@ func UpdateProfile(w http.ResponseWriter, r *http.Request) {
 
 	if req.Username != "" {
 		user.Username = req.Username
+		// Sync with Channel and CreatorProfile
+		database.DB.Model(&models.Channel{}).Where("owner_id = ?", user.ID).Update("name", req.Username)
+		database.DB.Model(&models.CreatorProfile{}).Where("user_id = ?", user.ID).Update("artist_name", req.Username)
 	}
 	if req.ProfilePic != "" {
 		user.ProfilePic = req.ProfilePic
+		// Sync with Channel logo
+		database.DB.Model(&models.Channel{}).Where("owner_id = ?", user.ID).Update("logo_url", req.ProfilePic)
 	}
 
 	if err := database.DB.Save(user).Error; err != nil {

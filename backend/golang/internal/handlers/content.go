@@ -280,6 +280,12 @@ func SubmitVideo(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(video)
 }
 
+type FanartResponse struct {
+	models.Fanart
+	CreatorName   string `json:"creator_name"`
+	CreatorAvatar string `json:"creator_avatar"`
+}
+
 type UploadFanartRequest struct {
 	Title     string  `json:"title"`
 	ImageURL  string  `json:"image_url"`
@@ -435,7 +441,26 @@ func ListApprovedContent(w http.ResponseWriter, r *http.Request) {
 	case "fanarts":
 		var fanarts []models.Fanart
 		database.DB.Where("status = ?", "approved").Find(&fanarts)
-		json.NewEncoder(w).Encode(fanarts)
+		
+		var fanartResponses []FanartResponse
+		for _, f := range fanarts {
+			var creator models.User
+			database.DB.Where("id = ?", f.CreatorID).First(&creator)
+			name := creator.Username
+			if name == "" {
+				name = "Creator"
+			}
+			avatar := creator.ProfilePic
+			if avatar == "" {
+				avatar = "https://i.pravatar.cc/150?img=1"
+			}
+			fanartResponses = append(fanartResponses, FanartResponse{
+				Fanart:        f,
+				CreatorName:   name,
+				CreatorAvatar: avatar,
+			})
+		}
+		json.NewEncoder(w).Encode(fanartResponses)
 	default:
 		http.Error(w, "Invalid content type. Use ?type=channels|videos|fanarts", http.StatusBadRequest)
 	}
@@ -538,8 +563,26 @@ func GetMyFanarts(w http.ResponseWriter, r *http.Request) {
 	var fanarts []models.Fanart
 	database.DB.Where("creator_id = ?", user.ID).Order("created_at desc").Find(&fanarts)
 
+	var fanartResponses []FanartResponse
+	name := user.Username
+	if name == "" {
+		name = "Creator"
+	}
+	avatar := user.ProfilePic
+	if avatar == "" {
+		avatar = "https://i.pravatar.cc/150?img=1"
+	}
+	
+	for _, f := range fanarts {
+		fanartResponses = append(fanartResponses, FanartResponse{
+			Fanart:        f,
+			CreatorName:   name,
+			CreatorAvatar: avatar,
+		})
+	}
+
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(fanarts)
+	json.NewEncoder(w).Encode(fanartResponses)
 }
 
 type UpdateVideoRequest struct {

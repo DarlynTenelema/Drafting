@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'api_client.dart';
 import '../models/fanart_model.dart';
 

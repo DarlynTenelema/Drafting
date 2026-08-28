@@ -40,6 +40,16 @@ class VideoService extends ChangeNotifier {
         }
       );
 
+      // 1. Update Global Profile (Username and Pic)
+      await ApiClient.put(
+        '/api/v1/auth/me',
+        authenticated: true,
+        body: {
+          'username': name,
+          'profile_pic': finalAvatarUrl,
+        },
+      );
+
       if (response.statusCode == 201) {
         final data = jsonDecode(response.body);
         currentUserChannel = ChannelModel.fromJson(data);

@@ -26,7 +26,6 @@ class _ChatCoachScreenState extends State<ChatCoachScreen> {
 
   bool _isLoading = true;
   bool _isSending = false;
-  XFile? _selectedMedia;
 
   List<MatchSession> _matches = [];
   MatchSession? _selectedMatch;
@@ -160,13 +159,7 @@ class _ChatCoachScreenState extends State<ChatCoachScreen> {
           ? 'Instrucción Oculta del Usuario:\n$customPrompt\n\nMensaje real del usuario:\n$text'
           : text;
 
-      MatchChatMessage aiMsg;
-      if (_selectedMedia != null) {
-        aiMsg = await ChatCoachService.sendVideoMessage(_selectedThread!.id, payload, _selectedMedia!.path);
-        _selectedMedia = null;
-      } else {
-        aiMsg = await ChatCoachService.sendMessage(_selectedThread!.id, payload);
-      }
+      MatchChatMessage aiMsg = await ChatCoachService.sendMessage(_selectedThread!.id, payload);
       
       setState(() {
         _messages.add(aiMsg);
@@ -215,16 +208,6 @@ class _ChatCoachScreenState extends State<ChatCoachScreen> {
         );
       }
     });
-  }
-
-  Future<void> _pickMedia() async {
-    final ImagePicker picker = ImagePicker();
-    final XFile? video = await picker.pickVideo(source: ImageSource.gallery);
-    if (video != null) {
-      setState(() {
-        _selectedMedia = video;
-      });
-    }
   }
 
   @override
@@ -303,7 +286,7 @@ class _ChatCoachScreenState extends State<ChatCoachScreen> {
               ),
               const SizedBox(height: 12),
               Text(
-                'Sube una imagen o video para comenzar tu análisis post-partida.',
+                'Usa el chat de abajo para comenzar tu análisis post-partida.',
                 textAlign: TextAlign.center,
                 style: TextStyle(color: Colors.grey[400], fontSize: 14),
               ),
@@ -415,40 +398,9 @@ class _ChatCoachScreenState extends State<ChatCoachScreen> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                if (_selectedMedia != null)
-                  Container(
-                    margin: const EdgeInsets.only(bottom: 8.0, left: 8.0, right: 8.0, top: 4.0),
-                    padding: const EdgeInsets.all(8.0),
-                    decoration: BoxDecoration(
-                      color: Colors.blueAccent.withOpacity(0.2),
-                      borderRadius: BorderRadius.circular(8.0),
-                    ),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.video_file, color: Colors.blueAccent),
-                        const SizedBox(width: 8.0),
-                        Expanded(
-                          child: Text(
-                            _selectedMedia!.name,
-                            style: const TextStyle(color: Colors.white, fontSize: 12),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                        GestureDetector(
-                          onTap: () => setState(() => _selectedMedia = null),
-                          child: const Icon(Icons.close, color: Colors.white54, size: 18),
-                        ),
-                      ],
-                    ),
-                  ),
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
-                    IconButton(
-                      icon: const Icon(Icons.add_circle_outline, color: Colors.grey),
-                      onPressed: _pickMedia,
-                    ),
                 Expanded(
                   child: ConstrainedBox(
                     constraints: const BoxConstraints(maxHeight: 120),
@@ -487,16 +439,16 @@ class _ChatCoachScreenState extends State<ChatCoachScreen> {
                     : Container(
                         margin: const EdgeInsets.all(4.0),
                         decoration: BoxDecoration(
-                          color: isOverLimit || (text.isEmpty && _selectedMedia == null) || _selectedThread == null ? Colors.transparent : Colors.white,
+                          color: isOverLimit || text.isEmpty || _selectedThread == null ? Colors.transparent : Colors.white,
                           shape: BoxShape.circle,
                         ),
                         child: IconButton(
                           icon: Icon(
                             Icons.arrow_upward, 
-                            color: isOverLimit || (text.isEmpty && _selectedMedia == null) || _selectedThread == null ? Colors.grey : Colors.black,
+                            color: isOverLimit || text.isEmpty || _selectedThread == null ? Colors.grey : Colors.black,
                             size: 20,
                           ),
-                          onPressed: isOverLimit || (text.isEmpty && _selectedMedia == null) || _selectedThread == null ? null : _sendMessage,
+                          onPressed: isOverLimit || text.isEmpty || _selectedThread == null ? null : _sendMessage,
                         ),
                       ),
                   ],
@@ -658,6 +610,49 @@ class _ChatCoachScreenState extends State<ChatCoachScreen> {
                   onTap: () {
                     Navigator.pop(context); // Close drawer
                     _createNewThread(match);
+                  },
+                ),
+                ListTile(
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 32.0),
+                  leading: const Icon(Icons.delete_forever, color: Colors.redAccent, size: 20),
+                  title: const Text(
+                    'Eliminar Partida Completa',
+                    style: TextStyle(color: Colors.redAccent, fontSize: 14),
+                  ),
+                  onTap: () async {
+                    Navigator.pop(context); // Close drawer
+                    // Confirm deletion
+                    final confirm = await showDialog<bool>(
+                      context: context,
+                      builder: (c) => AlertDialog(
+                        backgroundColor: AppTheme.surface,
+                        title: const Text('Eliminar Partida', style: TextStyle(color: Colors.white)),
+                        content: const Text('¿Estás seguro de que deseas eliminar TODA esta partida, incluyendo sus capturas de pantalla y todos los chats asociados? Esta acción no se puede deshacer.', style: TextStyle(color: Colors.white70)),
+                        actions: [
+                          TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Cancelar')),
+                          TextButton(
+                            onPressed: () => Navigator.pop(c, true), 
+                            child: const Text('Eliminar', style: TextStyle(color: Colors.redAccent))
+                          ),
+                        ],
+                      ),
+                    );
+                    if (confirm == true) {
+                      try {
+                        setState(() => _isLoading = true);
+                        await ChatCoachService.deleteMatch(match.id);
+                        if (_selectedMatch?.id == match.id) {
+                          _selectedMatch = null;
+                          _selectedThread = null;
+                          _messages = [];
+                        }
+                        _loadMatches(); // Reload matches after deletion
+                      } catch (e) {
+                        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Error al eliminar partida')));
+                      } finally {
+                        if (mounted) setState(() => _isLoading = false);
+                      }
+                    }
                   },
                 ),
               ],
