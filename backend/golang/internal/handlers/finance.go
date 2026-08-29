@@ -3,6 +3,7 @@ package handlers
 import (
 	"encoding/json"
 	"errors"
+	"os"
 	"net/http"
 	"strings"
 	"time"
@@ -14,6 +15,8 @@ import (
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
+	"github.com/stripe/stripe-go/v78"
+	"github.com/stripe/stripe-go/v78/transfer"
 )
 
 type RechargeCoinsRequest struct {
@@ -205,28 +208,54 @@ func SubscribeToGroup(w http.ResponseWriter, r *http.Request) {
 
 	tx := database.DB.Begin()
 
-	// Update Entrepreneur's USD Wallet
-	var entWallet models.Wallet
-	if err := tx.Where("user_id = ?", group.OwnerID).First(&entWallet).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			entWallet = models.Wallet{UserID: group.OwnerID}
-			tx.Create(&entWallet)
+	// Find all accepted members
+	var invitations []models.GroupInvitation
+	if err := tx.Where("group_id = ? AND status = ?", groupID, "accepted").Find(&invitations).Error; err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+		tx.Rollback()
+		http.Error(w, "Error fetching group members", http.StatusInternalServerError)
+		return
+	}
+
+	// The total members = Owner + accepted members
+	var memberEmails []string
+	memberEmails = append(memberEmails, user.Email) // wait, the owner email? No, we just need their IDs.
+	
+	// Collect all user IDs that are part of the group
+	memberIDs := []uuid.UUID{group.OwnerID}
+	
+	for _, inv := range invitations {
+		var member models.User
+		if err := tx.Where("email = ?", inv.Email).First(&member).Error; err == nil {
+			memberIDs = append(memberIDs, member.ID)
 		}
 	}
-	entWallet.BalanceUSD += finalEntrepreneurPayout
-	tx.Save(&entWallet)
+
+	// Split equitativamente
+	splitAmount := finalEntrepreneurPayout / float64(len(memberIDs))
+
+	for _, mID := range memberIDs {
+		var wallet models.Wallet
+		if err := tx.Where("user_id = ?", mID).First(&wallet).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				wallet = models.Wallet{UserID: mID}
+				tx.Create(&wallet)
+			}
+		}
+		wallet.BalanceUSD += splitAmount
+		tx.Save(&wallet)
+
+		// Record Transaction for each member
+		transaction := models.Transaction{
+			UserID:    mID,
+			Type:      "subscription_payout",
+			AmountUSD: splitAmount,
+			Status:    "completed",
+		}
+		tx.Create(&transaction)
+	}
 
 	// Update App's internal ledger (optional, we keep our share intact)
-	_ = appShare 
-
-	// Record Transaction
-	transaction := models.Transaction{
-		UserID:    group.OwnerID,
-		Type:      "subscription_payout",
-		AmountUSD: finalEntrepreneurPayout,
-		Status:    "completed",
-	}
-	tx.Create(&transaction)
+	_ = appShare
 
 	// Record purchase for Consumer so it shows in My Packages
 	buyerTx := models.Transaction{
@@ -689,8 +718,17 @@ func WithdrawFunds(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	withdrawnAmount := withdrawableUsd
-	wallet.BalanceUSD -= withdrawnAmount
+	if user.StripeAccountID == nil || *user.StripeAccountID == "" {
+		tx.Rollback()
+		http.Error(w, "Debes vincular tu cuenta bancaria (Stripe) antes de retirar fondos.", http.StatusBadRequest)
+		return
+	}
+
+	withdrawalFee := 2.0
+	withdrawnAmount := withdrawableUsd - withdrawalFee
+	
+	// Deduct the full amount (including fee) from the user's wallet
+	wallet.BalanceUSD -= withdrawableUsd
 	
 	if err := tx.Save(&wallet).Error; err != nil {
 		tx.Rollback()
@@ -698,15 +736,46 @@ func WithdrawFunds(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// ----------------------------------------------------
+	// STRIPE TRANSFER (Payout to Connected Account)
+	// ----------------------------------------------------
+	if stripe.Key == "" {
+		stripe.Key = os.Getenv("STRIPE_SECRET_KEY")
+	}
+	transferParams := &stripe.TransferParams{
+		Amount:      stripe.Int64(int64(withdrawnAmount * 100)), // Convert to cents
+		Currency:    stripe.String(string(stripe.CurrencyUSD)),
+		Destination: stripe.String(*user.StripeAccountID),
+		Description: stripe.String("Retiro de fondos desde Drafting"),
+	}
+
+	_, err := transfer.New(transferParams)
+	var txStatus string
+	if err != nil {
+		// Log the error but record the transaction as failed so they can retry
+		txStatus = "failed_payout"
+		wallet.BalanceUSD += withdrawableUsd // refund the full amount
+		tx.Save(&wallet)
+	} else {
+		txStatus = "completed"
+	}
+	// ----------------------------------------------------
+
 	txRec := models.Transaction{
 		UserID:    user.ID,
 		Type:      "payout",
 		AmountUSD: withdrawnAmount,
-		Status:    "pending_payout",
+		Status:    txStatus,
 	}
 	if err := tx.Create(&txRec).Error; err != nil {
 		tx.Rollback()
 		http.Error(w, "Failed to create transaction", http.StatusInternalServerError)
+		return
+	}
+
+	if txStatus == "failed_payout" {
+		tx.Commit()
+		http.Error(w, "Error procesando el pago en Stripe: "+err.Error(), http.StatusBadGateway)
 		return
 	}
 

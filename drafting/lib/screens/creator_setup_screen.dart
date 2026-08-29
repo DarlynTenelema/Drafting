@@ -90,15 +90,16 @@ class _CreatorSetupScreenState extends State<CreatorSetupScreen> {
       });
 
       if (result['success']) {
-      // Redirigir a UploadFanartScreen reemplazando esta pantalla
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => const UploadFanartScreen()),
-      );
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(result['message'] ?? 'Error desconocido'), backgroundColor: Colors.red),
-      );
+        // Redirigir a UploadFanartScreen reemplazando esta pantalla
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const UploadFanartScreen()),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(result['message'] ?? 'Error desconocido'), backgroundColor: Colors.red),
+        );
+      }
     } catch (e) {
       if (!mounted) return;
       setState(() => _isLoading = false);

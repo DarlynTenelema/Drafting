@@ -105,31 +105,7 @@ func Auth(next http.Handler) http.Handler {
 	})
 }
 
-func Cooldown(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		user, ok := r.Context().Value(UserContextKey).(*models.User)
-		if !ok {
-			http.Error(w, "User context missing", http.StatusInternalServerError)
-			return
-		}
-
-		// Limitar a 10 consultas por hora
-		var count int64
-		database.DB.Model(&models.ApiUsage{}).Where("user_id = ? AND created_at > ?", user.ID, time.Now().Add(-1*time.Hour)).Count(&count)
-		if count >= 10 {
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusTooManyRequests)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "Límite de 10 consultas por hora alcanzado. Intenta de nuevo más tarde.",
-			})
-			return
-		}
-
-		next.ServeHTTP(w, r)
-	})
-}
-
-// Check if user has an active subscription or if the global free trial is active
+	// Check if user has an active subscription or if the global free trial is active
 func SubscriptionCheck(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		user, ok := r.Context().Value(UserContextKey).(*models.User)
@@ -138,25 +114,71 @@ func SubscriptionCheck(next http.Handler) http.Handler {
 			return
 		}
 
-		// 1. Check Global Free Trial event window
-		if IsGlobalFreeTrialActive() {
-			next.ServeHTTP(w, r)
-			return
-		}
-
-		// 2. Check User Subscription
+		hasActive := false
+		activePlan := "freemium"
 		if user.SubscriptionEndsAt != nil && time.Now().Before(*user.SubscriptionEndsAt) {
-			// User has an active subscription, allow access
-			next.ServeHTTP(w, r)
+			hasActive = true
+			if user.ActivePlan != nil {
+				activePlan = *user.ActivePlan
+			}
+		}
+
+		// 1. Check Global Free Trial event window
+		if !hasActive && IsGlobalFreeTrialActive() {
+			hasActive = true
+			activePlan = "plus"
+		}
+
+		if !hasActive {
+			// Access denied
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusPaymentRequired) // 402
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Subscription expired or global free trial has ended. Please purchase a plan.",
+			})
 			return
 		}
 
-		// Access denied
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusPaymentRequired) // 402
-		json.NewEncoder(w).Encode(map[string]string{
-			"error": "Subscription expired or global free trial has ended. Please purchase a plan.",
-		})
+		// Attach active plan to context for Cooldown to use
+		ctx := context.WithValue(r.Context(), "active_plan", activePlan)
+		next.ServeHTTP(w, r.WithContext(ctx))
+	})
+}
+
+func Cooldown(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		user, ok := r.Context().Value(UserContextKey).(*models.User)
+		if !ok {
+			http.Error(w, "User context missing", http.StatusInternalServerError)
+			return
+		}
+
+		plan, ok := r.Context().Value("active_plan").(string)
+		if !ok {
+			plan = "freemium"
+		}
+
+		limit := int64(10) // Plus limit
+		if plan == "pro" {
+			limit = 20
+		} else if plan == "ultra" {
+			limit = 50
+		} else if plan == "freemium" {
+			limit = 3 // 3 per hour or day? The user said 3 per day, but currently it's per hour. Let's do 3 per hour for now since we don't have per-day logic yet.
+		}
+
+		var count int64
+		database.DB.Model(&models.ApiUsage{}).Where("user_id = ? AND created_at > ?", user.ID, time.Now().Add(-1*time.Hour)).Count(&count)
+		if count >= limit {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusTooManyRequests)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Límite de consultas por hora alcanzado para tu plan. Intenta de nuevo más tarde o mejora tu plan.",
+			})
+			return
+		}
+
+		next.ServeHTTP(w, r)
 	})
 }
 

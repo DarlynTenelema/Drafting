@@ -116,7 +116,7 @@ class InfoScreen extends StatelessWidget {
             _buildSectionHeader('Acerca de Drafting', Icons.info_outline),
             _buildInfoCard(
               'Desarrollado con IA',
-              'Drafting utiliza el modelo Gemini 2.5 Flash Lite para visión artificial y análisis de estrategia en tiempo real.',
+              'Drafting utiliza el modelo Gemini 2.5 Flash para visión artificial y análisis de estrategia en tiempo real.',
             ),
             
             const SizedBox(height: 30),

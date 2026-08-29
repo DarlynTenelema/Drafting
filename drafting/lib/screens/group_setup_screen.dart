@@ -342,17 +342,22 @@ Situational: ${_situationalCtrl.text}
                                   return;
                                 }
 
-                                // Simular el ID del producto basado en el plan
-                                String productId = widget.isGroup ? 'creator_group_${widget.planName.toLowerCase()}' : 'creator_otp_${widget.planName.toLowerCase()}';
-                                // Como es un MVP y los IDs tal vez no existan, usaremos un mock o intentaremos query
-                                final response = await _inAppPurchase.queryProductDetails({productId, 'creator_test_product'});
+                                String productId = '';
+                                if (widget.isGroup) {
+                                  if (widget.planName.contains('Start')) productId = 'emp_grupo_basico_100';
+                                  else if (widget.planName.contains('Avanzado')) productId = 'emp_grupo_pro_300';
+                                  else if (widget.planName.contains('Elite')) productId = 'emp_grupo_enterprise_500';
+                                } else {
+                                  if (widget.planName.contains('Básico')) productId = 'emp_otp_basico_10';
+                                  else if (widget.planName.contains('Pro')) productId = 'emp_otp_pro_30';
+                                  else if (widget.planName.contains('Leyenda')) productId = 'emp_otp_enterprise_50';
+                                }
+
+                                final response = await _inAppPurchase.queryProductDetails({productId});
                                 if (response.productDetails.isEmpty) {
-                                  // Fallback para pruebas si no hay productos reales configurados en la consola
                                   if (_loadingContext != null) { Navigator.pop(_loadingContext!); _loadingContext = null; }
-                                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Producto no encontrado en la tienda. (Modo prueba activo)')));
-                                  // Para pruebas locales, forzamos un token mock
-                                  _purchaseToken = "mock_token_12345";
-                                  await _executeCreationFlow();
+                                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Producto $productId no encontrado en la tienda. Verifica que el plan básico esté activo.')));
+                                  setState(() => _isPurchasing = false);
                                   return;
                                 }
                                 

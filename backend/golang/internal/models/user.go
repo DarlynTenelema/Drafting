@@ -25,6 +25,7 @@ type User struct {
 	PendingBanUntil *time.Time
 	ActiveGroupID *uuid.UUID `gorm:"type:uuid"` // The group the user is subscribed to
 	CurrentGoal   *string    `gorm:"type:varchar(255)"` // The current short-term goal for the AI coach
+	ActivePlan    *string    `gorm:"type:varchar(50);default:'freemium'"` // e.g., 'freemium', 'plus', 'pro', 'ultra'
 	LastDraftAt          time.Time
 	SubscriptionEndsAt   *time.Time
 	CreatedAt            time.Time

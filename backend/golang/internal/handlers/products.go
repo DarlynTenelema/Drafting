@@ -1,54 +1,33 @@
 package handlers
 
-import "time"
+import (
+	"strings"
+	"time"
+)
 
 var productToPlan = map[string]string{
-	"sub_micro_24h":   "micro_24h",
-	"sub_micro_72h":   "micro_72h",
-	"sub_micro_120h":  "micro_120h",
-	"sub_medium_30d":  "medium_30d",
-	"sub_medium_90d":  "medium_90d",
-	"sub_medium_150d": "medium_150d",
-	"sub_max_180d":    "max_180d",
-	"sub_max_240d":    "max_240d",
-	"sub_max_365d":    "max_365d",
+	"plus_1d": "plus", "plus_1w": "plus", "plus_1m": "plus", "plus_1y": "plus",
+	"pro_1d": "pro", "pro_1w": "pro", "pro_1m": "pro", "pro_1y": "pro",
+	"ultra_1d": "ultra", "ultra_1w": "ultra", "ultra_1m": "ultra", "ultra_1y": "ultra",
 }
 
 var productPrices = map[string]float64{
-	"sub_micro_24h":   0.49,
-	"sub_micro_72h":   1.47,
-	"sub_micro_120h":  2.45,
-	"sub_medium_30d":  9.99,
-	"sub_medium_90d":  29.97,
-	"sub_medium_150d": 49.95,
-	"sub_max_180d":    49.99,
-	"sub_max_240d":    79.99,
-	"sub_max_365d":    99.99,
+	"plus_1d": 0.99, "plus_1w": 2.99, "plus_1m": 4.99, "plus_1y": 49.99,
+	"pro_1d": 1.99, "pro_1w": 4.99, "pro_1m": 9.99, "pro_1y": 99.99,
+	"ultra_1d": 2.99, "ultra_1w": 7.99, "ultra_1m": 19.99, "ultra_1y": 199.99,
 }
 
 func getDurationForProduct(productID string) time.Duration {
-	switch productID {
-	case "sub_micro_24h":
-		return 24 * time.Hour
-	case "sub_micro_72h":
-		return 72 * time.Hour
-	case "sub_micro_120h":
-		return 120 * time.Hour
-	case "sub_medium_30d":
-		return 30 * 24 * time.Hour
-	case "sub_medium_90d":
-		return 90 * 24 * time.Hour
-	case "sub_medium_150d":
-		return 150 * 24 * time.Hour
-	case "sub_max_180d":
-		return 180 * 24 * time.Hour
-	case "sub_max_240d":
-		return 240 * 24 * time.Hour
-	case "sub_max_365d":
+	if strings.HasSuffix(productID, "_1y") {
 		return 365 * 24 * time.Hour
-	default:
-		return 0
+	} else if strings.HasSuffix(productID, "_1m") {
+		return 30 * 24 * time.Hour
+	} else if strings.HasSuffix(productID, "_1w") {
+		return 7 * 24 * time.Hour
+	} else if strings.HasSuffix(productID, "_1d") {
+		return 24 * time.Hour
 	}
+	return 30 * 24 * time.Hour // fallback
 }
 
 func getPlanIDForProduct(productID string) (string, bool) {

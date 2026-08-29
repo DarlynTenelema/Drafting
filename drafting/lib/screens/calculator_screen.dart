@@ -18,6 +18,14 @@ class CalculatorScreen extends StatefulWidget {
   State<CalculatorScreen> createState() => _CalculatorScreenState();
 }
 
+class ConsumerPlan {
+  final String name;
+  final double price;
+  final String duration;
+  
+  ConsumerPlan(this.name, this.price, this.duration);
+}
+
 class _CalculatorScreenState extends State<CalculatorScreen> {
   final List<EntrepreneurPlan> _availablePlans = [
     EntrepreneurPlan('OTP - \$10/mes (50%)', 10, 0.50),
@@ -32,26 +40,40 @@ class _CalculatorScreenState extends State<CalculatorScreen> {
     EntrepreneurPlan('Grupo - \$500/mes (90%)', 500, 0.90),
   ];
 
-  final List<double> _consumerPrices = [0.24, 0.49, 0.99, 1.58, 2.99, 5.99, 9.99, 19.99, 59.99, 99.99, 199.99];
+  final List<ConsumerPlan> _consumerPlans = [
+    ConsumerPlan('Plus Diario', 0.24, 'día'),
+    ConsumerPlan('Pro Diario', 0.49, 'día'),
+    ConsumerPlan('Ultra Diario', 0.99, 'día'),
+    ConsumerPlan('Plus Semanal', 1.58, 'semana'),
+    ConsumerPlan('Pro Semanal', 2.99, 'semana'),
+    ConsumerPlan('Ultra Semanal', 5.99, 'semana'),
+    ConsumerPlan('Plus Mensual', 5.99, 'mes'),
+    ConsumerPlan('Pro Mensual', 9.99, 'mes'),
+    ConsumerPlan('Ultra Mensual', 19.99, 'mes'),
+    ConsumerPlan('Plus Anual', 59.99, 'año'),
+    ConsumerPlan('Pro Anual', 99.99, 'año'),
+    ConsumerPlan('Ultra Anual', 199.99, 'año'),
+  ];
 
   late EntrepreneurPlan _selectedPlan;
-  double _selectedConsumerPrice = 9.99;
+  late ConsumerPlan _selectedConsumerPlan;
   double _subscribers = 100;
   int _groupMembers = 1;
   
   final double _googlePlayFee = 0.15; // 15%
   
   // Costo estimado IA dinámico basado en el precio
-  double get _geminiCostPerSub => _selectedConsumerPrice * 0.10;
+  double get _geminiCostPerSub => _selectedConsumerPlan.price * 0.10;
 
   @override
   void initState() {
     super.initState();
     _selectedPlan = _availablePlans[0];
+    _selectedConsumerPlan = _consumerPlans[7]; // Pro Mensual by default
   }
 
   // Cálculos
-  double get _grossRevenue => _subscribers * _selectedConsumerPrice;
+  double get _grossRevenue => _subscribers * _selectedConsumerPlan.price;
   double get _googlePlayDeduction => _grossRevenue * _googlePlayFee;
   double get _netPostGoogle => _grossRevenue - _googlePlayDeduction;
   double get _entrepreneurShare => _netPostGoogle * _selectedPlan.percentage;
@@ -63,17 +85,8 @@ class _CalculatorScreenState extends State<CalculatorScreen> {
   double get _profitPerMember => _isGroupPlan && _groupMembers > 0 ? _finalProfit / _groupMembers : _finalProfit;
   
   double get _maxSubscribers => _selectedPlan.price * 10;
-  double get _profitPerSub => (_selectedConsumerPrice * (1 - _googlePlayFee) * _selectedPlan.percentage) - _geminiCostPerSub;
+  double get _profitPerSub => (_selectedConsumerPlan.price * (1 - _googlePlayFee) * _selectedPlan.percentage) - _geminiCostPerSub;
   int get _breakEvenSubs => _profitPerSub > 0 ? (_selectedPlan.price / _profitPerSub).ceil() : 0;
-
-  String _getDurationText(double price) {
-    if (price == 0.24 || price == 0.49 || price == 0.99) return 'Diario';
-    if (price == 1.58 || price == 2.99) return 'Semanal';
-    if (price == 5.99) return 'Semanal (U) / Mensual (P)';
-    if (price == 9.99 || price == 19.99) return 'Mensual';
-    if (price == 59.99 || price == 99.99 || price == 199.99) return 'Anual';
-    return 'mes';
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -128,7 +141,7 @@ class _CalculatorScreenState extends State<CalculatorScreen> {
             const SizedBox(height: 24),
 
             // Consumer Price Dropdown
-            Text('Precio al que venderás tu IA', style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold)),
+            Text('Plan de suscripción que comprará tu cliente', style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold)),
             const SizedBox(height: 8),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -138,19 +151,19 @@ class _CalculatorScreenState extends State<CalculatorScreen> {
                 border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
               ),
               child: DropdownButtonHideUnderline(
-                child: DropdownButton<double>(
-                  value: _selectedConsumerPrice,
+                child: DropdownButton<ConsumerPlan>(
+                  value: _selectedConsumerPlan,
                   dropdownColor: AppTheme.surface,
                   icon: const Icon(Icons.arrow_drop_down, color: Colors.white),
                   isExpanded: true,
-                  items: _consumerPrices.map((price) {
+                  items: _consumerPlans.map((plan) {
                     return DropdownMenuItem(
-                      value: price,
-                      child: Text('\$$price / ${_getDurationText(price)}', style: const TextStyle(color: Colors.white)),
+                      value: plan,
+                      child: Text('${plan.name} - \$${plan.price} / ${plan.duration}', style: const TextStyle(color: Colors.white)),
                     );
                   }).toList(),
                   onChanged: (val) {
-                    setState(() { _selectedConsumerPrice = val!; });
+                    setState(() { _selectedConsumerPlan = val!; });
                   },
                 ),
               ),

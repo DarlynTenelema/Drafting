@@ -154,6 +154,7 @@ func VerifyPurchase(w http.ResponseWriter, r *http.Request) {
 		newEndsAt := now.Add(duration)
 		dbUser.SubscriptionEndsAt = &newEndsAt
 	}
+	dbUser.ActivePlan = &planID
 
 	if err := tx.Save(&dbUser).Error; err != nil {
 		tx.Rollback()
@@ -185,18 +186,30 @@ func GetSubscriptionStatus(w http.ResponseWriter, r *http.Request) {
 	}
 
 	hasActive := false
+	var activePlan string = "freemium"
+
 	if user.SubscriptionEndsAt != nil && time.Now().Before(*user.SubscriptionEndsAt) {
 		hasActive = true
+		if user.ActivePlan != nil {
+			activePlan = *user.ActivePlan
+		}
 	}
 
 	globalFreeTrialActive := middleware.IsGlobalFreeTrialActive()
+	
+	// If global free trial is active and user is not paying, they get the "plus" plan
+	if globalFreeTrialActive && !hasActive {
+		activePlan = "plus"
+	}
+
 	canAccess := hasActive || globalFreeTrialActive
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(SubscriptionStatusResponse{
-		HasActiveSubscription: hasActive,
-		GlobalFreeTrialActive: globalFreeTrialActive,
-		CanAccessService:      canAccess,
-		EndsAt:                user.SubscriptionEndsAt,
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"has_active_subscription": hasActive,
+		"global_free_trial_active": globalFreeTrialActive,
+		"can_access_service":      canAccess,
+		"ends_at":                user.SubscriptionEndsAt,
+		"plan_name":               activePlan,
 	})
 }

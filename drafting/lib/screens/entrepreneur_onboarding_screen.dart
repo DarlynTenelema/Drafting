@@ -275,9 +275,9 @@ class _EntrepreneurOnboardingScreenState extends State<EntrepreneurOnboardingScr
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('¡Primer mes al 90% de descuento!', style: GoogleFonts.inter(color: Colors.greenAccent, fontWeight: FontWeight.bold, fontSize: 14)),
+                      Text('¡Primer mes totalmente GRATIS!', style: GoogleFonts.inter(color: Colors.greenAccent, fontWeight: FontWeight.bold, fontSize: 14)),
                       const SizedBox(height: 4),
-                      Text('Empieza hoy por solo \$${(price * 0.1).toStringAsFixed(2)}. Renueva a precio regular el próximo mes.', style: GoogleFonts.inter(color: Colors.white70, fontSize: 12, height: 1.3)),
+                      Text('Empieza hoy sin costo. Renueva a precio regular el próximo mes.', style: GoogleFonts.inter(color: Colors.white70, fontSize: 12, height: 1.3)),
                     ],
                   ),
                 ),

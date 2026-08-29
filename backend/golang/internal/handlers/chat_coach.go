@@ -27,6 +27,12 @@ func GetChatCoachMatches(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	plan, _ := r.Context().Value("active_plan").(string)
+	if plan != "ultra" {
+		http.Error(w, "Upgrade to Ultra to access Chat Coach", http.StatusForbidden)
+		return
+	}
+
 	// 24H Cleanup Logic (Lazy Deletion)
 	cleanupTime := time.Now().Add(-24 * time.Hour)
 	var oldSessions []models.MatchSession
@@ -92,6 +98,12 @@ func CreateChatCoachThread(w http.ResponseWriter, r *http.Request) {
 	user, ok := r.Context().Value(middleware.UserContextKey).(*models.User)
 	if !ok {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	plan, _ := r.Context().Value("active_plan").(string)
+	if plan != "ultra" {
+		http.Error(w, "Upgrade to Ultra to access Chat Coach", http.StatusForbidden)
 		return
 	}
 

@@ -84,6 +84,16 @@ func Me(w http.ResponseWriter, r *http.Request) {
 	}
 
 	isPremium := user.SubscriptionEndsAt != nil && user.SubscriptionEndsAt.After(time.Now())
+	
+	activePlan := "freemium"
+	if isPremium && user.ActivePlan != nil {
+		activePlan = *user.ActivePlan
+	}
+
+	if !isPremium && middleware.IsGlobalFreeTrialActive() {
+		isPremium = true
+		activePlan = "plus"
+	}
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
@@ -96,6 +106,7 @@ func Me(w http.ResponseWriter, r *http.Request) {
 		"banned": user.Banned,
 		"strikes": user.Strikes,
 		"is_premium": isPremium,
+		"plan_tier": activePlan,
 	})
 }
 
