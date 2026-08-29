@@ -88,7 +88,11 @@ class _ConsumerStoreScreenState extends State<ConsumerStoreScreen> with SingleTi
 
   Future<void> _fetchProducts() async {
     try {
-      final response = await ApiClient.get('/store/products');
+      final response = await ApiClient.get(
+        '/store/products',
+        authenticated: true,
+        sessionToken: widget.sessionToken,
+      );
       if (response.statusCode == 200) {
         final List<dynamic> data = json.decode(response.body);
         setState(() {

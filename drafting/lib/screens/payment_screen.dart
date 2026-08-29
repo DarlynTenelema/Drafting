@@ -502,28 +502,36 @@ class _PaymentScreenState extends State<PaymentScreen> {
           List<_PlanFeature> features = [];
           
           if (isPlus) {
-            tierColor = Colors.blueAccent;
+            tierColor = Colors.blue.shade900;
             features = [
-              _PlanFeature('Consulta el mejor pick para tu partida.', iconBuilder: (c) => Image.asset('assets/images/rift_outline.png', color: c, width: 20, height: 20)),
-              _PlanFeature('10 consultas por hora.', iconData: Icons.hourglass_empty),
-              _PlanFeature('Sin anuncios.', iconBuilder: (c) => _buildAdsBlockIcon(c)),
+              _PlanFeature('Consulta el mejor pick para tu partida', iconBuilder: (c) => Image.asset('assets/images/rift_outline.png', color: c, width: 20, height: 20)),
+              _PlanFeature('10 consultas por hora', iconData: Icons.hourglass_empty),
+              _PlanFeature('Sin anuncios', iconBuilder: (c) => _buildAdsBlockIcon(c)),
             ];
           } else if (isPro) {
-            tierColor = Colors.purpleAccent;
+            tierColor = Colors.blue;
             features = [
-              _PlanFeature('Consulta el mejor pick para tu partida.', iconBuilder: (c) => Image.asset('assets/images/rift_outline.png', color: c, width: 20, height: 20)),
-              _PlanFeature('Consulta mejores runas y hechizos para tu OTP.', iconBuilder: (c) => Image.asset('assets/images/mastery_outline.png', color: c, width: 20, height: 20)),
-              _PlanFeature('20 consultas por partida.', iconData: Icons.help_outline),
-              _PlanFeature('Sin anuncios.', iconBuilder: (c) => _buildAdsBlockIcon(c)),
+              _PlanFeature('Consulta el mejor pick para tu partida', iconBuilder: (c) => Image.asset('assets/images/rift_outline.png', color: c, width: 20, height: 20)),
+              _PlanFeature('Consulta las mejores runas para tu OTP', iconBuilder: (c) => Image.asset('assets/images/mastery_outline.png', color: c, width: 20, height: 20)),
+              _PlanFeature('Consulta los objetos adecuados en partida', iconData: Icons.shopping_bag_outlined),
+              _PlanFeature('30 consultas por hora', iconData: Icons.hourglass_empty),
+              _PlanFeature('Sin anuncios', iconBuilder: (c) => _buildAdsBlockIcon(c)),
+              _PlanFeature('1000 esencias azules', iconBuilder: (c) => Image.asset('assets/images/crystal_coin_outline.png', color: c, width: 20, height: 20)),
             ];
           } else if (isUltra) {
-            tierColor = Colors.orangeAccent;
+            tierColor = Colors.lightBlueAccent;
             features = [
-              _PlanFeature('Consulta el mejor pick, runas y objetos.', iconBuilder: (c) => Image.asset('assets/images/rift_outline.png', color: c, width: 20, height: 20)),
-              _PlanFeature('Consultas ILIMITADAS.', iconData: Icons.all_inclusive),
-              _PlanFeature('Chat Coach (CC) activo.', iconData: Icons.headset_mic),
-              _PlanFeature('Más campos de texto para IA (Otp, Main 1, Main 2).', iconData: Icons.build),
-              _PlanFeature('1,000 esencias azules de regalo.', iconBuilder: (c) => Image.asset('assets/images/crystal_coin_outline.png', color: c, width: 20, height: 20)),
+              _PlanFeature('Consulta el mejor pick para tu partida', iconBuilder: (c) => Image.asset('assets/images/rift_outline.png', color: c, width: 20, height: 20)),
+              _PlanFeature('Consulta las mejores runas para tu OTP', iconBuilder: (c) => Image.asset('assets/images/mastery_outline.png', color: c, width: 20, height: 20)),
+              _PlanFeature('Consulta los objetos adecuados en partida', iconData: Icons.shopping_bag_outlined),
+              _PlanFeature('30 consultas por hora', iconData: Icons.hourglass_empty),
+              _PlanFeature('Acceso al Chat Coach (CC)', iconData: Icons.headset_mic),
+              _PlanFeature('5 Millones de tokens a la semana', iconData: Icons.memory),
+              if (p.id.endsWith('_1m') || p.id.endsWith('_1y'))
+                _PlanFeature('3 GB de almacenamiento en la nube (Permanente)', iconData: Icons.cloud_done_outlined),
+              _PlanFeature('Sin anuncios', iconBuilder: (c) => _buildAdsBlockIcon(c)),
+              _PlanFeature('1000 esencias azules', iconBuilder: (c) => Image.asset('assets/images/crystal_coin_outline.png', color: c, width: 20, height: 20)),
+              _PlanFeature('Más campos de texto para ajustar tu IA', iconData: Icons.build),
             ];
           }
 

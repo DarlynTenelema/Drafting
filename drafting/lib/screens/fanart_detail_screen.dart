@@ -150,7 +150,7 @@ class _FanartDetailScreenState extends State<FanartDetailScreen> {
           style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold),
         ),
         content: Text(
-          '¿Deseas comprar esta imagen por ${widget.fanart.priceCoin.toInt()} GoldenCoins?',
+          '¿Deseas desbloquear esta imagen por ${widget.fanart.priceCoin.toInt()} Esencias Azules?',
           style: GoogleFonts.inter(color: AppTheme.textLight),
         ),
         actions: [
@@ -189,8 +189,8 @@ class _FanartDetailScreenState extends State<FanartDetailScreen> {
               }
             },
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFFFD700).withValues(alpha: 0.8), // Gold tint
-              foregroundColor: Colors.black,
+              backgroundColor: AppTheme.primary, // Blue tint
+              foregroundColor: Colors.white,
             ),
             child: Text(
               'Comprar y Descargar',

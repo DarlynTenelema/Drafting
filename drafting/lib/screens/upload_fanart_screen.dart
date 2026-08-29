@@ -48,7 +48,7 @@ class _UploadFanartScreenState extends State<UploadFanartScreen> {
     final price = double.tryParse(_priceController.text.trim()) ?? 0;
     if (price <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Por favor, ingresa un precio válido en GoldenCoins.')),
+        const SnackBar(content: Text('Por favor, ingresa un precio válido en Esencias Azules.')),
       );
       return;
     }
@@ -184,7 +184,7 @@ class _UploadFanartScreenState extends State<UploadFanartScreen> {
             
             // Price Input
             Text(
-              'Precio (GoldenCoins)',
+              'Precio (Esencias Azules)',
               style: GoogleFonts.inter(
                 color: Colors.white,
                 fontWeight: FontWeight.w600,

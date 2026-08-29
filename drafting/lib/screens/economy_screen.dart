@@ -29,10 +29,11 @@ class _EconomyScreenState extends State<EconomyScreen> {
   double _currentBalance = 0;
 
   static const Set<String> _kProductIds = {
-    'coin_pack_1',
-    'coin_pack_5',
-    'coin_pack_10',
-    'coin_pack_20',
+    'essence_pack_250',
+    'essence_pack_500',
+    'essence_pack_1000',
+    'essence_pack_3000',
+    'essence_pack_5000',
   };
 
   @override
@@ -104,7 +105,7 @@ class _EconomyScreenState extends State<EconomyScreen> {
                 _currentBalance = _financeService.totalCoins;
               });
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Monedas acreditadas exitosamente'), backgroundColor: Colors.green),
+                const SnackBar(content: Text('Esencias acreditadas exitosamente'), backgroundColor: Colors.green),
               );
             }
           } else {
@@ -164,7 +165,7 @@ class _EconomyScreenState extends State<EconomyScreen> {
                 height: 300,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: const Color(0xFFFFD700).withValues(alpha: 0.15), // Gold glow
+                  color: const Color(0xFF00BFFF).withValues(alpha: 0.15), // Blue glow
                 ),
               ),
             ),
@@ -212,10 +213,10 @@ class _EconomyScreenState extends State<EconomyScreen> {
                 decoration: BoxDecoration(
                   color: AppTheme.surface.withValues(alpha: 0.8),
                   borderRadius: BorderRadius.circular(24),
-                  border: Border.all(color: const Color(0xFFFFD700).withValues(alpha: 0.3)),
+                  border: Border.all(color: const Color(0xFF00BFFF).withValues(alpha: 0.3)),
                   boxShadow: [
                     BoxShadow(
-                      color: const Color(0xFFFFD700).withValues(alpha: 0.1),
+                      color: const Color(0xFF00BFFF).withValues(alpha: 0.1),
                       blurRadius: 20,
                       spreadRadius: 2,
                     )
@@ -267,7 +268,7 @@ class _EconomyScreenState extends State<EconomyScreen> {
                     padding: const EdgeInsets.only(top: 24, bottom: 40),
                     children: [
                       Text(
-                        'Paquetes de GoldenCoins',
+                        'Paquetes de Esencias Azules',
                         style: GoogleFonts.outfit(
                           color: Colors.white,
                           fontSize: 20,
@@ -291,12 +292,13 @@ class _EconomyScreenState extends State<EconomyScreen> {
                         ..._products.map((p) {
                           // Extract amount of coins from title or id if possible, just passing title for now.
                           int coins = 0;
-                          if (p.id == 'coin_pack_1') coins = 100;
-                          if (p.id == 'coin_pack_5') coins = 550;
-                          if (p.id == 'coin_pack_10') coins = 1200;
-                          if (p.id == 'coin_pack_20') coins = 2500;
+                          if (p.id == 'essence_pack_250') coins = 250;
+                          if (p.id == 'essence_pack_500') coins = 500;
+                          if (p.id == 'essence_pack_1000') coins = 1000;
+                          if (p.id == 'essence_pack_3000') coins = 3000;
+                          if (p.id == 'essence_pack_5000') coins = 5000;
                           
-                          return _buildRealPackageCard(p, coins, isPopular: p.id == 'coin_pack_5');
+                          return _buildRealPackageCard(p, coins, isPopular: p.id == 'essence_pack_1000');
                         }),
                     ],
                   ),
@@ -350,7 +352,7 @@ class _EconomyScreenState extends State<EconomyScreen> {
                       )
                     else
                       Text(
-                        '$coins Monedas',
+                        '$coins Esencias',
                         style: GoogleFonts.inter(color: AppTheme.textMuted, fontSize: 14),
                       ),
                   ],

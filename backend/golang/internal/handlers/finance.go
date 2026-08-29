@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -59,6 +60,16 @@ func getCoinsForProduct(productID string) float64 {
 		return 1200.00 // $10 USD pack = 1200 GoldenCoins
 	case "coin_pack_20":
 		return 2500.00 // $20 USD pack = 2500 GoldenCoins
+	case "essence_pack_250":
+		return 250.00 // $0.25 USD pack = 250 Blue Essences
+	case "essence_pack_500":
+		return 500.00 // $0.50 USD pack = 500 Blue Essences
+	case "essence_pack_1000":
+		return 1000.00 // $1.00 USD pack = 1000 Blue Essences
+	case "essence_pack_3000":
+		return 3000.00 // $3.00 USD pack = 3000 Blue Essences
+	case "essence_pack_5000":
+		return 5000.00 // $5.00 USD pack = 5000 Blue Essences
 	default:
 		return 0
 	}
@@ -202,8 +213,14 @@ func SubscribeToGroup(w http.ResponseWriter, r *http.Request) {
 	appShare := netFromGoogle * appSplit
 	entrepreneurShare := netFromGoogle * entSplit
 
-	// 4. Gemini API Cost deduction (Dynamic 10% of gross)
-	apiCost := gross * 0.10
+	// 4. Gemini API Cost deduction (Dynamic cost)
+	planPrice := 0.0
+	if parsed, err := strconv.ParseFloat(group.SubscriptionPlan, 64); err == nil {
+		planPrice = parsed
+	}
+	// For Groups: 0.05 + (price * 0.0005)
+	geminiPercentage := 0.05 + (planPrice * 0.0005)
+	apiCost := gross * geminiPercentage
 	finalEntrepreneurPayout := entrepreneurShare - apiCost
 
 	tx := database.DB.Begin()
@@ -339,7 +356,13 @@ func SubscribeToCreator(w http.ResponseWriter, r *http.Request) {
 
 	appShare := netFromGoogle * appSplit
 	entrepreneurShare := netFromGoogle * entSplit
-	apiCost := gross * 0.10
+	planPrice := 0.0
+	if parsed, err := strconv.ParseFloat(profile.SubscriptionPlan, 64); err == nil {
+		planPrice = parsed
+	}
+	// For OTP/Creator: 0.05 + (price * 0.005)
+	geminiPercentage := 0.05 + (planPrice * 0.005)
+	apiCost := gross * geminiPercentage
 	finalEntrepreneurPayout := entrepreneurShare - apiCost
 
 	tx := database.DB.Begin()

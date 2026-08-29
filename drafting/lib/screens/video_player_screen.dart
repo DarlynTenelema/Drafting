@@ -222,7 +222,7 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
                       _buildActionItem(
                         icon: Icons.monetization_on_outlined, 
                         label: 'Donar',
-                        onTap: _showDonationBottomSheet,
+                        onTap: _quickDonate,
                       ),
                       _buildActionItem(
                         icon: Icons.share_outlined, 
@@ -508,110 +508,32 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
     );
   }
 
-  void _showDonationBottomSheet() {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: AppTheme.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      builder: (context) {
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.all(24.0),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  'Apoya a ${widget.video.channelName}',
-                  style: GoogleFonts.outfit(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Elige la cantidad de esencias azules que deseas enviar como donación.',
-                  style: GoogleFonts.inter(color: AppTheme.textMuted, fontSize: 14),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 32),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: [
-                    _buildDonationOption(10),
-                    _buildDonationOption(50),
-                    _buildDonationOption(100),
-                  ],
-                ),
-                const SizedBox(height: 32),
-                const Divider(color: Colors.white12),
-                const SizedBox(height: 16),
-                TextButton.icon(
-                  onPressed: () {
-                    Navigator.pop(context); // Close bottom sheet
-                    Navigator.of(context).push(MaterialPageRoute(builder: (_) => const EconomyScreen()));
-                  },
-                  icon: const Icon(Icons.add_shopping_cart, color: AppTheme.primary),
-                  label: const Text('Comprar más esencias azules', style: TextStyle(color: AppTheme.primary, fontSize: 16)),
-                ),
-              ],
-            ),
+  Future<void> _quickDonate() async {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Procesando donación...')),
+    );
+
+    final success = await FinanceService().donateToVideo(widget.video.id, 1.0);
+
+    if (mounted) {
+      if (success) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('¡Has donado 1 esencia azul a ${widget.video.channelName}!'),
+            backgroundColor: Colors.green,
+            behavior: SnackBarBehavior.floating,
           ),
         );
-      },
-    );
-  }
-
-  Widget _buildDonationOption(int amount) {
-    return InkWell(
-      onTap: () async {
-        Navigator.pop(context); // Close bottom sheet
-        
-        // Show loading indicator in a dialog or just process it
+      } else {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Procesando donación...')),
+          const SnackBar(
+            content: Text('Fondos insuficientes o error en el sistema.'),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+          ),
         );
-
-        final success = await FinanceService().donateToVideo(widget.video.id, amount.toDouble());
-
-        if (mounted) {
-          if (success) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('¡Has donado $amount esencias azules a ${widget.video.channelName}!'),
-                backgroundColor: Colors.green,
-                behavior: SnackBarBehavior.floating,
-              ),
-            );
-          } else {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Fondos insuficientes o error en el sistema.'),
-                backgroundColor: Colors.red,
-                behavior: SnackBarBehavior.floating,
-              ),
-            );
-          }
-        }
-      },
-      borderRadius: BorderRadius.circular(16),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-        decoration: BoxDecoration(
-          color: AppTheme.background,
-          border: Border.all(color: AppTheme.primary.withValues(alpha: 0.5)),
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: Column(
-          children: [
-            Image.asset('assets/images/crystal_coin_outline.png', width: 36, height: 36),
-            const SizedBox(height: 12),
-            Text(
-              amount.toString(),
-              style: GoogleFonts.outfit(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
-            ),
-          ],
-        ),
-      ),
-    );
+      }
+    }
   }
 
   void _showCommentsBottomSheet() {

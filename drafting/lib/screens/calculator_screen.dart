@@ -29,14 +29,10 @@ class ConsumerPlan {
 class _CalculatorScreenState extends State<CalculatorScreen> {
   final List<EntrepreneurPlan> _availablePlans = [
     EntrepreneurPlan('OTP - \$10/mes (50%)', 10, 0.50),
-    EntrepreneurPlan('OTP - \$20/mes (60%)', 20, 0.60),
     EntrepreneurPlan('OTP - \$30/mes (70%)', 30, 0.70),
-    EntrepreneurPlan('OTP - \$40/mes (80%)', 40, 0.80),
     EntrepreneurPlan('OTP - \$50/mes (90%)', 50, 0.90),
     EntrepreneurPlan('Grupo - \$100/mes (50%)', 100, 0.50),
-    EntrepreneurPlan('Grupo - \$200/mes (60%)', 200, 0.60),
     EntrepreneurPlan('Grupo - \$300/mes (70%)', 300, 0.70),
-    EntrepreneurPlan('Grupo - \$400/mes (80%)', 400, 0.80),
     EntrepreneurPlan('Grupo - \$500/mes (90%)', 500, 0.90),
   ];
 
@@ -63,7 +59,15 @@ class _CalculatorScreenState extends State<CalculatorScreen> {
   final double _googlePlayFee = 0.15; // 15%
   
   // Costo estimado IA dinámico basado en el precio
-  double get _geminiCostPerSub => _selectedConsumerPlan.price * 0.10;
+  double get _geminiCostPercentage {
+    if (_isGroupPlan) {
+      return 0.05 + (_selectedPlan.price * 0.0005);
+    } else {
+      return 0.05 + (_selectedPlan.price * 0.005);
+    }
+  }
+
+  double get _geminiCostPerSub => _selectedConsumerPlan.price * _geminiCostPercentage;
 
   @override
   void initState() {
@@ -264,7 +268,7 @@ class _CalculatorScreenState extends State<CalculatorScreen> {
                   const Padding(padding: EdgeInsets.symmetric(vertical: 12.0), child: Divider(color: Colors.white12)),
                   
                   _buildRow('Tu Porcentaje (${(_selectedPlan.percentage * 100).toInt()}%)', _entrepreneurShare),
-                  _buildRow('Costo API Gemini', -_apiCosts, isDeduction: true),
+                  _buildRow('Costo de API Gemini y ancho de banda', -_apiCosts, isDeduction: true),
                   _buildRow('Comisión Retiro (Stripe)', -_withdrawalFee, isDeduction: true),
                   
                   const Padding(padding: EdgeInsets.symmetric(vertical: 20.0), child: Divider(color: Colors.white24)),
