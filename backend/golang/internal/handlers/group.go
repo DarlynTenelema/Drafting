@@ -220,6 +220,7 @@ func CreateGroup(w http.ResponseWriter, r *http.Request) {
 		SubscriptionPlan: req.SubscriptionPlan,
 		ProductName:      req.ProductName,
 		ProductImage:     req.ProductImage,
+		PrivateJSONData:  "{}",
 		IsActive:         true, // Active immediately for Free Month
 	}
 
@@ -293,6 +294,7 @@ func CreateOTPProfile(w http.ResponseWriter, r *http.Request) {
 		SubscriptionPlan: req.SubscriptionPlan,
 		ProductName:      req.ProductName,
 		ProductImage:     req.ProductImage,
+		PrivateJSONData:  "{}",
 		IsActive:         true, // Active immediately for Free Month
 	}
 

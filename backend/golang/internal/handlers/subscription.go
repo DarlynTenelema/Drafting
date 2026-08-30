@@ -162,6 +162,44 @@ func VerifyPurchase(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Grant 1000 Esencias Azules for Pro and Ultra plans
+	if planID == "pro" || planID == "ultra" {
+		var wallet models.Wallet
+		if err := tx.Where("user_id = ?", user.ID).First(&wallet).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				wallet = models.Wallet{UserID: user.ID}
+				if err := tx.Create(&wallet).Error; err != nil {
+					tx.Rollback()
+					http.Error(w, "Failed to create wallet", http.StatusInternalServerError)
+					return
+				}
+			} else {
+				tx.Rollback()
+				http.Error(w, "Failed to fetch wallet", http.StatusInternalServerError)
+				return
+			}
+		}
+
+		wallet.BalanceEssence += 1000.0
+		if err := tx.Save(&wallet).Error; err != nil {
+			tx.Rollback()
+			http.Error(w, "Failed to update wallet", http.StatusInternalServerError)
+			return
+		}
+
+		bonusTx := models.Transaction{
+			UserID:        user.ID,
+			Type:          "subscription_bonus",
+			AmountEssence: 1000.0,
+			Status:        "completed",
+		}
+		if err := tx.Create(&bonusTx).Error; err != nil {
+			tx.Rollback()
+			http.Error(w, "Failed to record bonus transaction", http.StatusInternalServerError)
+			return
+		}
+	}
+
 	if err := tx.Commit().Error; err != nil {
 		http.Error(w, "Failed to commit subscription update", http.StatusInternalServerError)
 		return
