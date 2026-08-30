@@ -7,29 +7,12 @@ import (
 	"gorm.io/gorm"
 )
 
-type CustomCoin struct {
-	ID          uuid.UUID `gorm:"type:uuid;primary_key;default:gen_random_uuid()"`
-	CreatorID   uuid.UUID `gorm:"type:uuid;not null;index"`
-	Name        string    `gorm:"type:varchar(100);not null"`
-	USDValue    float64   `gorm:"type:decimal(10,2);not null"`
-	ImageURL    string    `gorm:"type:varchar(512);not null"`
-	Status      string    `gorm:"type:varchar(50);default:'pending'"` // pending, approved, rejected
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
-}
-
-func (c *CustomCoin) BeforeCreate(tx *gorm.DB) (err error) {
-	if c.ID == uuid.Nil {
-		c.ID = uuid.New()
-	}
-	return
-}
 
 type Wallet struct {
 	ID          uuid.UUID `gorm:"type:uuid;primary_key;default:gen_random_uuid()"`
 	UserID      uuid.UUID `gorm:"type:uuid;unique;not null"`
-	BalanceUSD  float64   `gorm:"type:decimal(10,2);default:0.00"` // For creators earning money
-	BalanceCoin float64   `gorm:"type:decimal(10,2);default:0.00"` // GoldenCoins for consumers
+	BalanceUSD     float64   `gorm:"type:decimal(10,2);default:0.00"` // For creators earning money
+	BalanceEssence float64   `gorm:"type:decimal(10,2);default:0.00"` // Blue Essences for consumers
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
 }
@@ -44,9 +27,9 @@ func (w *Wallet) BeforeCreate(tx *gorm.DB) (err error) {
 type Transaction struct {
 	ID              uuid.UUID `gorm:"type:uuid;primary_key;default:gen_random_uuid()"`
 	UserID          uuid.UUID `gorm:"type:uuid;not null;index"`
-	Type            string    `gorm:"type:varchar(50);not null"` // "recharge_coin", "purchase_fanart", "api_deduction", "payout"
+	Type            string    `gorm:"type:varchar(50);not null"` // "recharge_essence", "purchase_fanart", "api_deduction", "payout"
 	AmountUSD       float64   `gorm:"type:decimal(10,2);default:0.00"`
-	AmountCoin      float64   `gorm:"type:decimal(10,2);default:0.00"`
+	AmountEssence   float64   `gorm:"type:decimal(10,2);default:0.00"`
 	RelatedEntityID *uuid.UUID `gorm:"type:uuid"` // E.g., FanartID, or APIUsageID
 	Status          string    `gorm:"type:varchar(50);default:'completed'"`
 	CreatedAt       time.Time

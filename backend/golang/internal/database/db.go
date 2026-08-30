@@ -35,7 +35,6 @@ func Connect() {
 			&models.ApiUsage{},
 			&models.Group{},
 			&models.OTPProfile{},
-			&models.CustomCoin{},
 			&models.Wallet{},
 			&models.Transaction{},
 			&models.Channel{},

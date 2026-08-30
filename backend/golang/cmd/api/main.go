@@ -95,8 +95,6 @@ func main() {
 			// Economy & Groups (Version 2)
 			r.Post("/finance/recharge-coins", handlers.RechargeCoins)
 			r.Get("/finance/leaderboard", handlers.GetLeaderboard)
-			r.Get("/finance/custom-coins/pending", handlers.GetPendingCustomCoins)
-			r.Post("/finance/custom-coins/review", handlers.ReviewCustomCoin)
 			r.Post("/finance/subscribe-group", handlers.SubscribeToGroup)
 			
 			// Stripe Connect & Payments
@@ -138,7 +136,6 @@ func main() {
 			// Store
 			r.Get("/store/products", handlers.ListStoreProducts)
 			r.Get("/store/my_packages", handlers.GetMyPackages)
-			r.Post("/store/custom_coin", handlers.SubmitCustomCoin)
 
 			// Content & Moderation (Version 2)
 			r.Post("/content/channel", handlers.CreateChannel)

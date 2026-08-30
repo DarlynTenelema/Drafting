@@ -242,9 +242,10 @@ class _PaymentScreenState extends State<PaymentScreen> {
     if (_verifying) return;
 
     final purchaseParam = PurchaseParam(productDetails: product);
-    // Para suscripciones recurrentes vs pre-pagos, Google Play Console lo maneja internamente.
-    // Nosotros simplemente compramos el producto seleccionado (ya sea el sufijo _auto o el normal).
-    await _inAppPurchase.buyNonConsumable(purchaseParam: purchaseParam);
+    // Como son planes prepago (renovables manualmente) y en Google Play 
+    // están como Productos Únicos, deben tratarse como consumibles 
+    // para que Google Play permita volver a comprarlos una vez expiren.
+    await _inAppPurchase.buyConsumable(purchaseParam: purchaseParam, autoConsume: true);
   }
 
 

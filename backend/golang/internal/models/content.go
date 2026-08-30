@@ -53,7 +53,7 @@ type Fanart struct {
 	CreatorID uuid.UUID `gorm:"type:uuid;not null;index" json:"creator_id"`
 	Title     string    `gorm:"type:varchar(255);not null" json:"title"`
 	ImageURL  string    `gorm:"type:varchar(512);not null" json:"image_url"`
-	PriceCoin float64   `gorm:"type:decimal(10,2);not null" json:"price_coin"` // Price in GoldenCoins
+	PriceEssence float64   `gorm:"type:decimal(10,2);not null" json:"price_essence"` // Price in Blue Essences
 	Status    string    `gorm:"type:varchar(50);default:'pending'" json:"status"` // pending, approved, rejected
 	Tags      string    `gorm:"type:varchar(255)" json:"tags"` // Comma separated
 	Likes     int       `gorm:"default:0" json:"likes"`

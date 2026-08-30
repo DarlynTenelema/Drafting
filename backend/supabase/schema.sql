@@ -93,3 +93,24 @@ EXECUTE FUNCTION update_updated_at_column();
 
 -- Índice para búsquedas rápidas de transacciones por usuario
 CREATE INDEX idx_payment_transactions_user_id ON public.payment_transactions(user_id);
+
+-- Tabla para definir los límites de tokens diarios por plan
+CREATE TABLE public.plan_token_limits (
+    plan_tier VARCHAR(50) PRIMARY KEY, -- 'plus', 'pro', 'ultra'
+    daily_token_limit INT NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Habilitar Row Level Security (RLS)
+ALTER TABLE public.plan_token_limits ENABLE ROW LEVEL SECURITY;
+
+-- Insertar los límites diarios (sin freemium)
+INSERT INTO public.plan_token_limits (plan_tier, daily_token_limit) VALUES
+('plus', 100000),      
+('pro', 500000),       
+('ultra', 2000000);    
+
+-- Modificar la tabla 'users' para llevar el conteo de consumo diario
+ALTER TABLE public.users
+ADD COLUMN daily_tokens_used INT DEFAULT 0,
+ADD COLUMN last_token_reset_date DATE DEFAULT CURRENT_DATE;

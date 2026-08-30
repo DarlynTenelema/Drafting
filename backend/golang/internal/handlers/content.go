@@ -403,7 +403,7 @@ func UploadFanart(w http.ResponseWriter, r *http.Request) {
 		CreatorID: user.ID,
 		Title:     title,
 		ImageURL:  publicURL,
-		PriceCoin: priceCoin,
+		PriceEssence: priceCoin,
 		Status:    "approved", // Auto-approved since Gemini ModerateImage passed
 		Tags:      tags,
 	}

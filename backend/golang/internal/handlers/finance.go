@@ -50,16 +50,8 @@ type GroupSubscriptionRequest struct {
 	GroupID        string `json:"group_id"` // Group UUID
 }
 
-func getCoinsForProduct(productID string) float64 {
+func getEssenceForProduct(productID string) float64 {
 	switch productID {
-	case "coin_pack_1":
-		return 100.00 // $1 USD pack = 100 GoldenCoins
-	case "coin_pack_5":
-		return 550.00 // $5 USD pack = 550 GoldenCoins
-	case "coin_pack_10":
-		return 1200.00 // $10 USD pack = 1200 GoldenCoins
-	case "coin_pack_20":
-		return 2500.00 // $20 USD pack = 2500 GoldenCoins
 	case "essence_pack_250":
 		return 250.00 // $0.25 USD pack = 250 Blue Essences
 	case "essence_pack_500":
@@ -89,8 +81,8 @@ func RechargeCoins(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	coinsToAdd := getCoinsForProduct(req.ProductID)
-	if coinsToAdd <= 0 {
+	essenceToAdd := getEssenceForProduct(req.ProductID)
+	if essenceToAdd <= 0 {
 		http.Error(w, "Invalid coin product", http.StatusBadRequest)
 		return
 	}
@@ -99,7 +91,7 @@ func RechargeCoins(w http.ResponseWriter, r *http.Request) {
 
 	// Idempotency check
 	var existing models.Transaction
-	err := database.DB.Where("type = ? AND amount_coin = ? AND status = ?", "recharge_coin", coinsToAdd, purchaseToken).First(&existing).Error
+	err := database.DB.Where("type = ? AND amount_coin = ? AND status = ?", "recharge_essence", essenceToAdd, purchaseToken).First(&existing).Error
 	if err == nil {
 		http.Error(w, "Purchase token already used", http.StatusConflict)
 		return
@@ -131,7 +123,7 @@ func RechargeCoins(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Update Wallet
-	wallet.BalanceCoin += coinsToAdd
+	wallet.BalanceEssence += essenceToAdd
 	if err := tx.Save(&wallet).Error; err != nil {
 		tx.Rollback()
 		http.Error(w, "Failed to update wallet", http.StatusInternalServerError)
@@ -141,8 +133,8 @@ func RechargeCoins(w http.ResponseWriter, r *http.Request) {
 	// Record Transaction
 	transaction := models.Transaction{
 		UserID:     user.ID,
-		Type:       "recharge_coin",
-		AmountCoin: coinsToAdd,
+		Type:       "recharge_essence",
+		AmountEssence: essenceToAdd,
 		Status:     purchaseToken, // Using status for idempotency temporarily
 	}
 	if err := tx.Create(&transaction).Error; err != nil {
@@ -156,7 +148,7 @@ func RechargeCoins(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
 		"success":     true,
-		"new_balance": wallet.BalanceCoin,
+		"new_balance": wallet.BalanceEssence,
 	})
 }
 
@@ -408,49 +400,11 @@ func SubscribeToCreator(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-type SubmitCustomCoinRequest struct {
-	Name     string  `json:"name"`
-	USDValue float64 `json:"usd_value"`
-	ImageURL string  `json:"image_url"`
-}
-
-// SubmitCustomCoin allows creating a custom 3D wrapped coin, pending admin approval
-func SubmitCustomCoin(w http.ResponseWriter, r *http.Request) {
-	var req SubmitCustomCoinRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "Invalid request body", http.StatusBadRequest)
-		return
-	}
-
-	user, ok := r.Context().Value(middleware.UserContextKey).(*models.User)
-	if !ok {
-		http.Error(w, "Unauthorized", http.StatusUnauthorized)
-		return
-	}
-
-	coin := models.CustomCoin{
-		CreatorID: user.ID,
-		Name:      req.Name,
-		USDValue:  req.USDValue,
-		ImageURL:  req.ImageURL,
-		Status:    "pending",
-	}
-
-	if err := database.DB.Create(&coin).Error; err != nil {
-		http.Error(w, "Failed to create coin", http.StatusInternalServerError)
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(coin)
-}
-
 type PurchaseFanartRequest struct {
 	FanartID string `json:"fanart_id"`
 }
 
-// PurchaseFanart deducts GoldenCoins from buyer and credits USD to creator
+// PurchaseFanart deducts Esencias Azules from buyer and credits USD to creator
 func PurchaseFanart(w http.ResponseWriter, r *http.Request) {
 	var req PurchaseFanartRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -485,9 +439,9 @@ func PurchaseFanart(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if buyerWallet.BalanceCoin < fanart.PriceCoin {
+	if buyerWallet.BalanceEssence < fanart.PriceEssence {
 		tx.Rollback()
-		http.Error(w, "Insufficient GoldenCoins", http.StatusPaymentRequired)
+		http.Error(w, "Insufficient Esencias Azules", http.StatusPaymentRequired)
 		return
 	}
 
@@ -499,12 +453,12 @@ func PurchaseFanart(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Calculate equivalent USD (100 GoldenCoins = $1 USD)
+	// Calculate equivalent USD (100 Esencias Azules = $1 USD)
 	// Creator takes 50% of the real USD value
-	usdEarned := (fanart.PriceCoin / 100.0) * 0.50
+	usdEarned := (fanart.PriceEssence / 100.0) * 0.50
 
 	// Deduct from buyer
-	buyerWallet.BalanceCoin -= fanart.PriceCoin
+	buyerWallet.BalanceEssence -= fanart.PriceEssence
 	tx.Save(&buyerWallet)
 
 	// Add to creator
@@ -515,7 +469,7 @@ func PurchaseFanart(w http.ResponseWriter, r *http.Request) {
 	txRec := models.Transaction{
 		UserID:          buyer.ID,
 		Type:            "purchase_fanart",
-		AmountCoin:      fanart.PriceCoin,
+		AmountEssence:      fanart.PriceEssence,
 		RelatedEntityID: &fanartID,
 		Status:          "completed",
 	}
@@ -618,12 +572,12 @@ func DonateVideo(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "Viewer wallet not found", http.StatusBadRequest)
 			return
 		}
-		if buyerWallet.BalanceCoin < req.Amount {
+		if buyerWallet.BalanceEssence < req.Amount {
 			tx.Rollback()
 			http.Error(w, "Insufficient Esencia Azul", http.StatusPaymentRequired)
 			return
 		}
-		buyerWallet.BalanceCoin -= req.Amount
+		buyerWallet.BalanceEssence -= req.Amount
 		tx.Save(&buyerWallet)
 	}
 
@@ -645,7 +599,7 @@ func DonateVideo(w http.ResponseWriter, r *http.Request) {
 		UserID:          channel.OwnerID, // We record this on the creator's ledger for dashboard
 		Type:            "donation",
 		AmountUSD:       usdEquivalent,
-		AmountCoin:      req.Amount,
+		AmountEssence:      req.Amount,
 		RelatedEntityID: &videoID,
 		Status:          "completed",
 	}
@@ -693,7 +647,7 @@ func GetFinancialDashboard(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
 		"total_usd":        wallet.BalanceUSD,
-		"total_coins":      wallet.BalanceCoin,
+		"total_essences":      wallet.BalanceEssence,
 		"withdrawable_usd": withdrawableUsd,
 		"withdrawal_limit": limit,
 		"role":             user.Role,
@@ -843,39 +797,4 @@ func GetLeaderboard(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(results)
 }
 
-// GetPendingCustomCoins returns a list of custom coins awaiting approval
-func GetPendingCustomCoins(w http.ResponseWriter, r *http.Request) {
-	var coins []models.CustomCoin
-	database.DB.Where("status = ?", "pending").Find(&coins)
-
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(coins)
-}
-
-// ReviewCustomCoin handles approve or reject actions on pending custom coins.
-func ReviewCustomCoin(w http.ResponseWriter, r *http.Request) {
-	type ReviewRequest struct {
-		CoinID string `json:"coin_id"`
-		Status string `json:"status"` // "approved" or "rejected"
-	}
-	var req ReviewRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-
-	if req.Status != "approved" && req.Status != "rejected" {
-		http.Error(w, "Invalid status", http.StatusBadRequest)
-		return
-	}
-
-	result := database.DB.Model(&models.CustomCoin{}).Where("id = ?", req.CoinID).Update("status", req.Status)
-	if result.Error != nil {
-		http.Error(w, "Failed to update coin", http.StatusInternalServerError)
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{"success": true})
-}
 

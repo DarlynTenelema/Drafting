@@ -103,7 +103,7 @@ type CheckoutSessionRequest struct {
 	PriceUSD  float64 `json:"price_usd"`
 }
 
-// CreateCheckoutSession creates a Stripe Checkout session to purchase GoldenCoins
+// CreateCheckoutSession creates a Stripe Checkout session to purchase Esencias Azules
 func CreateCheckoutSession(w http.ResponseWriter, r *http.Request) {
 	if stripe.Key == "" {
 		http.Error(w, "Stripe is not configured", http.StatusInternalServerError)
@@ -190,28 +190,28 @@ func StripeWebhook(w http.ResponseWriter, r *http.Request) {
 		packageID := session.Metadata["package_id"]
 		log.Printf("Payment received for User %s, Package %s", userID, packageID)
 		
-		coinsToAdd := getCoinsForProduct(packageID)
-		if coinsToAdd > 0 {
+		essenceToAdd := getEssenceForProduct(packageID)
+		if essenceToAdd > 0 {
 			uid, err := uuid.Parse(userID)
 			if err == nil {
 				tx := database.DB.Begin()
 				var wallet models.Wallet
 				if err := tx.Where("user_id = ?", uid).First(&wallet).Error; err != nil {
-					wallet = models.Wallet{UserID: uid, BalanceCoin: 0}
+					wallet = models.Wallet{UserID: uid, BalanceEssence: 0}
 					tx.Create(&wallet)
 				}
-				wallet.BalanceCoin += coinsToAdd
+				wallet.BalanceEssence += essenceToAdd
 				tx.Save(&wallet)
 
 				txRec := models.Transaction{
 					UserID:     uid,
-					Type:       "recharge_coin",
-					AmountCoin: coinsToAdd,
+					Type:       "recharge_essence",
+					AmountEssence: essenceToAdd,
 					Status:     "completed_stripe",
 				}
 				tx.Create(&txRec)
 				tx.Commit()
-				log.Printf("Added %f GoldenCoins to User %s", coinsToAdd, userID)
+				log.Printf("Added %f Esencias Azules to User %s", essenceToAdd, userID)
 			}
 		}
 

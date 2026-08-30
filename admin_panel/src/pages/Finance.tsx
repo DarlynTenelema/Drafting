@@ -3,7 +3,7 @@ import { Activity, AlertTriangle, ShieldCheck, Ban, DollarSign } from 'lucide-re
 
 const mockTransactions = [
   { id: '1', user: 'carlos@example.com', txId: 'ch_1Mxyz...', amount: 450.00, type: 'chargeback', reason: 'El usuario solicitó un contracargo en el banco tras donar a un creador.', status: 'pending', date: '2026-08-24 10:00 AM' },
-  { id: '2', user: 'hacker_boy', txId: 'wd_88Aas...', amount: 12000.00, type: 'mass_withdrawal', reason: 'Intento de retiro inusualmente grande de GoldenCoins en una cuenta nueva.', status: 'pending', date: '2026-08-23 22:15 PM' },
+  { id: '2', user: 'hacker_boy', txId: 'wd_88Aas...', amount: 12000.00, type: 'mass_withdrawal', reason: 'Intento de retiro inusualmente grande de Esencias Azules en una cuenta nueva.', status: 'pending', date: '2026-08-23 22:15 PM' },
   { id: '3', user: 'ana.creadora@example.com', txId: 'pi_3Axyz...', amount: 15.00, type: 'suspicious_payment', reason: 'Múltiples intentos fallidos de tarjeta antes de aprobarse.', status: 'resolved_refunded', date: '2026-08-22 14:30 PM' },
 ];
 
