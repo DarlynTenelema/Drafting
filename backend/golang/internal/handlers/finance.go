@@ -91,7 +91,7 @@ func RechargeCoins(w http.ResponseWriter, r *http.Request) {
 
 	// Idempotency check
 	var existing models.Transaction
-	err := database.DB.Where("type = ? AND amount_coin = ? AND status = ?", "recharge_essence", essenceToAdd, purchaseToken).First(&existing).Error
+	err := database.DB.Where("type = ? AND amount_essence = ? AND status = ?", "recharge_essence", essenceToAdd, purchaseToken).First(&existing).Error
 	if err == nil {
 		http.Error(w, "Purchase token already used", http.StatusConflict)
 		return

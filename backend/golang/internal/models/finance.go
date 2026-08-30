@@ -31,7 +31,7 @@ type Transaction struct {
 	AmountUSD       float64   `gorm:"type:decimal(10,2);default:0.00"`
 	AmountEssence   float64   `gorm:"type:decimal(10,2);default:0.00"`
 	RelatedEntityID *uuid.UUID `gorm:"type:uuid"` // E.g., FanartID, or APIUsageID
-	Status          string    `gorm:"type:varchar(50);default:'completed'"`
+	Status          string    `gorm:"type:text;default:'completed'"`
 	CreatedAt       time.Time
 	UpdatedAt       time.Time
 }
