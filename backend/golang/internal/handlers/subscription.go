@@ -109,7 +109,7 @@ func VerifyPurchase(w http.ResponseWriter, r *http.Request) {
 	if err := verifyPurchaseToken(r, req.ProductID, purchaseToken); err != nil {
 		_ = database.DB.Create(&models.PaymentTransaction{
 			UserID:        user.ID,
-			PlanID:        planID,
+			PlanID:        req.ProductID,
 			ProductID:     req.ProductID,
 			PurchaseToken: purchaseToken,
 			Amount:        getPriceForProduct(req.ProductID),
@@ -127,7 +127,7 @@ func VerifyPurchase(w http.ResponseWriter, r *http.Request) {
 
 	transaction := models.PaymentTransaction{
 		UserID:        user.ID,
-		PlanID:        planID,
+		PlanID:        req.ProductID,
 		ProductID:     req.ProductID,
 		PurchaseToken: purchaseToken,
 		Amount:        getPriceForProduct(req.ProductID),
