@@ -220,11 +220,15 @@ class _PaymentScreenState extends State<PaymentScreen> {
               globalFreeTrialActive: _subscriptionStatus?.globalFreeTrialActive ?? false,
               canAccessService: true,
               endsAt: endsAt,
+              planName: purchase.productID.split('_').first,
             );
+          });
+          _showMessage('Suscripción activada correctamente.');
+          Future.delayed(const Duration(seconds: 1), () {
+            if (mounted) Navigator.pop(context, true);
           });
         }
 
-        _showMessage('Suscripción activada correctamente.');
         return true;
       }
     } on ApiException catch (e) {
@@ -299,6 +303,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
     required List<_PlanFeature> features,
     required Color color,
     required VoidCallback onPressed,
+    bool isCurrentPlan = false,
   }) {
     return Container(
       margin: const EdgeInsets.only(bottom: 24),
@@ -362,13 +367,13 @@ class _PaymentScreenState extends State<PaymentScreen> {
             width: double.infinity,
             child: ElevatedButton(
               style: ElevatedButton.styleFrom(
-                backgroundColor: color,
+                backgroundColor: isCurrentPlan ? Colors.green : color,
                 padding: const EdgeInsets.symmetric(vertical: 16),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               ),
-              onPressed: _verifying ? null : onPressed,
+              onPressed: (_verifying || isCurrentPlan) ? null : onPressed,
               child: Text(
-                'Obtener Plan',
+                isCurrentPlan ? 'Plan Actual' : 'Obtener Plan',
                 style: GoogleFonts.inter(
                   fontSize: 16,
                   fontWeight: FontWeight.bold,
@@ -536,12 +541,21 @@ class _PaymentScreenState extends State<PaymentScreen> {
             ];
           }
 
+          bool isCurrentPlan = false;
+          if (_subscriptionStatus?.hasActiveSubscription == true && _subscriptionStatus?.planName != null) {
+            final activePlan = _subscriptionStatus!.planName!.toLowerCase();
+            if ((isPlus && activePlan == 'plus') || (isPro && activePlan == 'pro') || (isUltra && activePlan == 'ultra')) {
+              isCurrentPlan = true;
+            }
+          }
+
           return _buildSubscriptionCard(
             title: _cleanTitle(p.title),
             description: p.description,
             price: p.price,
             features: features,
             color: tierColor,
+            isCurrentPlan: isCurrentPlan,
             onPressed: () => _buyProduct(p),
           );
         }).toList(),

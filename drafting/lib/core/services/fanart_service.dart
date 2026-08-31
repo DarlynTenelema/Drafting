@@ -10,7 +10,38 @@ class FanartService {
       debugPrint('getFanarts response: \${response.statusCode} - \${response.body}');
       if (response.statusCode == 200) {
         final List<dynamic> data = jsonDecode(response.body);
-        return data.map((json) => FanartModel.fromJson(json)).toList();
+        List<FanartModel> list = data.map((json) => FanartModel.fromJson(json)).toList();
+        if (list.isEmpty) {
+          list = [
+            FanartModel(
+              id: 'mock_fanart_1',
+              creatorId: 'mock_creator_1',
+              title: 'Epic Landscape',
+              imageUrl: 'https://images.unsplash.com/photo-1506744626753-eba7bc3x?auto=format&fit=crop&w=800',
+              tags: ['epic', 'landscape'],
+              creatorName: 'Mock Creator',
+              creatorAvatar: 'https://i.pravatar.cc/150?img=11',
+              likes: 45,
+              priceCoin: 50.0,
+              status: 'approved',
+              createdAt: DateTime.now().subtract(const Duration(days: 2)),
+            ),
+            FanartModel(
+              id: 'mock_fanart_2',
+              creatorId: 'mock_creator_2',
+              title: 'Cyberpunk City',
+              imageUrl: 'https://images.unsplash.com/photo-1518770660439-4636190af475?auto=format&fit=crop&w=800',
+              tags: ['cyberpunk', 'city'],
+              creatorName: 'NeonArtist',
+              creatorAvatar: 'https://i.pravatar.cc/150?img=12',
+              likes: 120,
+              priceCoin: 100.0,
+              status: 'approved',
+              createdAt: DateTime.now().subtract(const Duration(hours: 5)),
+            )
+          ];
+        }
+        return list;
       } else {
         throw ApiException('Hubo un problema al cargar los fanarts. Intenta más tarde.');
       }

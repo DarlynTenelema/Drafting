@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:async';
 import 'package:http/http.dart' as http;
 
 import '../config/app_config.dart';
@@ -10,12 +11,16 @@ class ApiClient {
 
   static Future<http.Response> _handleRequest(Future<http.Response> Function() requestFunc) async {
     try {
-      return await requestFunc();
+      return await requestFunc().timeout(const Duration(seconds: 15));
+    } on TimeoutException {
+      throw ApiException('Ups, la conexión tardó demasiado. Verifica tu internet.');
     } on SocketException {
       throw ApiException('Ups, tienes desconexión a internet. Verifica tu conexión.');
     } catch (e) {
       if (e.toString().contains('SocketException') || e.toString().contains('ClientException')) {
         throw ApiException('Ups, tienes desconexión a internet. Verifica tu conexión.');
+      } else if (e.toString().contains('TimeoutException')) {
+        throw ApiException('Ups, la conexión tardó demasiado. Verifica tu internet.');
       }
       rethrow;
     }

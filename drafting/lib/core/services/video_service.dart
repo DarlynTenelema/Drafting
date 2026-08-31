@@ -75,6 +75,42 @@ class VideoService extends ChangeNotifier {
       if (response.statusCode == 200) {
         final List<dynamic> data = jsonDecode(response.body);
         _videos = data.map((json) => VideoModel.fromJson(json)).toList();
+        if (_videos.isEmpty) {
+          _videos = [
+            VideoModel(
+              id: 'mock_vid_1',
+              videoId: 'jNQXAC9IVRw', // "Me at the zoo" youtube ID
+              channelId: 'mock_channel_1',
+              title: 'Epic Gaming Montage',
+              description: 'The best gaming montage ever created!',
+              tags: ['gaming', 'montage'],
+              channelName: 'GamerX',
+              channelAvatar: 'https://i.pravatar.cc/150?img=33',
+              isChannelVerified: true,
+              views: 15400,
+              likes: 1200,
+              commentsCount: 340,
+              status: 'approved',
+              createdAt: DateTime.now().subtract(const Duration(days: 3)),
+            ),
+            VideoModel(
+              id: 'mock_vid_2',
+              videoId: 'dQw4w9WgXcQ', // Rickroll youtube ID
+              channelId: 'mock_channel_2',
+              title: 'Tutorial de Flutter Avanzado',
+              description: 'Aprende a hacer aplicaciones como un profesional',
+              tags: ['flutter', 'tutorial', 'code'],
+              channelName: 'CodeMaster',
+              channelAvatar: 'https://i.pravatar.cc/150?img=47',
+              isChannelVerified: false,
+              views: 5200,
+              likes: 430,
+              commentsCount: 89,
+              status: 'approved',
+              createdAt: DateTime.now().subtract(const Duration(hours: 12)),
+            )
+          ];
+        }
       } else {
         debugPrint('Error fetching videos: ${response.statusCode}');
       }

@@ -10,7 +10,7 @@ class EntrepreneurService {
   EntrepreneurService._internal();
 
   /// Create a Group Plan
-  Future<bool> createGroup(String name, String plan, List<String> invites, String productName, String productImage, String purchaseToken) async {
+  Future<Map<String, dynamic>> createGroup(String name, String plan, List<String> invites, String productName, String productImage, String purchaseToken) async {
     try {
       final response = await ApiClient.post(
         '/groups/create',
@@ -25,15 +25,18 @@ class EntrepreneurService {
         },
         authenticated: true,
       );
-      return response.statusCode == 200 || response.statusCode == 201;
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        return {'success': true};
+      }
+      return {'success': false, 'error': 'Error ${response.statusCode}: ${response.body}'};
     } catch (e) {
       debugPrint("Error creating group: $e");
-      return false;
+      return {'success': false, 'error': e.toString()};
     }
   }
 
   /// Create an OTP Profile (Creator Profile)
-  Future<bool> createOTPProfile(String championName, String plan, String productName, String productImage, String purchaseToken) async {
+  Future<Map<String, dynamic>> createOTPProfile(String championName, String plan, String productName, String productImage, String purchaseToken) async {
     try {
       final response = await ApiClient.post(
         '/group/otp/create', // It's mapped to CreateOTPProfile in backend routing
@@ -47,10 +50,13 @@ class EntrepreneurService {
         },
         authenticated: true,
       );
-      return response.statusCode == 200 || response.statusCode == 201;
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        return {'success': true};
+      }
+      return {'success': false, 'error': 'Error ${response.statusCode}: ${response.body}'};
     } catch (e) {
       debugPrint("Error creating OTP profile: $e");
-      return false;
+      return {'success': false, 'error': e.toString()};
     }
   }
 
@@ -130,15 +136,11 @@ class EntrepreneurService {
   Future<String?> uploadProductImage(File imageFile, String userId) async {
     try {
       final fileName = '${DateTime.now().millisecondsSinceEpoch}_$userId.jpg';
-      final path = await SupabaseService.uploadFile('store_products', fileName, imageFile);
-      if (path != null) {
-        return SupabaseService.getPublicUrl('store_products', path);
-      }
-      return null;
+      final path = await SupabaseService.uploadFile('store_products', fileName, imageFile).timeout(const Duration(seconds: 15));
+      return SupabaseService.getPublicUrl('store_products', path);
     } catch (e) {
-      debugPrint("Error uploading product image: $e");
+      debugPrint("Error uploading image: $e");
       return null;
     }
   }
 }
-

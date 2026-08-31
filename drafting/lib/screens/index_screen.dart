@@ -33,14 +33,13 @@ class IndexScreen extends StatefulWidget {
 
 class _IndexScreenState extends State<IndexScreen> {
   StreamSubscription? _eventSubscription;
-  final GoogleSignIn _googleSignIn = GoogleSignIn.instance;
-  GoogleSignInAccount? _currentUser;
   
   late String _sessionToken;
   bool _isActive = false;
   bool _isPremium = false;
   String _userTier = 'plus';
   int _visibleFields = 1;
+  GoogleSignInAccount? _currentUser;
   
   final List<TextEditingController> _otpControllers = List.generate(5, (_) => TextEditingController());
 
@@ -52,7 +51,6 @@ class _IndexScreenState extends State<IndexScreen> {
     if (_sessionToken.isNotEmpty) {
       _fetchUserData();
     }
-    _loadUser();
     
     _eventSubscription = NativeService.onEvent.listen((event) {
       if (event['code'] == 402) {
@@ -60,7 +58,11 @@ class _IndexScreenState extends State<IndexScreen> {
         // Payment required
         Navigator.of(context).push(
           MaterialPageRoute(builder: (_) => PaymentScreen(sessionToken: _sessionToken)),
-        );
+        ).then((result) {
+          if (result == true && mounted) {
+            _fetchUserData();
+          }
+        });
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Tu suscripción ha expirado. Por favor, renueva tu plan.')),
@@ -72,6 +74,23 @@ class _IndexScreenState extends State<IndexScreen> {
         );
       }
     });
+    _loadUser();
+  }
+
+  void _loadUser() async {
+    try {
+      final future = GoogleSignIn.instance.attemptLightweightAuthentication();
+      if (future != null) {
+        final account = await future;
+        if (mounted) {
+          setState(() {
+            _currentUser = account;
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint('Error loading user: $e');
+    }
   }
 
   Future<void> _loadSession() async {
@@ -112,25 +131,9 @@ class _IndexScreenState extends State<IndexScreen> {
     }
   }
 
-  void _loadUser() async {
-    try {
-      final future = _googleSignIn.attemptLightweightAuthentication();
-      if (future != null) {
-        final account = await future;
-        if (mounted) {
-          setState(() {
-            _currentUser = account;
-          });
-        }
-      }
-    } catch (e) {
-      debugPrint('Error loading user: $e');
-    }
-  }
-
   Future<void> _handleLogout() async {
     await NativeService.stopCaptureService();
-    await _googleSignIn.signOut();
+    await GoogleSignIn.instance.signOut();
     await SessionService.clearSession();
     if (!mounted) return;
     Navigator.of(context).pushReplacement(
@@ -274,9 +277,12 @@ class _IndexScreenState extends State<IndexScreen> {
             ListTile(
               leading: Image.asset('assets/images/chest_outline.png', width: 36, height: 36),
               title: const Text('Planes de pago', style: TextStyle(color: Colors.white)),
-              onTap: () {
+              onTap: () async {
                 Navigator.pop(context);
-                Navigator.of(context).push(MaterialPageRoute(builder: (_) => PaymentScreen(sessionToken: _sessionToken)));
+                final result = await Navigator.of(context).push(MaterialPageRoute(builder: (_) => PaymentScreen(sessionToken: _sessionToken)));
+                if (result == true && mounted) {
+                  _fetchUserData();
+                }
               },
             ),
             ListTile(

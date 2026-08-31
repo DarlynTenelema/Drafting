@@ -40,7 +40,7 @@ class FinanceService extends ChangeNotifier {
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         totalUsd = (data['total_usd'] as num).toDouble();
-        totalCoins = (data['total_coins'] as num?)?.toDouble() ?? 0.0;
+        totalCoins = (data['total_essences'] as num?)?.toDouble() ?? 0.0;
         withdrawableUsd = (data['withdrawable_usd'] as num?)?.toDouble() ?? 0.0;
         withdrawalLimit = (data['withdrawal_limit'] as num?)?.toDouble() ?? 100.0;
         userRole = data['role'] ?? 'consumer';

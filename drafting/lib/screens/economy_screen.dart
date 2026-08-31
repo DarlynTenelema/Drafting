@@ -263,8 +263,12 @@ class _EconomyScreenState extends State<EconomyScreen> {
                       top: BorderSide(color: Colors.white.withValues(alpha: 0.05)),
                     ),
                   ),
-                  child: ListView(
-                    physics: const BouncingScrollPhysics(),
+                  child: RefreshIndicator(
+                    color: AppTheme.primary,
+                    backgroundColor: AppTheme.surface,
+                    onRefresh: _initStoreAndBalance,
+                    child: ListView(
+                      physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
                     padding: const EdgeInsets.only(top: 24, bottom: 40),
                     children: [
                       Text(
@@ -302,6 +306,7 @@ class _EconomyScreenState extends State<EconomyScreen> {
                         }),
                     ],
                   ),
+                  ),
                 ),
               ),
             ],
@@ -334,30 +339,35 @@ class _EconomyScreenState extends State<EconomyScreen> {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Row(
-              children: [
-                Image.asset('assets/images/crystal_coin.png', width: 40, height: 40),
-                const SizedBox(width: 16),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      _cleanTitle(product.title),
-                      style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
+            Expanded(
+              child: Row(
+                children: [
+                  Image.asset('assets/images/crystal_coin.png', width: 40, height: 40),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          _cleanTitle(product.title),
+                          style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        if (isPopular)
+                          Text(
+                            '¡Más Popular!',
+                            style: GoogleFonts.inter(color: AppTheme.primary, fontSize: 12, fontWeight: FontWeight.bold),
+                          )
+                        else
+                          Text(
+                            '$coins Esencias',
+                            style: GoogleFonts.inter(color: AppTheme.textMuted, fontSize: 14),
+                          ),
+                      ],
                     ),
-                    if (isPopular)
-                      Text(
-                        '¡Más Popular!',
-                        style: GoogleFonts.inter(color: AppTheme.primary, fontSize: 12, fontWeight: FontWeight.bold),
-                      )
-                    else
-                      Text(
-                        '$coins Esencias',
-                        style: GoogleFonts.inter(color: AppTheme.textMuted, fontSize: 14),
-                      ),
-                  ],
-                ),
-              ],
+                  ),
+                ],
+              ),
             ),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),

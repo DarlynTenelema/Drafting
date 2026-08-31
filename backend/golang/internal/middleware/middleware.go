@@ -160,9 +160,9 @@ func Cooldown(next http.Handler) http.Handler {
 
 		limit := int64(10) // Plus limit
 		if plan == "pro" {
-			limit = 20
+			limit = 30
 		} else if plan == "ultra" {
-			limit = 50
+			limit = 30
 		} else if plan == "freemium" {
 			limit = 3 // 3 per hour or day? The user said 3 per day, but currently it's per hour. Let's do 3 per hour for now since we don't have per-day logic yet.
 		}

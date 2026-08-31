@@ -13,10 +13,12 @@ class AppConfig {
 
   static const String supabaseUrl = String.fromEnvironment(
     'SUPABASE_URL',
+    defaultValue: 'https://xznuuhnthrvbytslxxzi.supabase.co',
   );
 
   static const String supabaseAnonKey = String.fromEnvironment(
     'SUPABASE_ANON_KEY',
+    defaultValue: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh6bnV1aG50aHJ2Ynl0c2x4eHppIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODc4ODcwNjAsImV4cCI6MjEwMzQ2MzA2MH0.lOZghigKGu5bYMOsjOnWk-tyFahPHhcNUgw3xeUFt9k',
   );
 
   static String get apiBaseUrl => _apiBaseUrl.replaceAll(RegExp(r'/+$'), '');

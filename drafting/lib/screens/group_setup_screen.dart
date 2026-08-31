@@ -109,25 +109,47 @@ class _GroupSetupScreenState extends State<GroupSetupScreen> {
 
   void _listenToPurchaseUpdated(List<PurchaseDetails> purchaseDetailsList) async {
     for (final purchaseDetails in purchaseDetailsList) {
-      if (purchaseDetails.status == PurchaseStatus.pending) {
-        continue;
-      }
-
-      if (purchaseDetails.status == PurchaseStatus.error) {
-        if (_loadingContext != null) { Navigator.pop(_loadingContext!); _loadingContext = null; }
-        if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(purchaseDetails.error?.message ?? 'Error')));
-        setState(() => _isPurchasing = false);
-        continue;
-      }
-
-      if (purchaseDetails.status == PurchaseStatus.purchased || purchaseDetails.status == PurchaseStatus.restored) {
-        _purchaseToken = purchaseDetails.verificationData.serverVerificationData;
-        if (purchaseDetails.pendingCompletePurchase) {
-          await _inAppPurchase.completePurchase(purchaseDetails);
+      try {
+        if (purchaseDetails.status == PurchaseStatus.pending) {
+          continue;
         }
-        
-        // Proceder con la creación
-        await _executeCreationFlow();
+
+        if (purchaseDetails.status == PurchaseStatus.error) {
+          if (_loadingContext != null) { Navigator.pop(_loadingContext!); _loadingContext = null; }
+          if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(purchaseDetails.error?.message ?? 'Error en la compra')));
+          setState(() => _isPurchasing = false);
+          continue;
+        }
+
+        if (purchaseDetails.status == PurchaseStatus.canceled) {
+          if (_loadingContext != null) { Navigator.pop(_loadingContext!); _loadingContext = null; }
+          setState(() => _isPurchasing = false);
+          continue;
+        }
+
+        if (purchaseDetails.status == PurchaseStatus.purchased || purchaseDetails.status == PurchaseStatus.restored) {
+          _purchaseToken = purchaseDetails.verificationData.serverVerificationData;
+          
+          if (purchaseDetails.pendingCompletePurchase) {
+            try {
+              await _inAppPurchase.completePurchase(purchaseDetails).timeout(const Duration(seconds: 15));
+            } catch (e) {
+              debugPrint("Error completando la compra nativa: $e");
+            }
+          }
+          
+          // Proceder con la creación solo si el usuario inició explícitamente el flujo
+          if (_isPurchasing) {
+            await _executeCreationFlow();
+          } else if (purchaseDetails.status == PurchaseStatus.restored) {
+            if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Suscripción previa restaurada. Ya puedes crear el plan.')));
+          }
+        }
+      } catch (e) {
+        debugPrint("Error fatal en _listenToPurchaseUpdated: $e");
+        if (_loadingContext != null) { Navigator.pop(_loadingContext!); _loadingContext = null; }
+        setState(() => _isPurchasing = false);
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Ocurrió un error procesando tu pago. Intenta de nuevo.')));
       }
     }
   }
@@ -322,6 +344,7 @@ Situational: ${_situationalCtrl.text}
                     child: ElevatedButton(
                       onPressed: _acceptedTerms 
                           ? () async {
+                              if (_isPurchasing) return;
                               if (!_isEligible) {
                                 // Iniciar pago real
                                 setState(() => _isPurchasing = true);
@@ -362,7 +385,18 @@ Situational: ${_situationalCtrl.text}
                                 }
                                 
                                 final purchaseParam = PurchaseParam(productDetails: response.productDetails.first);
-                                await _inAppPurchase.buyNonConsumable(purchaseParam: purchaseParam);
+                                try {
+                                  final bool started = await _inAppPurchase.buyNonConsumable(purchaseParam: purchaseParam);
+                                  if (!started) {
+                                    if (_loadingContext != null) { Navigator.pop(_loadingContext!); _loadingContext = null; }
+                                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No se pudo iniciar el proceso de compra con Google Play.')));
+                                    setState(() => _isPurchasing = false);
+                                  }
+                                } catch (e) {
+                                  if (_loadingContext != null) { Navigator.pop(_loadingContext!); _loadingContext = null; }
+                                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error al iniciar la compra: $e')));
+                                  setState(() => _isPurchasing = false);
+                                }
                               } else {
                                 // Show Loading for creation
                                 showDialog(
@@ -672,45 +706,61 @@ Situational: ${_situationalCtrl.text}
   }
 
   Future<void> _executeCreationFlow() async {
-    // Upload Image
-    String? imageUrl = await EntrepreneurService().uploadProductImage(_productImageFile!, 'temp_user');
-    
-    // Manejo de Error 4: Abortar si la imagen falla
-    if (imageUrl == null) {
-      if (_loadingContext != null) { Navigator.pop(_loadingContext!); _loadingContext = null; }
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No se pudo subir la imagen del producto. Verifica tu conexión a internet.')));
-      setState(() => _isPurchasing = false);
-      return;
-    }
-
-    bool success = false;
-    if (widget.isGroup) {
-      final emails = _invitedMembers.map((e) => e.email).toList();
-      success = await EntrepreneurService().createGroup('Grupo de ${widget.planName}', widget.price.toString(), emails, _productNameCtrl.text, imageUrl, _purchaseToken);
-    } else {
-      success = await EntrepreneurService().createOTPProfile(_configuredChampions.keys.first, widget.price.toString(), _productNameCtrl.text, imageUrl, _purchaseToken);
-    }
-
-    if (success) {
-      // Save all champions
-      for (var entry in _configuredChampions.entries) {
-        await EntrepreneurService().saveChampionData(entry.key, entry.value);
-      }
+    try {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Paso 1: Subiendo imagen a Supabase...')));
       
-      if (mounted) {
-        if (_loadingContext != null) { Navigator.pop(_loadingContext!); _loadingContext = null; } // Close loading
-        Navigator.pop(context); // Close modal
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (_) => const EntrepreneurDashboardScreen()),
-        );
+      // Upload Image
+      String? imageUrl = await EntrepreneurService().uploadProductImage(_productImageFile!, 'temp_user');
+      
+      if (imageUrl == null) {
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Error: No se pudo subir la imagen del producto.')));
+        setState(() => _isPurchasing = false);
+        return;
       }
-    } else {
+
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Paso 2: Creando perfil en el servidor...')));
+
+      Map<String, dynamic> result;
+      if (widget.isGroup) {
+        final emails = _invitedMembers.map((e) => e.email).toList();
+        result = await EntrepreneurService().createGroup('Grupo de ${widget.planName}', widget.price.toString(), emails, _productNameCtrl.text, imageUrl, _purchaseToken);
+      } else {
+        result = await EntrepreneurService().createOTPProfile(_configuredChampions.keys.first, widget.price.toString(), _productNameCtrl.text, imageUrl, _purchaseToken);
+      }
+
+      if (result['success'] == true) {
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Paso 3: Guardando configuraciones...')));
+        // Save all champions
+        for (var entry in _configuredChampions.entries) {
+          await EntrepreneurService().saveChampionData(entry.key, entry.value);
+        }
+        
+        if (mounted) {
+          Navigator.pop(context); // Close modal
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(builder: (_) => const EntrepreneurDashboardScreen()),
+          );
+        }
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error del backend: ${result['error']}'), duration: const Duration(seconds: 5)),
+          );
+          setState(() => _isPurchasing = false);
+        }
+      }
+    } catch (e) {
+      debugPrint("Error in _executeCreationFlow: $e");
       if (mounted) {
-        if (_loadingContext != null) { Navigator.pop(_loadingContext!); _loadingContext = null; }
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Error al crear el plan. Verifica que hayas completado todos los requisitos.')),
+          SnackBar(content: Text('Error inesperado: $e')),
         );
         setState(() => _isPurchasing = false);
+      }
+    } finally {
+      if (_loadingContext != null) { 
+        Navigator.pop(_loadingContext!); 
+        _loadingContext = null; 
       }
     }
   }

@@ -107,18 +107,19 @@ func main() {
 			r.Group(func(r chi.Router) {
 				r.Use(middleware.SubscriptionCheck)
 				r.Use(middleware.Cooldown)
+				
 				r.Post("/draft/analyze", handlers.AnalyzeDraft)
-			})
 
-			// Chat Coach Routes
-			r.Get("/chat-coach/matches", handlers.GetChatCoachMatches)
-			r.Delete("/chat-coach/matches/{id}", handlers.DeleteChatCoachMatch)
-			r.Post("/chat-coach/matches/{id}/threads", handlers.CreateChatCoachThread)
-			r.Get("/chat-coach/threads/{id}/messages", handlers.GetChatCoachMessages)
-			r.Post("/chat-coach/threads/{id}/message", handlers.PostChatCoachMessage)
-			r.Post("/chat-coach/threads/{id}/video-message", handlers.PostChatCoachVideoMessage)
-			r.Post("/chat-coach/threads/{id}/tutor-message", handlers.PostTutorMessage)
-			r.Delete("/chat-coach/threads/{id}", handlers.DeleteChatCoachThread)
+				// Chat Coach Routes (Also require active plan resolution and cooldown)
+				r.Get("/chat-coach/matches", handlers.GetChatCoachMatches)
+				r.Delete("/chat-coach/matches/{id}", handlers.DeleteChatCoachMatch)
+				r.Post("/chat-coach/matches/{id}/threads", handlers.CreateChatCoachThread)
+				r.Get("/chat-coach/threads/{id}/messages", handlers.GetChatCoachMessages)
+				r.Post("/chat-coach/threads/{id}/message", handlers.PostChatCoachMessage)
+				r.Post("/chat-coach/threads/{id}/video-message", handlers.PostChatCoachVideoMessage)
+				r.Post("/chat-coach/threads/{id}/tutor-message", handlers.PostTutorMessage)
+				r.Delete("/chat-coach/threads/{id}", handlers.DeleteChatCoachThread)
+			})
 
 			// Group/Entrepreneur Routes (Version 2)
 			r.Get("/group/champions", handlers.GetMyChampions)
