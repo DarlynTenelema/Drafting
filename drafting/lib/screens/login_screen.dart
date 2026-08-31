@@ -30,7 +30,10 @@ class _LoginScreenState extends State<LoginScreen> {
     });
 
     try {
-      final googleUser = await _googleSignIn.authenticate();
+      final googleUser = await _googleSignIn.signIn();
+      if (googleUser == null) {
+        throw Exception('canceled'); // User canceled sign in
+      }
 
       final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
       final String? idToken = googleAuth.idToken;

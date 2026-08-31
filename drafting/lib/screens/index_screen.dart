@@ -123,6 +123,7 @@ class _IndexScreenState extends State<IndexScreen> {
     try { await GoogleSignIn.instance.disconnect(); } catch (_) {}
     await GoogleSignIn.instance.signOut();
     await SessionService.clearSession();
+    await ActiveProductState().clearActiveProduct();
     FinanceService().reset();
     if (!mounted) return;
     Navigator.of(context).pushReplacement(

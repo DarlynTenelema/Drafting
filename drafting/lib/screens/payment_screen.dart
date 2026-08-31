@@ -581,71 +581,21 @@ class _PaymentScreenState extends State<PaymentScreen> {
 
   @override
   Widget build(BuildContext context) {
-    if (widget.creatorId != null) {
-      return Scaffold(
-        appBar: AppBar(
-          title: Text(widget.isGroup ? 'Suscripción al Grupo' : 'Paquete de IA', style: GoogleFonts.outfit(color: AppTheme.textLight)),
-          backgroundColor: AppTheme.background,
-          elevation: 0,
-          iconTheme: const IconThemeData(color: AppTheme.textLight),
-        ),
-        backgroundColor: AppTheme.background,
-        body: _loading
-            ? const Center(child: CircularProgressIndicator())
-            : Stack(
-                children: [
-                  SingleChildScrollView(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      children: [
-                        _buildStatusBanner(),
-                        const SizedBox(height: 16),
-                        _buildSubscriptionCard(
-                          title: widget.creatorProductName ?? (widget.isGroup ? 'Acceso al Grupo' : 'Acceso al Creador'),
-                          description: 'Apoya a este creador y obtén acceso exclusivo a su IA configurada o comunidad.',
-                          price: '\$${widget.creatorProductPrice?.toStringAsFixed(2) ?? '4.99'}/mes',
-                          features: [
-                            _PlanFeature('Acceso al modelo de IA configurado', iconData: Icons.smart_toy),
-                            _PlanFeature('Recomendaciones personalizadas del creador', iconData: Icons.star),
-                            _PlanFeature('Apoyo directo al creador', iconData: Icons.favorite),
-                          ],
-                          color: AppTheme.primary,
-                          isCurrentPlan: false,
-                          onPressed: () {
-                            if (_products.isEmpty) {
-                              _showMessage('Productos no disponibles', isError: true);
-                              return;
-                            }
-                            // Fallback to a generic 1-month product for Creator Subscriptions
-                            final product = _products.firstWhere(
-                                (p) => p.id == 'pro_1m',
-                                orElse: () => _products.first);
-                            _buyProduct(product);
-                          },
-                        ),
-                      ],
-                    ),
-                  ),
-                  if (_verifying)
-                    Container(
-                      color: Colors.black54,
-                      child: const Center(child: CircularProgressIndicator(color: AppTheme.primary)),
-                    ),
-                ],
-              ),
-      );
-    }
-
     final dailyProducts = _products.where((p) => p.id.endsWith('_1d')).toList();
     final weeklyProducts = _products.where((p) => p.id.endsWith('_1w')).toList();
     final monthlyProducts = _products.where((p) => p.id.endsWith('_1m')).toList();
     final yearlyProducts = _products.where((p) => p.id.endsWith('_1y')).toList();
 
+    String appBarTitle = 'Planes y Accesos';
+    if (widget.creatorId != null) {
+      appBarTitle = widget.isGroup ? 'Suscripción al Grupo' : 'Paquete de IA';
+    }
+
     return DefaultTabController(
       length: 4,
       child: Scaffold(
         appBar: AppBar(
-          title: Text('Planes y Accesos', style: GoogleFonts.outfit(color: AppTheme.textLight)),
+          title: Text(appBarTitle, style: GoogleFonts.outfit(color: AppTheme.textLight)),
           backgroundColor: AppTheme.background,
           elevation: 0,
           iconTheme: const IconThemeData(color: AppTheme.textLight),

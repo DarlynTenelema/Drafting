@@ -73,8 +73,8 @@ func Auth(next http.Handler) http.Handler {
 
 		sessionToken := strings.TrimPrefix(authHeader, "Bearer ")
 
-		// Validate JWT and extract sub (userID or googleID) + jti
-		sub, jti, err := auth.ValidateJWT(sessionToken)
+		// Validate JWT and extract sub (userID or googleID)
+		sub, _, err := auth.ValidateJWT(sessionToken)
 		if err != nil {
 			http.Error(w, "Unauthorized: invalid token", http.StatusUnauthorized)
 			return

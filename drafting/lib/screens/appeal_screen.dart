@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../core/services/api_client.dart';
 import '../core/services/session_service.dart';
 import '../core/services/finance_service.dart';
+import '../core/state/active_product_state.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'login_screen.dart';
 
@@ -64,6 +65,7 @@ class _AppealScreenState extends State<AppealScreen> {
     try { await GoogleSignIn.instance.disconnect(); } catch (_) {}
     await GoogleSignIn.instance.signOut();
     await SessionService.clearSession();
+    await ActiveProductState().clearActiveProduct();
     FinanceService().reset();
     if (!mounted) return;
     Navigator.of(context).pushReplacement(

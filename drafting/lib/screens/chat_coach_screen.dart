@@ -52,7 +52,7 @@ class _ChatCoachScreenState extends State<ChatCoachScreen> {
 
   Future<void> _fetchUserTier() async {
     try {
-      final response = await ApiClient.get('/api/v1/auth/me');
+      final response = await ApiClient.get('/api/v1/auth/me', authenticated: true);
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         if (mounted) {
