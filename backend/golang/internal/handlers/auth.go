@@ -50,6 +50,8 @@ func GoogleLogin(w http.ResponseWriter, r *http.Request) {
 			user = models.User{
 				GoogleID:     &claims.GoogleID,
 				Email:        claims.Email,
+				Username:     claims.Name,
+				ProfilePic:   claims.Picture,
 				SessionToken: jti,
 			}
 			if err := database.DB.Create(&user).Error; err != nil {
@@ -61,8 +63,10 @@ func GoogleLogin(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	} else {
-		// Update existing user with new session jti (revokes previous sessions)
+		// Update existing user with new session jti and sync profile data
 		user.SessionToken = jti
+		user.Username = claims.Name
+		user.ProfilePic = claims.Picture
 		if err := database.DB.Save(&user).Error; err != nil {
 			http.Error(w, "Internal server error: failed to update session", http.StatusInternalServerError)
 			return

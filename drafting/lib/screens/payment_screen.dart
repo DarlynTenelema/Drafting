@@ -20,7 +20,17 @@ class PaymentScreen extends StatefulWidget {
   final String sessionToken;
   final String? creatorId;
   final bool isGroup;
-  const PaymentScreen({super.key, required this.sessionToken, this.creatorId, this.isGroup = false});
+  final String? creatorProductName;
+  final double? creatorProductPrice;
+  
+  const PaymentScreen({
+    super.key, 
+    required this.sessionToken, 
+    this.creatorId, 
+    this.isGroup = false,
+    this.creatorProductName,
+    this.creatorProductPrice,
+  });
 
   @override
   State<PaymentScreen> createState() => _PaymentScreenState();
@@ -90,20 +100,20 @@ class _PaymentScreenState extends State<PaymentScreen> {
 
         if (id.startsWith('plus')) {
           title = 'Plus';
-          if (id.contains('1d')) price = '\$0.24';
-          else if (id.contains('1w')) price = '\$1.58';
-          else if (id.contains('1m')) price = '\$5.99';
-          else if (id.contains('1y')) price = '\$59.99';
+          if (id.contains('1d')) price = '\$0.99';
+          else if (id.contains('1w')) price = '\$2.99';
+          else if (id.contains('1m')) price = '\$4.99';
+          else if (id.contains('1y')) price = '\$49.99';
         } else if (id.startsWith('pro')) {
           title = 'Pro';
-          if (id.contains('1d')) price = '\$0.49';
-          else if (id.contains('1w')) price = '\$2.99';
+          if (id.contains('1d')) price = '\$1.99';
+          else if (id.contains('1w')) price = '\$4.99';
           else if (id.contains('1m')) price = '\$9.99';
           else if (id.contains('1y')) price = '\$99.99';
         } else if (id.startsWith('ultra')) {
           title = 'Ultra';
-          if (id.contains('1d')) price = '\$0.99';
-          else if (id.contains('1w')) price = '\$5.99';
+          if (id.contains('1d')) price = '\$2.99';
+          else if (id.contains('1w')) price = '\$7.99';
           else if (id.contains('1m')) price = '\$19.99';
           else if (id.contains('1y')) price = '\$199.99';
         }
@@ -180,14 +190,12 @@ class _PaymentScreenState extends State<PaymentScreen> {
           await SubscriptionService.subscribeGroup(
             subscriptionId: purchase.productID,
             purchaseToken: purchaseToken,
-            sessionToken: widget.sessionToken,
             groupId: widget.creatorId!,
           );
         } else {
           await SubscriptionService.subscribeCreator(
             subscriptionId: purchase.productID,
             purchaseToken: purchaseToken,
-            sessionToken: widget.sessionToken,
             creatorId: widget.creatorId!,
           );
         }
@@ -207,7 +215,6 @@ class _PaymentScreenState extends State<PaymentScreen> {
         final endsAt = await SubscriptionService.verifyPurchase(
           productId: purchase.productID,
           purchaseToken: purchaseToken,
-          sessionToken: widget.sessionToken,
         );
 
         _processedPurchaseKeys.add(key);
@@ -574,6 +581,61 @@ class _PaymentScreenState extends State<PaymentScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (widget.creatorId != null) {
+      return Scaffold(
+        appBar: AppBar(
+          title: Text(widget.isGroup ? 'Suscripción al Grupo' : 'Paquete de IA', style: GoogleFonts.outfit(color: AppTheme.textLight)),
+          backgroundColor: AppTheme.background,
+          elevation: 0,
+          iconTheme: const IconThemeData(color: AppTheme.textLight),
+        ),
+        backgroundColor: AppTheme.background,
+        body: _loading
+            ? const Center(child: CircularProgressIndicator())
+            : Stack(
+                children: [
+                  SingleChildScrollView(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      children: [
+                        _buildStatusBanner(),
+                        const SizedBox(height: 16),
+                        _buildSubscriptionCard(
+                          title: widget.creatorProductName ?? (widget.isGroup ? 'Acceso al Grupo' : 'Acceso al Creador'),
+                          description: 'Apoya a este creador y obtén acceso exclusivo a su IA configurada o comunidad.',
+                          price: '\$${widget.creatorProductPrice?.toStringAsFixed(2) ?? '4.99'}/mes',
+                          features: [
+                            _PlanFeature('Acceso al modelo de IA configurado', iconData: Icons.smart_toy),
+                            _PlanFeature('Recomendaciones personalizadas del creador', iconData: Icons.star),
+                            _PlanFeature('Apoyo directo al creador', iconData: Icons.favorite),
+                          ],
+                          color: AppTheme.primary,
+                          isCurrentPlan: false,
+                          onPressed: () {
+                            if (_products.isEmpty) {
+                              _showMessage('Productos no disponibles', isError: true);
+                              return;
+                            }
+                            // Fallback to a generic 1-month product for Creator Subscriptions
+                            final product = _products.firstWhere(
+                                (p) => p.id == 'pro_1m',
+                                orElse: () => _products.first);
+                            _buyProduct(product);
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (_verifying)
+                    Container(
+                      color: Colors.black54,
+                      child: const Center(child: CircularProgressIndicator(color: AppTheme.primary)),
+                    ),
+                ],
+              ),
+      );
+    }
+
     final dailyProducts = _products.where((p) => p.id.endsWith('_1d')).toList();
     final weeklyProducts = _products.where((p) => p.id.endsWith('_1w')).toList();
     final monthlyProducts = _products.where((p) => p.id.endsWith('_1m')).toList();

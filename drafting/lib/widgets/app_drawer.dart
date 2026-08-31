@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:google_sign_in/google_sign_in.dart';
@@ -12,6 +13,8 @@ import '../screens/creator_dashboard_screen.dart';
 import '../screens/help_center_screen.dart';
 import '../screens/payment_screen.dart';
 import '../screens/consumer_store_screen.dart';
+import '../core/services/api_client.dart';
+
 class AppDrawer extends StatefulWidget {
   const AppDrawer({super.key});
 
@@ -21,7 +24,8 @@ class AppDrawer extends StatefulWidget {
 
 class _AppDrawerState extends State<AppDrawer> {
   final GoogleSignIn _googleSignIn = GoogleSignIn.instance;
-  GoogleSignInAccount? _currentUser;
+  String? _userName;
+  String? _userPhotoUrl;
 
   @override
   void initState() {
@@ -31,17 +35,18 @@ class _AppDrawerState extends State<AppDrawer> {
 
   void _loadUser() async {
     try {
-      final future = _googleSignIn.attemptLightweightAuthentication();
-      if (future != null) {
-        final account = await future;
+      final response = await ApiClient.get('/api/v1/auth/me', authenticated: true);
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
         if (mounted) {
           setState(() {
-            _currentUser = account;
+            _userName = data['username'];
+            _userPhotoUrl = data['profile_pic'];
           });
         }
       }
     } catch (e) {
-      debugPrint('Error loading user: $e');
+      debugPrint('Error loading user in drawer: $e');
     }
   }
 
@@ -131,11 +136,11 @@ class _AppDrawerState extends State<AppDrawer> {
           ListTile(
             leading: CircleAvatar(
               backgroundColor: AppTheme.background,
-              backgroundImage: _currentUser?.photoUrl != null ? NetworkImage(_currentUser!.photoUrl!) : null,
+              backgroundImage: _userPhotoUrl != null ? NetworkImage(_userPhotoUrl!) : null,
               radius: 16,
-              child: _currentUser?.photoUrl == null ? const Icon(Icons.person, color: AppTheme.textMuted, size: 20) : null,
+              child: _userPhotoUrl == null ? const Icon(Icons.person, color: AppTheme.textMuted, size: 20) : null,
             ),
-            title: Text(_currentUser?.displayName ?? 'Jugador', style: const TextStyle(color: Colors.white, fontSize: 14)),
+            title: Text(_userName ?? 'Jugador', style: const TextStyle(color: Colors.white, fontSize: 14)),
             trailing: IconButton(
               icon: const Icon(Icons.logout, color: Colors.redAccent),
               onPressed: _handleLogout,

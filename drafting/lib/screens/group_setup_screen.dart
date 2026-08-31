@@ -736,6 +736,10 @@ Situational: ${_situationalCtrl.text}
         }
         
         if (mounted) {
+          if (_loadingContext != null) {
+            Navigator.pop(_loadingContext!);
+            _loadingContext = null;
+          }
           Navigator.pop(context); // Close modal
           Navigator.of(context).pushReplacement(
             MaterialPageRoute(builder: (_) => const EntrepreneurDashboardScreen()),

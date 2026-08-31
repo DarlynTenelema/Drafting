@@ -16,6 +16,8 @@ import (
 type GoogleClaims struct {
 	GoogleID string
 	Email    string
+	Name     string
+	Picture  string
 }
 
 func VerifyGoogleToken(ctx context.Context, token string) (*GoogleClaims, error) {
@@ -35,6 +37,16 @@ func VerifyGoogleToken(ctx context.Context, token string) (*GoogleClaims, error)
 
 	if email, ok := payload.Claims["email"]; ok {
 		claims.Email = email.(string)
+	}
+	if name, ok := payload.Claims["name"]; ok {
+		claims.Name = name.(string)
+	}
+	if picture, ok := payload.Claims["picture"]; ok {
+		picUrl := picture.(string)
+		if len(picUrl) > 255 {
+			picUrl = picUrl[:255]
+		}
+		claims.Picture = picUrl
 	}
 
 	return claims, nil

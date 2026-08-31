@@ -6,7 +6,7 @@ import 'package:google_sign_in/google_sign_in.dart';
 import '../core/services/api_client.dart';
 import '../core/services/session_service.dart';
 import '../theme/app_theme.dart';
-import 'index_screen.dart';
+import 'main_layout.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -32,7 +32,7 @@ class _LoginScreenState extends State<LoginScreen> {
     try {
       final googleUser = await _googleSignIn.authenticate();
 
-      final GoogleSignInAuthentication googleAuth = googleUser!.authentication;
+      final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
       final String? idToken = googleAuth.idToken;
 
       if (idToken != null) {
@@ -50,7 +50,7 @@ class _LoginScreenState extends State<LoginScreen> {
           if (!mounted) return;
           Navigator.of(context).pushReplacement(
             MaterialPageRoute(
-              builder: (_) => IndexScreen(sessionToken: sessionToken),
+              builder: (_) => MainLayoutScreen(sessionToken: sessionToken),
             ),
           );
         } else {

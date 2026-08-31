@@ -89,9 +89,8 @@ class _ConsumerStoreScreenState extends State<ConsumerStoreScreen> with SingleTi
   Future<void> _fetchProducts() async {
     try {
       final response = await ApiClient.get(
-        '/store/products',
+        '/api/v1/store/products',
         authenticated: true,
-        sessionToken: widget.sessionToken,
       );
       if (response.statusCode == 200) {
         final List<dynamic> data = json.decode(response.body);
@@ -101,13 +100,13 @@ class _ConsumerStoreScreenState extends State<ConsumerStoreScreen> with SingleTi
         });
       } else {
         setState(() {
-          _errorMessage = "Error al cargar la tienda.";
+          _errorMessage = "Error al cargar la tienda. Status: ${response.statusCode}\nBody: ${response.body}";
           _isLoading = false;
         });
       }
     } catch (e) {
       setState(() {
-        _errorMessage = e.toString();
+        _errorMessage = "Catch Error: ${e.toString()}";
         _isLoading = false;
       });
     }
@@ -116,7 +115,7 @@ class _ConsumerStoreScreenState extends State<ConsumerStoreScreen> with SingleTi
   Future<void> _fetchMyPackages() async {
     setState(() => _isLoadingMyPackages = true);
     try {
-      final data = await SubscriptionService.getMyPackages(sessionToken: widget.sessionToken);
+      final data = await SubscriptionService.getMyPackages();
       if (mounted) {
         setState(() {
           _myPackages = data.map((item) => ProductItem.fromJson(item as Map<String, dynamic>)).toList();
@@ -140,6 +139,8 @@ class _ConsumerStoreScreenState extends State<ConsumerStoreScreen> with SingleTi
           sessionToken: widget.sessionToken,
           creatorId: product.id,
           isGroup: product.isGroup,
+          creatorProductName: product.title,
+          creatorProductPrice: product.price,
         ),
       ),
     );
