@@ -28,6 +28,7 @@ class MainActivity : FlutterActivity() {
     private var pendingSecondaryRole: String? = null
     private var pendingAutofillRole: String? = null
     private var pendingIsPremium: Boolean = false
+    private var pendingPlanTier: String? = "plus"
     private var pendingOtpChampions: String? = ""
     private var pendingActiveCreatorId: String? = ""
     private var awaitingOverlayPermission: Boolean = false
@@ -97,6 +98,7 @@ class MainActivity : FlutterActivity() {
                 pendingSecondaryRole = call.argument("secondaryRole")
                 pendingAutofillRole = call.argument("autofillRole")
                 pendingIsPremium = call.argument("isPremium") ?: false
+                pendingPlanTier = call.argument("planTier") ?: "plus"
                 pendingOtpChampions = call.argument("otpChampions") ?: ""
                 pendingActiveCreatorId = call.argument("activeCreatorId") ?: ""
 
@@ -136,6 +138,7 @@ class MainActivity : FlutterActivity() {
                 serviceIntent.putExtra("secondaryRole", pendingSecondaryRole)
                 serviceIntent.putExtra("autofillRole", pendingAutofillRole)
                 serviceIntent.putExtra("isPremium", pendingIsPremium)
+                serviceIntent.putExtra("planTier", pendingPlanTier)
                 serviceIntent.putExtra("otpChampions", pendingOtpChampions)
                 serviceIntent.putExtra("activeCreatorId", pendingActiveCreatorId)
 

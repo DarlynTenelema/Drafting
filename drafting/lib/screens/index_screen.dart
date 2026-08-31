@@ -6,6 +6,7 @@ import 'package:google_sign_in/google_sign_in.dart';
 import '../core/config/app_config.dart';
 import '../core/services/native_service.dart';
 import '../core/services/session_service.dart';
+import '../core/services/finance_service.dart';
 import '../theme/app_theme.dart';
 import 'login_screen.dart';
 import 'payment_screen.dart';
@@ -133,8 +134,10 @@ class _IndexScreenState extends State<IndexScreen> {
 
   Future<void> _handleLogout() async {
     await NativeService.stopCaptureService();
+    try { await GoogleSignIn.instance.disconnect(); } catch (_) {}
     await GoogleSignIn.instance.signOut();
     await SessionService.clearSession();
+    FinanceService().reset();
     if (!mounted) return;
     Navigator.of(context).pushReplacement(
       MaterialPageRoute(builder: (_) => const LoginScreen()),
@@ -222,6 +225,7 @@ class _IndexScreenState extends State<IndexScreen> {
         secondaryRole: "Auto",
         autofillRole: "Auto",
         isPremium: _isPremium,
+        planTier: _userTier,
         otpChampions: otpString,
         activeCreatorId: activeCreatorId,
       );

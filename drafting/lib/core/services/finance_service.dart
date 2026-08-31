@@ -7,9 +7,18 @@ class FinanceService extends ChangeNotifier {
   factory FinanceService() => _instance;
   FinanceService._internal();
 
+  double _totalCoins = 0.0;
+  double _totalUsd = 0.0;
+
+  void reset() {
+    _totalCoins = 0.0;
+    _totalUsd = 0.0;
+    notifyListeners();
+  }
+
   bool isLoading = false;
-  double totalUsd = 0.0;
-  double totalCoins = 0.0;
+  double get totalUsd => _totalUsd;
+  double get totalCoins => _totalCoins;
   double withdrawableUsd = 0.0;
   double withdrawalLimit = 100.0;
   String userRole = 'consumer';
@@ -39,8 +48,8 @@ class FinanceService extends ChangeNotifier {
       final response = await ApiClient.get('/finance/dashboard', authenticated: true);
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        totalUsd = (data['total_usd'] as num).toDouble();
-        totalCoins = (data['total_essences'] as num?)?.toDouble() ?? 0.0;
+        _totalUsd = (data['total_usd'] as num).toDouble();
+        _totalCoins = (data['total_essences'] as num?)?.toDouble() ?? 0.0;
         withdrawableUsd = (data['withdrawable_usd'] as num?)?.toDouble() ?? 0.0;
         withdrawalLimit = (data['withdrawal_limit'] as num?)?.toDouble() ?? 100.0;
         userRole = data['role'] ?? 'consumer';
@@ -59,7 +68,7 @@ class FinanceService extends ChangeNotifier {
       final response = await ApiClient.post('/finance/withdraw', authenticated: true);
       if (response.statusCode == 200 || response.statusCode == 201) {
         // Clear local state or refetch
-        totalUsd = 0.0;
+        _totalUsd = 0.0;
         withdrawableUsd = 0.0;
         notifyListeners();
         return true;
@@ -98,7 +107,7 @@ class FinanceService extends ChangeNotifier {
       
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        totalCoins = (data['new_balance'] as num).toDouble();
+        _totalCoins = (data['new_balance'] as num).toDouble();
         notifyListeners();
         return true;
       }

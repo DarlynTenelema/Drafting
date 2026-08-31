@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../core/services/api_client.dart';
 import '../core/services/session_service.dart';
+import '../core/services/finance_service.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'login_screen.dart';
 
@@ -60,8 +61,10 @@ class _AppealScreenState extends State<AppealScreen> {
   }
 
   Future<void> _handleLogout() async {
+    try { await GoogleSignIn.instance.disconnect(); } catch (_) {}
     await GoogleSignIn.instance.signOut();
     await SessionService.clearSession();
+    FinanceService().reset();
     if (!mounted) return;
     Navigator.of(context).pushReplacement(
       MaterialPageRoute(builder: (_) => const LoginScreen()),

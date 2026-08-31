@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import '../core/services/native_service.dart';
 import '../core/services/session_service.dart';
+import '../core/services/finance_service.dart';
 import '../theme/app_theme.dart';
 import '../screens/login_screen.dart';
 import '../screens/economy_screen.dart';
@@ -46,8 +47,10 @@ class _AppDrawerState extends State<AppDrawer> {
 
   Future<void> _handleLogout() async {
     await NativeService.stopCaptureService();
+    try { await _googleSignIn.disconnect(); } catch (_) {}
     await _googleSignIn.signOut();
     await SessionService.clearSession();
+    FinanceService().reset();
     if (!mounted) return;
     Navigator.of(context).pushAndRemoveUntil(
       MaterialPageRoute(builder: (_) => const LoginScreen()),

@@ -5,10 +5,14 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:math';
+import 'package:image_picker/image_picker.dart';
+import 'dart:math';
+import 'dart:convert';
 import '../theme/app_theme.dart';
 
 import '../core/models/chat_coach_model.dart';
 import '../core/services/chat_coach_service.dart';
+import '../core/services/api_client.dart';
 import 'chat_coach_prompts_screen.dart';
 
 class ChatCoachScreen extends StatefulWidget {
@@ -26,6 +30,7 @@ class _ChatCoachScreenState extends State<ChatCoachScreen> {
 
   bool _isLoading = true;
   bool _isSending = false;
+  bool _isUltra = false;
 
   List<MatchSession> _matches = [];
   MatchSession? _selectedMatch;
@@ -41,7 +46,24 @@ class _ChatCoachScreenState extends State<ChatCoachScreen> {
     super.initState();
     timeago.setLocaleMessages('es', timeago.EsMessages());
     _loadInitialData();
+    _fetchUserTier();
     _loadMatches();
+  }
+
+  Future<void> _fetchUserTier() async {
+    try {
+      final response = await ApiClient.get('/api/v1/auth/me');
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        if (mounted) {
+          setState(() {
+            _isUltra = data['plan_tier'] == 'ultra';
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint('Error fetching user tier: $e');
+    }
   }
 
   Future<void> _loadInitialData() async {
@@ -376,6 +398,37 @@ class _ChatCoachScreenState extends State<ChatCoachScreen> {
   }
 
   Widget _buildInputArea() {
+    if (!_isUltra) {
+      return SafeArea(
+        child: Container(
+          margin: const EdgeInsets.only(left: 16.0, right: 16.0, bottom: 16.0, top: 8.0),
+          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 16.0),
+          decoration: BoxDecoration(
+            color: Colors.grey[900]?.withOpacity(0.8),
+            borderRadius: BorderRadius.circular(30.0),
+            border: Border.all(color: Colors.blueAccent.withOpacity(0.5)),
+            boxShadow: [
+              BoxShadow(color: Colors.black.withOpacity(0.5), blurRadius: 10, offset: const Offset(0, 4)),
+            ],
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.lock, color: Colors.blueAccent, size: 20),
+              const SizedBox(width: 8),
+              Flexible(
+                child: const Text(
+                  'Mejora al plan Ultra para comenzar a conversar con nuestra IA avanzada.',
+                  style: TextStyle(color: Colors.white70, fontSize: 13),
+                  textAlign: TextAlign.center,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     return ValueListenableBuilder<TextEditingValue>(
       valueListenable: _messageController,
       builder: (context, value, child) {

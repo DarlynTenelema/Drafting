@@ -18,6 +18,7 @@ class NativeService {
     required String secondaryRole,
     required String autofillRole,
     required bool isPremium,
+    required String planTier,
     required String otpChampions,
     required String? activeCreatorId,
   }) async {
@@ -29,6 +30,7 @@ class NativeService {
         'secondaryRole': secondaryRole,
         'autofillRole': autofillRole,
         'isPremium': isPremium,
+        'planTier': planTier,
         'otpChampions': otpChampions,
         'activeCreatorId': activeCreatorId ?? '',
       });

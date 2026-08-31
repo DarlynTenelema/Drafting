@@ -58,6 +58,7 @@ class CaptureService : Service() {
     private var secondaryRole: String? = null
     private var autofillRole: String? = null
     private var isPremium: Boolean = false
+    private var planTier: String = "plus"
     private var otpChampions: String = ""
     private var activeCreatorId: String? = null
 
@@ -97,6 +98,7 @@ class CaptureService : Service() {
         secondaryRole = intent.getStringExtra("secondaryRole")
         autofillRole = intent.getStringExtra("autofillRole")
         isPremium = intent.getBooleanExtra("isPremium", false)
+        planTier = intent.getStringExtra("planTier") ?: "plus"
         otpChampions = intent.getStringExtra("otpChampions") ?: ""
         activeCreatorId = intent.getStringExtra("activeCreatorId")
 
@@ -193,7 +195,9 @@ class CaptureService : Service() {
         val btnCaptureInGame = floatingView.findViewById<ImageButton>(R.id.btnCaptureInGame)
         val btnClose = floatingView.findViewById<ImageButton>(R.id.btnClose)
 
-        if (!isPremium) {
+        val hasProOrUltra = planTier == "pro" || planTier == "ultra"
+
+        if (!hasProOrUltra) {
             btnCaptureOTP.setImageResource(android.R.drawable.ic_secure)
             btnCaptureInGame.setImageResource(android.R.drawable.ic_secure)
         }
@@ -203,20 +207,20 @@ class CaptureService : Service() {
         }
         
         btnCaptureOTP.setOnClickListener {
-            if (isPremium) {
+            if (hasProOrUltra) {
                 captureScreenAndSend("otp", 0)
             } else {
                 sendResultToActivity("PAYMENT_REQUIRED", 402, "Premium required")
-                Toast.makeText(this, "Requiere plan Premium", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, "Requiere plan Pro o Ultra", Toast.LENGTH_SHORT).show()
             }
         }
         
         btnCaptureInGame.setOnClickListener {
-            if (isPremium) {
+            if (hasProOrUltra) {
                 captureScreenAndSend("in_game", 0)
             } else {
                 sendResultToActivity("PAYMENT_REQUIRED", 402, "Premium required")
-                Toast.makeText(this, "Requiere plan Premium", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, "Requiere plan Pro o Ultra", Toast.LENGTH_SHORT).show()
             }
         }
         
