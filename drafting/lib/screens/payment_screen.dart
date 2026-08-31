@@ -215,6 +215,14 @@ class _PaymentScreenState extends State<PaymentScreen> {
         if (mounted) {
           setState(() {
             _verifying = false;
+          });
+
+          if (endsAt != null && endsAt.isBefore(DateTime.now())) {
+            _showMessage('El token de prueba ya expiró (Google Play reusó el token).', isError: true);
+            return false;
+          }
+
+          setState(() {
             _subscriptionStatus = SubscriptionStatus(
               hasActiveSubscription: true,
               globalFreeTrialActive: _subscriptionStatus?.globalFreeTrialActive ?? false,
