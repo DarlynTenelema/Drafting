@@ -94,12 +94,6 @@ func Auth(next http.Handler) http.Handler {
 			}
 		}
 
-		// If user.SessionToken is present, enforce that it matches the token jti (single-session behavior)
-		if user.SessionToken != "" && user.SessionToken != jti {
-			http.Error(w, "Unauthorized or session expired", http.StatusUnauthorized)
-			return
-		}
-
 		ctx := context.WithValue(r.Context(), UserContextKey, &user)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})

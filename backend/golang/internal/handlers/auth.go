@@ -68,7 +68,7 @@ func GoogleLogin(w http.ResponseWriter, r *http.Request) {
 		user.Username = claims.Name
 		user.ProfilePic = claims.Picture
 		if err := database.DB.Save(&user).Error; err != nil {
-			http.Error(w, "Internal server error: failed to update session", http.StatusInternalServerError)
+			http.Error(w, "Internal server error: failed to update session: " + err.Error(), http.StatusInternalServerError)
 			return
 		}
 	}

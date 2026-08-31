@@ -61,10 +61,16 @@ class _LoginScreenState extends State<LoginScreen> {
         _showError('No se pudo obtener el token de Google.');
       }
     } on PlatformException catch (e) {
-      _showError('Fallo en Google SignIn: código ${e.code}, mensaje: ${e.message}');
+      if (e.code == 'network_error') {
+        _showError('No se pudo conectar. Verifica tu internet e inténtalo de nuevo.');
+      } else if (e.code != 'sign_in_canceled' && !e.toString().contains('canceled')) {
+        _showError('Fallo en Google SignIn: código ${e.code}, mensaje: ${e.message}');
+      }
       debugPrint('PlatformException: ${e.toString()}');
     } catch (error) {
-      _showError('Excepción inesperada: ${error.toString()}');
+      if (!error.toString().contains('canceled')) {
+        _showError('Excepción inesperada. Por favor, intenta más tarde.');
+      }
       debugPrint('Unexpected error: ${error.toString()}');
     } finally {
       if (mounted) {
@@ -77,8 +83,29 @@ class _LoginScreenState extends State<LoginScreen> {
 
   void _showError(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message), backgroundColor: Colors.redAccent),
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppTheme.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            const Icon(Icons.error_outline, color: AppTheme.accent),
+            const SizedBox(width: 8),
+            Text('¡Ups!', style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold)),
+          ],
+        ),
+        content: Text(
+          message,
+          style: GoogleFonts.inter(color: AppTheme.textMuted),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: Text('Entendido', style: GoogleFonts.inter(color: AppTheme.primary, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
     );
   }
 
