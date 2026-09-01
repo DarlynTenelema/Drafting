@@ -426,11 +426,11 @@ func ListApprovedContent(w http.ResponseWriter, r *http.Request) {
 
 	switch contentType {
 	case "channels":
-		var channels []models.Channel
+		channels := make([]models.Channel, 0)
 		database.DB.Where("status = ?", "approved").Find(&channels)
 		json.NewEncoder(w).Encode(channels)
 	case "videos":
-		var videos []models.VideoEmbed
+		videos := make([]models.VideoEmbed, 0)
 		query := database.DB.Where("status = ?", "approved")
 		searchQuery := r.URL.Query().Get("q")
 		if searchQuery != "" {
@@ -439,10 +439,10 @@ func ListApprovedContent(w http.ResponseWriter, r *http.Request) {
 		query.Find(&videos)
 		json.NewEncoder(w).Encode(videos)
 	case "fanarts":
-		var fanarts []models.Fanart
+		fanarts := make([]models.Fanart, 0)
 		database.DB.Where("status = ?", "approved").Find(&fanarts)
 		
-		var fanartResponses []FanartResponse
+		fanartResponses := make([]FanartResponse, 0)
 		for _, f := range fanarts {
 			var creator models.User
 			database.DB.Where("id = ?", f.CreatorID).First(&creator)
