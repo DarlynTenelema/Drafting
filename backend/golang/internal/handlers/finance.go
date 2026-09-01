@@ -186,10 +186,10 @@ func SubscribeToGroup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Verify the subscription purchase
+	// Verify the product purchase
 	if playStoreVerifier != nil && playStoreVerifier.Enabled() {
-		if err := playStoreVerifier.VerifySubscriptionPurchase(r.Context(), req.PurchaseToken); err != nil {
-			http.Error(w, "Subscription verification failed: "+err.Error(), http.StatusPaymentRequired)
+		if err := playStoreVerifier.VerifyProductPurchase(r.Context(), req.SubscriptionID, req.PurchaseToken); err != nil {
+			http.Error(w, "Product verification failed: "+err.Error(), http.StatusPaymentRequired)
 			return
 		}
 	}
@@ -380,10 +380,10 @@ func SubscribeToCreator(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Verify the subscription purchase
+	// Verify the product purchase (since they are consumables/in-app products)
 	if playStoreVerifier != nil && playStoreVerifier.Enabled() {
-		if err := playStoreVerifier.VerifySubscriptionPurchase(r.Context(), req.PurchaseToken); err != nil {
-			http.Error(w, "Subscription verification failed: "+err.Error(), http.StatusPaymentRequired)
+		if err := playStoreVerifier.VerifyProductPurchase(r.Context(), req.SubscriptionID, req.PurchaseToken); err != nil {
+			http.Error(w, "Product verification failed: "+err.Error(), http.StatusPaymentRequired)
 			return
 		}
 	}
