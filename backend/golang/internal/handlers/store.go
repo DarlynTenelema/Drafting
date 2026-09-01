@@ -34,6 +34,22 @@ func ListStoreProducts(w http.ResponseWriter, r *http.Request) {
 		// Ignore
 	}
 
+	userMap := make(map[string]string)
+	var userIDs []string
+	for _, p := range otpProfiles {
+		userIDs = append(userIDs, p.OwnerID.String())
+	}
+	for _, g := range groups {
+		userIDs = append(userIDs, g.OwnerID.String())
+	}
+	if len(userIDs) > 0 {
+		var users []models.User
+		database.DB.Where("id IN ?", userIDs).Find(&users)
+		for _, u := range users {
+			userMap[u.ID.String()] = u.Username
+		}
+	}
+
 	products := []StoreProductResponse{}
 
 	// Map Creator profiles (OTP)
@@ -57,13 +73,18 @@ func ListStoreProducts(w http.ResponseWriter, r *http.Request) {
 			title = p.ChampionName + " Leyenda"
 		}
 
+		author := userMap[p.OwnerID.String()]
+		if author == "" {
+			author = p.ChampionName + " Master"
+		}
+
 		products = append(products, StoreProductResponse{
 			ID:           p.ID.String(),
 			Title:        title,
 			Subtitle:     p.Description,
 			Champion:     p.ChampionName,
 			IsGroup:      false,
-			Author:       p.ChampionName + " Master", // Since author is not explicitly saved yet in OTPProfile, we mock it
+			Author:       author,
 			Price:        price,
 			PrimaryColor: color,
 			ImageURL:     p.ProductImage,
@@ -87,13 +108,18 @@ func ListStoreProducts(w http.ResponseWriter, r *http.Request) {
 			title = g.Name
 		}
 
+		author := userMap[g.OwnerID.String()]
+		if author == "" {
+			author = g.Name
+		}
+
 		products = append(products, StoreProductResponse{
 			ID:           g.ID.String(),
 			Title:        title,
 			Subtitle:     sub,
 			Champion:     "Multi-Rol",
 			IsGroup:      true,
-			Author:       g.Name,
+			Author:       author,
 			Price:        price,
 			PrimaryColor: "0xFFFFD700", // Gold
 			ImageURL:     g.ProductImage,
@@ -131,6 +157,25 @@ func GetMyPackages(w http.ResponseWriter, r *http.Request) {
 		var otpProfiles []models.OTPProfile
 		database.DB.Where("id IN ?", creatorIDs).Find(&otpProfiles)
 
+		var groups []models.Group
+		database.DB.Where("id IN ?", creatorIDs).Find(&groups)
+
+		userMap := make(map[string]string)
+		var userIDs []string
+		for _, p := range otpProfiles {
+			userIDs = append(userIDs, p.OwnerID.String())
+		}
+		for _, g := range groups {
+			userIDs = append(userIDs, g.OwnerID.String())
+		}
+		if len(userIDs) > 0 {
+			var users []models.User
+			database.DB.Where("id IN ?", userIDs).Find(&users)
+			for _, u := range users {
+				userMap[u.ID.String()] = u.Username
+			}
+		}
+
 		for _, p := range otpProfiles {
 			color := "0xFFE91E63"
 			if p.ChampionName == "Lee Sin" || p.ChampionName == "Zed" {
@@ -148,21 +193,23 @@ func GetMyPackages(w http.ResponseWriter, r *http.Request) {
 			title := p.ProductName
 			if title == "" { title = p.ChampionName + " Leyenda" }
 
+			author := userMap[p.OwnerID.String()]
+			if author == "" {
+				author = p.ChampionName
+			}
+
 			products = append(products, StoreProductResponse{
 				ID:           p.ID.String(),
 				Title:        title,
 				Subtitle:     p.Description,
 				Champion:     p.ChampionName,
 				IsGroup:      false,
-				Author:       p.ChampionName,
+				Author:       author,
 				Price:        price,
 				PrimaryColor: color,
 				ImageURL:     p.ProductImage,
 			})
 		}
-
-		var groups []models.Group
-		database.DB.Where("id IN ?", creatorIDs).Find(&groups)
 
 		for _, g := range groups {
 			price := 100.0
@@ -172,13 +219,18 @@ func GetMyPackages(w http.ResponseWriter, r *http.Request) {
 			title := g.ProductName
 			if title == "" { title = g.Name }
 
+			author := userMap[g.OwnerID.String()]
+			if author == "" {
+				author = g.Name
+			}
+
 			products = append(products, StoreProductResponse{
 				ID:           g.ID.String(),
 				Title:        title,
 				Subtitle:     g.Description,
 				Champion:     "Multi-Rol",
 				IsGroup:      true,
-				Author:       g.Name,
+				Author:       author,
 				Price:        price,
 				PrimaryColor: "0xFFFFD700",
 				ImageURL:     g.ProductImage,

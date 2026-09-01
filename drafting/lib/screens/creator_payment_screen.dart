@@ -1,0 +1,683 @@
+import 'dart:async';
+
+import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:in_app_purchase/in_app_purchase.dart';
+
+import '../core/services/api_client.dart';
+import '../core/services/subscription_service.dart';
+import '../theme/app_theme.dart';
+
+class _PlanFeature {
+  final String text;
+  final Widget Function(Color color)? iconBuilder;
+  final IconData? iconData;
+
+  _PlanFeature(this.text, {this.iconBuilder, this.iconData});
+}
+
+class CreatorPaymentScreen extends StatefulWidget {
+  final String sessionToken;
+  final String? creatorId;
+  final bool isGroup;
+  final String? creatorProductName;
+  final double? creatorProductPrice;
+  
+  const CreatorPaymentScreen({
+    super.key, 
+    required this.sessionToken, 
+    this.creatorId, 
+    this.isGroup = false,
+    this.creatorProductName,
+    this.creatorProductPrice,
+  });
+
+  @override
+  State<CreatorPaymentScreen> createState() => _CreatorPaymentScreenState();
+}
+
+class _CreatorPaymentScreenState extends State<CreatorPaymentScreen> {
+  final InAppPurchase _inAppPurchase = InAppPurchase.instance;
+  late StreamSubscription<List<PurchaseDetails>> _subscription;
+
+  List<ProductDetails> _products = [];
+  SubscriptionStatus? _subscriptionStatus;
+  bool _isAvailable = false;
+  bool _loading = true;
+  bool _verifying = false;
+  final Set<String> _processedPurchaseKeys = {};
+
+  static const Set<String> _kProductIds = {
+    'creator_plus_1d', 'creator_plus_1w', 'creator_plus_1m', 'creator_plus_1y',
+    'creator_pro_1d', 'creator_pro_1w', 'creator_pro_1m', 'creator_pro_1y',
+    'creator_ultra_1d', 'creator_ultra_1w', 'creator_ultra_1m', 'creator_ultra_1y',
+  };
+
+  @override
+  void initState() {
+    super.initState();
+    _subscription = _inAppPurchase.purchaseStream.listen(
+      _listenToPurchaseUpdated,
+      onDone: () => _subscription.cancel(),
+      onError: (_) => _showMessage('Error en el flujo de compra.', isError: true),
+    );
+    _bootstrap();
+  }
+
+  Future<void> _bootstrap() async {
+    await Future.wait([
+      _loadSubscriptionStatus(),
+      _initStoreInfo(),
+    ]);
+  }
+
+  Future<void> _loadSubscriptionStatus() async {
+    try {
+      final status = await SubscriptionService.getStatus(sessionToken: widget.sessionToken);
+      if (mounted) {
+        setState(() => _subscriptionStatus = status);
+      }
+    } catch (_) {
+      // Non-blocking: store may still work even if status fails.
+    }
+  }
+
+  Future<void> _initStoreInfo() async {
+    final bool isAvailable = await _inAppPurchase.isAvailable();
+    List<ProductDetails> products = [];
+
+    if (isAvailable) {
+      final productDetailResponse = await _inAppPurchase.queryProductDetails(_kProductIds);
+      products = productDetailResponse.productDetails;
+    }
+
+    
+    // --- INICIO MOCK DATA ---
+    if (products.isEmpty) {
+      products = _kProductIds.map((id) {
+        String title = 'Plan';
+        String price = '\$0.99';
+
+        if (id.startsWith('creator_plus')) {
+          title = 'Plus';
+          if (id.contains('1d')) price = '\$0.99';
+          else if (id.contains('1w')) price = '\$2.99';
+          else if (id.contains('1m')) price = '\$4.99';
+          else if (id.contains('1y')) price = '\$49.99';
+        } else if (id.startsWith('creator_pro')) {
+          title = 'Pro';
+          if (id.contains('1d')) price = '\$1.99';
+          else if (id.contains('1w')) price = '\$4.99';
+          else if (id.contains('1m')) price = '\$9.99';
+          else if (id.contains('1y')) price = '\$99.99';
+        } else if (id.startsWith('creator_ultra')) {
+          title = 'Ultra';
+          if (id.contains('1d')) price = '\$2.99';
+          else if (id.contains('1w')) price = '\$7.99';
+          else if (id.contains('1m')) price = '\$19.99';
+          else if (id.contains('1y')) price = '\$199.99';
+        }
+        
+        return ProductDetails(
+          id: id,
+          title: title,
+          description: 'Suscripción de prueba (Prepago)',
+          price: price,
+          rawPrice: 1.0,
+          currencyCode: 'USD',
+        );
+      }).toList();
+    }
+    // --- FIN MOCK DATA ---
+
+    if (!mounted) return;
+
+    setState(() {
+      _isAvailable = isAvailable || products.isNotEmpty;
+      _products = products;
+      _loading = false;
+    });
+  }
+
+  Future<void> _listenToPurchaseUpdated(List<PurchaseDetails> purchaseDetailsList) async {
+    for (final purchaseDetails in purchaseDetailsList) {
+      if (purchaseDetails.status == PurchaseStatus.pending) {
+        _showMessage('Compra pendiente...');
+        continue;
+      }
+
+      if (purchaseDetails.status == PurchaseStatus.error) {
+        _showMessage(
+          purchaseDetails.error?.message ?? 'La compra falló.',
+          isError: true,
+        );
+        continue;
+      }
+
+      if (purchaseDetails.status == PurchaseStatus.purchased ||
+          purchaseDetails.status == PurchaseStatus.restored) {
+        final verified = await _verifyPurchaseOnBackend(purchaseDetails);
+        if (verified && purchaseDetails.pendingCompletePurchase) {
+          try {
+            await _inAppPurchase.completePurchase(purchaseDetails).timeout(const Duration(seconds: 15));
+          } catch (e) {
+            debugPrint("Error completando la compra nativa en payment_screen: $e");
+          }
+        }
+      }
+    }
+  }
+
+  String _purchaseKey(PurchaseDetails purchase) {
+    final token = purchase.verificationData.serverVerificationData;
+    return '${purchase.productID}:$token';
+  }
+
+  Future<bool> _verifyPurchaseOnBackend(PurchaseDetails purchase) async {
+    final key = _purchaseKey(purchase);
+    if (_processedPurchaseKeys.contains(key)) {
+      return true;
+    }
+
+    final purchaseToken = purchase.verificationData.serverVerificationData;
+    if (purchaseToken.isEmpty) {
+      _showMessage('Token de compra inválido.', isError: true);
+      return false;
+    }
+
+    setState(() => _verifying = true);
+    _showMessage('Pago recibido. Validando en el servidor...');
+
+    try {
+      if (widget.creatorId != null) {
+        if (widget.isGroup) {
+          await SubscriptionService.subscribeGroup(
+            subscriptionId: purchase.productID,
+            purchaseToken: purchaseToken,
+            groupId: widget.creatorId!,
+          );
+        } else {
+          await SubscriptionService.subscribeCreator(
+            subscriptionId: purchase.productID,
+            purchaseToken: purchaseToken,
+            creatorId: widget.creatorId!,
+          );
+        }
+        _processedPurchaseKeys.add(key);
+
+        if (mounted) {
+          setState(() {
+            _verifying = false;
+          });
+          _showMessage('¡Sistema de IA activado correctamente!');
+          Future.delayed(const Duration(seconds: 1), () {
+            if (mounted) Navigator.pop(context, true);
+          });
+        }
+        return true;
+      } else {
+        final endsAt = await SubscriptionService.verifyPurchase(
+          productId: purchase.productID,
+          purchaseToken: purchaseToken,
+        );
+
+        _processedPurchaseKeys.add(key);
+
+        if (mounted) {
+          setState(() {
+            _verifying = false;
+          });
+
+          if (endsAt != null && endsAt.isBefore(DateTime.now())) {
+            _showMessage('El token de prueba ya expiró (Google Play reusó el token).', isError: true);
+            return false;
+          }
+
+          setState(() {
+            _subscriptionStatus = SubscriptionStatus(
+              hasActiveSubscription: true,
+              globalFreeTrialActive: _subscriptionStatus?.globalFreeTrialActive ?? false,
+              canAccessService: true,
+              endsAt: endsAt,
+              planName: purchase.productID.split('_').first,
+            );
+          });
+          _showMessage('Suscripción activada correctamente.');
+          Future.delayed(const Duration(seconds: 1), () {
+            if (mounted) Navigator.pop(context, true);
+          });
+        }
+
+        return true;
+      }
+    } on ApiException catch (e) {
+      if (mounted) setState(() => _verifying = false);
+      _showMessage(e.message, isError: true);
+      return false;
+    } catch (_) {
+      if (mounted) setState(() => _verifying = false);
+      _showMessage('No se pudo validar la compra.', isError: true);
+      return false;
+    }
+  }
+
+  Future<void> _buyProduct(ProductDetails product) async {
+    if (_verifying) return;
+
+    final purchaseParam = PurchaseParam(productDetails: product);
+    // Como son planes prepago (renovables manualmente) y en Google Play 
+    // están como Productos Únicos, deben tratarse como consumibles 
+    // para que Google Play permita volver a comprarlos una vez expiren.
+    await _inAppPurchase.buyConsumable(purchaseParam: purchaseParam, autoConsume: true);
+  }
+
+
+
+  void _showMessage(String message, {bool isError = false}) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: isError ? Colors.redAccent : AppTheme.primary,
+      ),
+    );
+  }
+
+  Widget _buildStatusBanner() {
+    final status = _subscriptionStatus;
+    if (status == null) return const SizedBox.shrink();
+
+    final endsAt = status.endsAt;
+    String message;
+    Color color;
+
+    if (status.globalFreeTrialActive && !status.hasActiveSubscription) {
+      message = 'Prueba gratuita global activa';
+      color = Colors.greenAccent.shade400;
+    } else if (status.hasActiveSubscription && endsAt != null) {
+      message = 'Activo hasta ${endsAt.toLocal()}';
+      color = Colors.greenAccent.shade400;
+    } else {
+      message = 'Sin suscripción activa';
+      color = Colors.orangeAccent;
+    }
+
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 20),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppTheme.surface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withValues(alpha: 0.4)),
+      ),
+      child: Text(message, style: TextStyle(color: color, fontWeight: FontWeight.w600)),
+    );
+  }
+
+  Widget _buildSubscriptionCard({
+    required String title,
+    required String description,
+    required String price,
+    required List<_PlanFeature> features,
+    required Color color,
+    required VoidCallback onPressed,
+    bool isCurrentPlan = false,
+  }) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 24),
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: AppTheme.surface,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color.withValues(alpha: 0.6), width: 2),
+        boxShadow: [
+          BoxShadow(
+            color: color.withValues(alpha: 0.15),
+            blurRadius: 15,
+            spreadRadius: 4,
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: Text(
+                  title,
+                  style: GoogleFonts.outfit(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+              Icon(Icons.stars, color: color, size: 28),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.baseline,
+            textBaseline: TextBaseline.alphabetic,
+            children: [
+              Text(
+                price,
+                style: GoogleFonts.outfit(
+                  fontSize: 36,
+                  fontWeight: FontWeight.w900,
+                  color: color,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            description,
+            style: GoogleFonts.inter(
+              fontSize: 14,
+              color: AppTheme.textMuted,
+            ),
+          ),
+          const SizedBox(height: 24),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: isCurrentPlan ? Colors.green : color,
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+              onPressed: (_verifying || isCurrentPlan) ? null : onPressed,
+              child: Text(
+                isCurrentPlan ? 'Plan Actual' : 'Obtener Plan',
+                style: GoogleFonts.inter(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 24),
+          const Divider(color: Colors.white24, height: 1),
+          const SizedBox(height: 24),
+          ...features.map((f) => Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: _buildFeatureRow(f, color),
+          )),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFeatureRow(_PlanFeature feature, Color iconColor) {
+    Widget iconWidget;
+    if (feature.iconBuilder != null) {
+      iconWidget = feature.iconBuilder!(iconColor);
+    } else if (feature.iconData != null) {
+      iconWidget = Icon(feature.iconData, color: iconColor, size: 20);
+    } else {
+      iconWidget = Icon(Icons.check_circle, color: iconColor, size: 20);
+    }
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        iconWidget,
+        const SizedBox(width: 12),
+        Expanded(
+          child: Text(
+            feature.text,
+            style: GoogleFonts.inter(
+              fontSize: 14,
+              color: Colors.white70,
+              height: 1.4,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildAdsBlockIcon(Color color) {
+    return SizedBox(
+      width: 20,
+      height: 20,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          Text(
+            'ADS',
+            style: GoogleFonts.outfit(
+              fontSize: 8,
+              fontWeight: FontWeight.w900,
+              color: color.withValues(alpha: 0.7),
+            ),
+          ),
+          Icon(Icons.block, color: color, size: 20),
+        ],
+      ),
+    );
+  }
+
+
+
+  String _cleanTitle(String rawTitle) {
+    // Google Play siempre añade " (NombreApp)" al final del título.
+    final index = rawTitle.indexOf(' (');
+    if (index != -1) {
+      return rawTitle.substring(0, index);
+    }
+    return rawTitle;
+  }
+
+
+  Widget _buildDurationTab(List<ProductDetails> tabProducts) {
+    if (!_isAvailable) {
+      return const Padding(
+        padding: EdgeInsets.all(24),
+        child: Text('Google Play Billing no está disponible.', style: TextStyle(color: Colors.orange)),
+      );
+    }
+    
+    // Sort products: plus -> pro -> ultra
+    tabProducts.sort((a, b) {
+      final order = {'creator_plus': 0, 'creator_pro': 1, 'creator_ultra': 2};
+      // For 'creator_plus_1d', id.split('_') is ['creator', 'plus', '1d']
+      // We want 'creator_plus'
+      String keyA = a.id.split('_').sublist(0, 2).join('_');
+      String keyB = b.id.split('_').sublist(0, 2).join('_');
+      int wA = order[keyA] ?? 0;
+      int wB = order[keyB] ?? 0;
+      return wA.compareTo(wB);
+    });
+
+    return ListView(
+      padding: const EdgeInsets.all(24),
+      children: [
+        _buildStatusBanner(),
+        
+        Container(
+          margin: const EdgeInsets.only(bottom: 24),
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: AppTheme.surface,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.greenAccent.withValues(alpha: 0.3)),
+          ),
+          child: Row(
+            children: [
+              const Icon(Icons.info_outline, color: Colors.greenAccent),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  'Todos nuestros planes son In-App Purchases de pago único. Tú decides cuándo renovar.',
+                  style: GoogleFonts.inter(color: Colors.greenAccent, fontSize: 13),
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        ...tabProducts.map((p) {
+          final isPlus = p.id.startsWith('creator_plus');
+          final isPro = p.id.startsWith('creator_pro');
+          final isUltra = p.id.startsWith('creator_ultra');
+          
+          Color tierColor = Colors.blueAccent;
+          List<_PlanFeature> features = [];
+          
+          if (isPlus) {
+            tierColor = Colors.blue.shade900;
+            features = [
+              _PlanFeature('Consulta el mejor pick para tu partida', iconBuilder: (c) => Image.asset('assets/images/rift_outline.png', color: c, width: 20, height: 20)),
+              _PlanFeature('10 consultas por hora', iconData: Icons.hourglass_empty),
+              _PlanFeature('Sin anuncios', iconBuilder: (c) => _buildAdsBlockIcon(c)),
+            ];
+            if (p.id.endsWith('_1w')) {
+              features.add(_PlanFeature('150 escencias azules', iconBuilder: (c) => Image.asset('assets/images/crystal_coin_outline.png', color: c, width: 20, height: 20)));
+            } else if (p.id.endsWith('_1m')) {
+              features.add(_PlanFeature('600 escencias azules', iconBuilder: (c) => Image.asset('assets/images/crystal_coin_outline.png', color: c, width: 20, height: 20)));
+            } else if (p.id.endsWith('_1y')) {
+              features.add(_PlanFeature('6,000 escencias azules', iconBuilder: (c) => Image.asset('assets/images/crystal_coin_outline.png', color: c, width: 20, height: 20)));
+            }
+          } else if (isPro) {
+            tierColor = Colors.blue;
+            features = [
+              _PlanFeature('Consulta el mejor pick para tu partida', iconBuilder: (c) => Image.asset('assets/images/rift_outline.png', color: c, width: 20, height: 20)),
+              _PlanFeature('Consulta las mejores runas para tu OTP', iconBuilder: (c) => Image.asset('assets/images/mastery_outline.png', color: c, width: 20, height: 20)),
+              _PlanFeature('Consulta los objetos adecuados en partida', iconData: Icons.shopping_bag_outlined),
+              _PlanFeature('20 consultas por hora', iconData: Icons.hourglass_empty),
+              _PlanFeature('Sin anuncios', iconBuilder: (c) => _buildAdsBlockIcon(c)),
+            ];
+            
+            String essenceAmount = '0';
+            if (p.id.endsWith('_1d')) essenceAmount = '50';
+            else if (p.id.endsWith('_1w')) essenceAmount = '300';
+            else if (p.id.endsWith('_1m')) essenceAmount = '1,000';
+            else if (p.id.endsWith('_1y')) essenceAmount = '10,000';
+            
+            features.add(_PlanFeature('$essenceAmount escencias azules', iconBuilder: (c) => Image.asset('assets/images/crystal_coin_outline.png', color: c, width: 20, height: 20)));
+          } else if (isUltra) {
+            tierColor = Colors.lightBlueAccent;
+            features = [
+              _PlanFeature('Consulta el mejor pick para tu partida', iconBuilder: (c) => Image.asset('assets/images/rift_outline.png', color: c, width: 20, height: 20)),
+              _PlanFeature('Consulta las mejores runas para tu OTP', iconBuilder: (c) => Image.asset('assets/images/mastery_outline.png', color: c, width: 20, height: 20)),
+              _PlanFeature('Consulta los objetos adecuados en partida', iconData: Icons.shopping_bag_outlined),
+              _PlanFeature('30 consultas por hora', iconData: Icons.hourglass_empty),
+              _PlanFeature('Acceso al Chat Coach (CC)', iconData: Icons.headset_mic),
+            ];
+            
+            if (p.id.endsWith('_1d')) {
+              features.add(_PlanFeature('250K de tokens por 24 horas', iconData: Icons.memory));
+              features.add(_PlanFeature('Sin anuncios', iconBuilder: (c) => _buildAdsBlockIcon(c)));
+              features.add(_PlanFeature('100 escencias azules', iconBuilder: (c) => Image.asset('assets/images/crystal_coin_outline.png', color: c, width: 20, height: 20)));
+            } else if (p.id.endsWith('_1w')) {
+              features.add(_PlanFeature('300K de tokens diarios por una semana', iconData: Icons.memory));
+              features.add(_PlanFeature('Sin anuncios', iconBuilder: (c) => _buildAdsBlockIcon(c)));
+              features.add(_PlanFeature('600 escencias azules', iconBuilder: (c) => Image.asset('assets/images/crystal_coin_outline.png', color: c, width: 20, height: 20)));
+            } else if (p.id.endsWith('_1m')) {
+              features.add(_PlanFeature('2.5M de tokens semanales por un mes', iconData: Icons.memory));
+              features.add(_PlanFeature('3 GB de almacenamiento (permanente)', iconData: Icons.cloud_done_outlined));
+              features.add(_PlanFeature('Sin anuncios', iconBuilder: (c) => _buildAdsBlockIcon(c)));
+              features.add(_PlanFeature('2,000 escencias azules', iconBuilder: (c) => Image.asset('assets/images/crystal_coin_outline.png', color: c, width: 20, height: 20)));
+              features.add(_PlanFeature('Más campos de texto para ajustar tu IA (Max. 2)', iconData: Icons.build));
+            } else if (p.id.endsWith('_1y')) {
+              features.add(_PlanFeature('12M de tokens mensuales por un año', iconData: Icons.memory));
+              features.add(_PlanFeature('36 GB de almacenamiento (permanente)', iconData: Icons.cloud_done_outlined));
+              features.add(_PlanFeature('Sin anuncios', iconBuilder: (c) => _buildAdsBlockIcon(c)));
+              features.add(_PlanFeature('20,000 escencias azules', iconBuilder: (c) => Image.asset('assets/images/crystal_coin_outline.png', color: c, width: 20, height: 20)));
+              features.add(_PlanFeature('Más campos de texto para ajustar tu IA (Max. 5)', iconData: Icons.build));
+            }
+          }
+
+          bool isCurrentPlan = false;
+          if (_subscriptionStatus?.hasActiveSubscription == true && _subscriptionStatus?.planName != null) {
+            final activePlan = _subscriptionStatus!.planName!.toLowerCase();
+            if ((isPlus && activePlan == 'plus') || (isPro && activePlan == 'pro') || (isUltra && activePlan == 'ultra')) {
+              isCurrentPlan = true;
+            }
+          }
+
+          return _buildSubscriptionCard(
+            title: _cleanTitle(p.title),
+            description: p.description,
+            price: p.price,
+            features: features,
+            color: tierColor,
+            isCurrentPlan: isCurrentPlan,
+            onPressed: () => _buyProduct(p),
+          );
+        }).toList(),
+      ],
+    );
+  }
+
+
+  @override
+  Widget build(BuildContext context) {
+    final dailyProducts = _products.where((p) => p.id.endsWith('_1d')).toList();
+    final weeklyProducts = _products.where((p) => p.id.endsWith('_1w')).toList();
+    final monthlyProducts = _products.where((p) => p.id.endsWith('_1m')).toList();
+    final yearlyProducts = _products.where((p) => p.id.endsWith('_1y')).toList();
+
+    String appBarTitle = 'Planes y Accesos';
+    if (widget.creatorId != null) {
+      appBarTitle = widget.isGroup ? 'Suscripción al Grupo' : 'Paquete de IA';
+    }
+
+    return DefaultTabController(
+      length: 4,
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text(appBarTitle, style: GoogleFonts.outfit(color: AppTheme.textLight)),
+          backgroundColor: AppTheme.background,
+          elevation: 0,
+          iconTheme: const IconThemeData(color: AppTheme.textLight),
+          bottom: TabBar(
+            indicatorColor: AppTheme.primary,
+            labelColor: AppTheme.primary,
+            unselectedLabelColor: AppTheme.textMuted,
+            labelStyle: GoogleFonts.outfit(fontWeight: FontWeight.bold),
+            isScrollable: true,
+            tabs: const [
+              Tab(text: 'Diario'),
+              Tab(text: 'Semanal'),
+              Tab(text: 'Mensual'),
+              Tab(text: 'Anual'),
+            ],
+          ),
+        ),
+        backgroundColor: AppTheme.background,
+        body: _loading
+            ? const Center(child: CircularProgressIndicator())
+            : Stack(
+                children: [
+                  TabBarView(
+                    children: [
+                      _buildDurationTab(dailyProducts),
+                      _buildDurationTab(weeklyProducts),
+                      _buildDurationTab(monthlyProducts),
+                      _buildDurationTab(yearlyProducts),
+                    ],
+                  ),
+                  if (_verifying)
+                    Container(
+                      color: Colors.black54,
+                      child: const Center(child: CircularProgressIndicator(color: AppTheme.primary)),
+                    ),
+                ],
+              ),
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    _subscription.cancel();
+    super.dispose();
+  }
+}

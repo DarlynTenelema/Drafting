@@ -6,7 +6,7 @@ import 'dart:convert';
 import '../theme/app_theme.dart';
 import '../core/state/active_product_state.dart';
 import '../core/services/subscription_service.dart';
-import 'payment_screen.dart';
+import 'creator_payment_screen.dart';
 import 'login_screen.dart';
 
 class ConsumerStoreScreen extends StatefulWidget {
@@ -136,7 +136,7 @@ class _ConsumerStoreScreenState extends State<ConsumerStoreScreen> with SingleTi
     final result = await Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => PaymentScreen(
+        builder: (context) => CreatorPaymentScreen(
           sessionToken: widget.sessionToken,
           creatorId: product.id,
           isGroup: product.isGroup,
@@ -513,24 +513,9 @@ class _ConsumerStoreScreenState extends State<ConsumerStoreScreen> with SingleTi
             ],
           ),
           const SizedBox(height: 16),
-          Text(
-            product.subtitle,
-            style: GoogleFonts.inter(color: Colors.white70, fontSize: 14, height: 1.4),
-          ),
-          const SizedBox(height: 24),
           Row(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              if (!isOwned) ...[
-                Text(
-                  '\$${product.price}',
-                  style: GoogleFonts.outfit(color: Colors.white, fontSize: 28, fontWeight: FontWeight.bold),
-                ),
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 6.0, left: 4.0),
-                  child: Text('/ mes', style: GoogleFonts.inter(color: AppTheme.textMuted, fontSize: 14)),
-                ),
-              ],
               const Spacer(),
               if (isActive && isOwned)
                 ElevatedButton.icon(
