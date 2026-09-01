@@ -175,11 +175,12 @@ class _EconomyScreenState extends State<EconomyScreen> {
             children: [
               // 3D Viewer Area
               const SizedBox(height: 80),
-              SizedBox(
-                height: 300,
-                width: double.infinity,
-                child: GestureDetector(
-                  onTapDown: (_) => setState(() => _isCoinPressed = true),
+              Expanded(
+                flex: 4,
+                child: SizedBox(
+                  width: double.infinity,
+                  child: GestureDetector(
+                    onTapDown: (_) => setState(() => _isCoinPressed = true),
                   onTapUp: (_) => setState(() => _isCoinPressed = false),
                   onTapCancel: () => setState(() => _isCoinPressed = false),
                   child: Center(
@@ -228,6 +229,7 @@ class _EconomyScreenState extends State<EconomyScreen> {
                     Image.asset('assets/images/crystal_coin.png', width: 32, height: 32),
                     const SizedBox(width: 12),
                     Column(
+                      mainAxisSize: MainAxisSize.min,
                       children: [
                         Text(
                           'Tu Saldo Actual',
@@ -251,6 +253,7 @@ class _EconomyScreenState extends State<EconomyScreen> {
               
               // Packages List
               Expanded(
+                flex: 6,
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 24),
                   decoration: BoxDecoration(

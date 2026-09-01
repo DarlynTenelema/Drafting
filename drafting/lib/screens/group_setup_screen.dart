@@ -53,11 +53,7 @@ class _GroupSetupScreenState extends State<GroupSetupScreen> {
   final _buildCtrl = TextEditingController();
   final _runesCtrl = TextEditingController();
 
-  final List<String> _availableChampions = [
-    'Ahri', 'Akali', 'Darius', 'Evelynn', 'Ezreal', 'Garen', 'Jinx', 
-    'Lee Sin', 'Lux', 'Master Yi', 'Miss Fortune', 'Seraphine', 'Vi', 'Yasuo', 'Zed',
-    'Annie', 'Ashe', 'Vayne', 'Teemo', 'Katarina'
-  ]; // Muestra abreviada para UI
+  final List<String> _availableChampions = AppConstants.wildRiftChampions;
 
   // Product State
   final TextEditingController _productNameCtrl = TextEditingController();
@@ -189,7 +185,7 @@ class _GroupSetupScreenState extends State<GroupSetupScreen> {
     }
   }
 
-  void _saveChampion() {
+  void _saveChampion() async {
     if (_configuredChampions.containsKey(_selectedChampion)) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Ya configuraste a $_selectedChampion.')),
@@ -197,9 +193,15 @@ class _GroupSetupScreenState extends State<GroupSetupScreen> {
       return;
     }
     
-    if (_earlyGameCtrl.text.isEmpty || _situationalCtrl.text.isEmpty || _buildCtrl.text.isEmpty) {
+    if (_earlyGameCtrl.text.isEmpty ||
+        _lateGameCtrl.text.isEmpty ||
+        _synergiesCtrl.text.isEmpty ||
+        _countersCtrl.text.isEmpty ||
+        _runesCtrl.text.isEmpty ||
+        _buildCtrl.text.isEmpty ||
+        _situationalCtrl.text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Completa al menos Early Game, Build y Situacionales.')),
+        const SnackBar(content: Text('Por favor completa todos los campos de la estrategia para asegurar la calidad de la IA.')),
       );
       return;
     }
@@ -214,19 +216,75 @@ Runes/Spells: ${_runesCtrl.text}
 Situational: ${_situationalCtrl.text}
 """;
 
-    setState(() {
-      _configuredChampions[_selectedChampion] = rules;
-      _earlyGameCtrl.clear();
-      _lateGameCtrl.clear();
-      _situationalCtrl.clear();
-      _synergiesCtrl.clear();
-      _countersCtrl.clear();
-      _buildCtrl.clear();
-      _runesCtrl.clear();
-    });
-    
+    // Muestra que está analizando
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('¡$_selectedChampion guardado exitosamente!')),
+      const SnackBar(content: Text('Analizando textos con IA de Moderación...')),
+    );
+
+    // Call backend endpoint which acts as Gemini 2.5 filter
+    final result = await EntrepreneurService().saveChampionData(_selectedChampion, rules);
+    if (!mounted) return;
+
+    if (result['success']) {
+      setState(() {
+        _configuredChampions[_selectedChampion] = rules;
+        _earlyGameCtrl.clear();
+        _lateGameCtrl.clear();
+        _situationalCtrl.clear();
+        _synergiesCtrl.clear();
+        _countersCtrl.clear();
+        _buildCtrl.clear();
+        _runesCtrl.clear();
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('¡$_selectedChampion validado y guardado exitosamente!')),
+      );
+    } else {
+      bool isBanned = result['banned'] == true;
+      String message = result['message']?.toString() ?? 'Error desconocido';
+      if (isBanned || message.toLowerCase().contains('strike') || message.toLowerCase().contains('infracción')) {
+        _showStrikeWarning(message, isBanned);
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(message), backgroundColor: Colors.red),
+        );
+      }
+    }
+  }
+
+  void _showStrikeWarning(String message, bool isBanned) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        backgroundColor: AppTheme.surface,
+        title: Row(
+          children: [
+            Icon(Icons.warning_amber_rounded, color: isBanned ? Colors.red : Colors.orange),
+            const SizedBox(width: 8),
+            Text(
+              isBanned ? 'Cuenta Suspendida' : 'Advertencia de Infracción',
+              style: GoogleFonts.outfit(color: isBanned ? Colors.red : Colors.orange, fontWeight: FontWeight.bold),
+            ),
+          ],
+        ),
+        content: Text(
+          message,
+          style: const TextStyle(color: Colors.white),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              if (isBanned) {
+                // Logout user and redirect to login
+                Navigator.of(context).pushReplacementNamed('/login');
+              }
+            },
+            child: const Text('Entendido', style: TextStyle(color: AppTheme.primary)),
+          ),
+        ],
+      ),
     );
   }
 
@@ -528,6 +586,28 @@ Situational: ${_situationalCtrl.text}
 
                   _buildSectionTitle(Icons.psychology, widget.isGroup ? '2. Base de Datos IA' : '1. Base de Datos IA'),
                   Text('Entrena a tu modelo completando fichas técnicas detalladas.', style: GoogleFonts.inter(color: AppTheme.textMuted, fontSize: 13)),
+                  const SizedBox(height: 8),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.orange.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.orange.withValues(alpha: 0.3)),
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Icon(Icons.shield, color: Colors.orange, size: 20),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            'La IA analiza todo lo que escribes. Usa términos de juego libremente (ej. "matar", "explotar"), pero amenazas, insultos graves o contenido basura resultarán en strikes inmediatos.',
+                            style: GoogleFonts.inter(color: Colors.orange, fontSize: 12),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                   const SizedBox(height: 16),
                   
                   // Autocomplete Campeón
@@ -625,6 +705,28 @@ Situational: ${_situationalCtrl.text}
                   
                   _buildSectionTitle(Icons.store, '3. Perfil Comercial (Tienda)'),
                   Text('Este es el nombre e imagen que verán los usuarios en la Tienda al querer comprar tu producto.', style: GoogleFonts.inter(color: AppTheme.textMuted, fontSize: 13)),
+                  const SizedBox(height: 8),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.red.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.red.withValues(alpha: 0.3)),
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Icon(Icons.gpp_maybe, color: Colors.redAccent, size: 20),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            'POLÍTICA ESTRICTA: Las imágenes de perfiles son moderadas sin tolerancia. Prohibido desnudos, material sugerente o gore. Usa fondos de paisajes, renders o logos. Romper esta regla penaliza tu cuenta.',
+                            style: GoogleFonts.inter(color: Colors.redAccent, fontSize: 12),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                   const SizedBox(height: 16),
                   
                   _buildTextField('Nombre del Producto (Ej. Ahri OTP Mastery)', _productNameCtrl, 'Escribe un nombre atractivo...'),
@@ -730,11 +832,19 @@ Situational: ${_situationalCtrl.text}
 
       if (result['success'] == true) {
         if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Paso 3: Guardando configuraciones...')));
-        // Save all champions
-        for (var entry in _configuredChampions.entries) {
-          await EntrepreneurService().saveChampionData(entry.key, entry.value);
-        }
+        // Save all champions concurrently to prevent 15-minute loading times
+        final futures = _configuredChampions.entries.map((entry) {
+          return EntrepreneurService().saveChampionData(entry.key, entry.value);
+        });
+        final results = await Future.wait(futures);
         
+        if (mounted && results.contains(false)) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text('El perfil se creó, pero algunos campeones no se guardaron correctamente debido a la red. Podrás agregarlos desde tu panel.'),
+            duration: Duration(seconds: 5),
+          ));
+        }
+      if (result['success'] == true) {
         if (mounted) {
           if (_loadingContext != null) {
             Navigator.pop(_loadingContext!);
@@ -747,9 +857,19 @@ Situational: ${_situationalCtrl.text}
         }
       } else {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Error del backend: ${result['error']}'), duration: const Duration(seconds: 5)),
-          );
+          if (_loadingContext != null) {
+            Navigator.pop(_loadingContext!);
+            _loadingContext = null;
+          }
+          bool isBanned = result['banned'] == true;
+          String errorMsg = result['error']?.toString() ?? 'Error desconocido';
+          if (isBanned || errorMsg.toLowerCase().contains('strike') || errorMsg.toLowerCase().contains('infracción')) {
+            _showStrikeWarning(errorMsg, isBanned);
+          } else {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Error del backend: $errorMsg'), duration: const Duration(seconds: 5)),
+            );
+          }
           setState(() => _isPurchasing = false);
         }
       }

@@ -25,10 +25,17 @@ class EntrepreneurService {
         },
         authenticated: true,
       );
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        return {'success': true};
-      }
-      return {'success': false, 'error': 'Error ${response.statusCode}: ${response.body}'};
+        if (response.statusCode == 200 || response.statusCode == 201) {
+          final data = jsonDecode(response.body);
+          if (data['success'] == true || data['success'] == null) return {'success': true};
+          return {'success': false, 'error': data['message'] ?? 'Error desconocido', 'banned': data['banned'] ?? false};
+        }
+        try {
+          final data = jsonDecode(response.body);
+          return {'success': false, 'error': data['message'] ?? 'Error ${response.statusCode}', 'banned': data['banned'] ?? false};
+        } catch (_) {
+          return {'success': false, 'error': 'Error ${response.statusCode}: ${response.body}'};
+        }
     } catch (e) {
       debugPrint("Error creating group: $e");
       return {'success': false, 'error': e.toString()};
@@ -50,10 +57,17 @@ class EntrepreneurService {
         },
         authenticated: true,
       );
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        return {'success': true};
-      }
-      return {'success': false, 'error': 'Error ${response.statusCode}: ${response.body}'};
+        if (response.statusCode == 200 || response.statusCode == 201) {
+          final data = jsonDecode(response.body);
+          if (data['success'] == true || data['success'] == null) return {'success': true};
+          return {'success': false, 'error': data['message'] ?? 'Error desconocido', 'banned': data['banned'] ?? false};
+        }
+        try {
+          final data = jsonDecode(response.body);
+          return {'success': false, 'error': data['message'] ?? 'Error ${response.statusCode}', 'banned': data['banned'] ?? false};
+        } catch (_) {
+          return {'success': false, 'error': 'Error ${response.statusCode}: ${response.body}'};
+        }
     } catch (e) {
       debugPrint("Error creating OTP profile: $e");
       return {'success': false, 'error': e.toString()};
@@ -61,7 +75,7 @@ class EntrepreneurService {
   }
 
   /// Save Champion Data Rules to the Entrepreneur's Group/Profile
-  Future<bool> saveChampionData(String championName, String rules) async {
+  Future<Map<String, dynamic>> saveChampionData(String championName, String rules) async {
     try {
       final response = await ApiClient.post(
         '/groups/champion',
@@ -71,10 +85,28 @@ class EntrepreneurService {
         },
         authenticated: true,
       );
-      return response.statusCode == 200 || response.statusCode == 201;
+      
+      try {
+        final data = jsonDecode(response.body);
+        if (response.statusCode == 200 || response.statusCode == 201) {
+          if (data['success'] == true || data['success'] == null) {
+            return {'success': true};
+          }
+        }
+        return {
+          'success': false,
+          'message': data['message'] ?? 'Error del servidor: ${response.statusCode}',
+          'banned': data['banned'] ?? false,
+        };
+      } catch (_) {
+        if (response.statusCode == 200 || response.statusCode == 201) {
+          return {'success': true};
+        }
+        return {'success': false, 'message': 'Error from server: ${response.statusCode}'};
+      }
     } catch (e) {
       debugPrint("Error saving champion data: $e");
-      return false;
+      return {'success': false, 'message': e.toString()};
     }
   }
 

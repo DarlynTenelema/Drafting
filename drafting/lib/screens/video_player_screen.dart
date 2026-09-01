@@ -41,6 +41,9 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
   bool _notificationsEnabled = false;
   int _totalSubscribers = 0;
 
+  int _pendingDonations = 0;
+  Timer? _donationTimer;
+
   @override
   void initState() {
     super.initState();
@@ -94,6 +97,7 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
   @override
   void dispose() {
     _viewTimer?.cancel();
+    _donationTimer?.cancel();
     _controller.close();
     super.dispose();
   }
@@ -219,10 +223,39 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
                         isActive: _isLiked,
                         onTap: _handleLike,
                       ),
-                      _buildActionItem(
-                        icon: Icons.monetization_on_outlined, 
-                        label: 'Donar',
-                        onTap: _quickDonate,
+                      Stack(
+                        clipBehavior: Clip.none,
+                        alignment: Alignment.center,
+                        children: [
+                          _buildActionItem(
+                            icon: Icons.monetization_on_outlined, 
+                            label: 'Donar',
+                            onTap: _handleRapidDonate,
+                          ),
+                          if (_pendingDonations > 0)
+                            Positioned(
+                              top: -15,
+                              child: AnimatedScale(
+                                scale: _pendingDonations > 0 ? 1.1 : 0.0,
+                                duration: const Duration(milliseconds: 150),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: Colors.orange,
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                  child: Text(
+                                    'x$_pendingDonations',
+                                    style: GoogleFonts.outfit(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                        ],
                       ),
                       _buildActionItem(
                         icon: Icons.share_outlined, 
@@ -508,32 +541,43 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
     );
   }
 
-  Future<void> _quickDonate() async {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Procesando donación...')),
-    );
+  void _handleRapidDonate() {
+    setState(() {
+      _pendingDonations++;
+    });
 
-    final success = await FinanceService().donateToVideo(widget.video.id, 1.0);
+    _donationTimer?.cancel();
+    _donationTimer = Timer(const Duration(seconds: 1), () async {
+      final amount = _pendingDonations;
+      if (amount == 0) return;
+      
+      setState(() {
+        _pendingDonations = 0;
+      });
 
-    if (mounted) {
-      if (success) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('¡Has donado 1 esencia azul a ${widget.video.channelName}!'),
-            backgroundColor: Colors.green,
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Fondos insuficientes o error en el sistema.'),
-            backgroundColor: Colors.red,
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
+      final success = await FinanceService().donateToVideo(widget.video.id, amount.toDouble());
+
+      if (mounted) {
+        if (success) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('¡Has donado $amount esencias azules a ${widget.video.channelName}!'),
+              backgroundColor: Colors.green,
+              behavior: SnackBarBehavior.floating,
+              duration: const Duration(seconds: 2),
+            ),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Fondos insuficientes o error en el sistema.'),
+              backgroundColor: Colors.red,
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
       }
-    }
+    });
   }
 
   void _showCommentsBottomSheet() {

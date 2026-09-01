@@ -50,6 +50,7 @@ class _IndexScreenState extends State<IndexScreen> {
     super.initState();
     _sessionToken = widget.sessionToken ?? '';
     _loadSession();
+    _initOtpFields();
     if (_sessionToken.isNotEmpty) {
       _fetchUserData();
     }
@@ -76,6 +77,22 @@ class _IndexScreenState extends State<IndexScreen> {
         );
       }
     });
+  }
+
+  Future<void> _initOtpFields() async {
+    final prefs = await SharedPreferences.getInstance();
+    // Cargar valores previamente guardados
+    for (int i = 0; i < 5; i++) {
+      if (mounted) {
+        _otpControllers[i].text = prefs.getString('otp_field_$i') ?? '';
+      }
+    }
+    // Agregar un listener para que se guarde automáticamente al escribir
+    for (int i = 0; i < 5; i++) {
+      _otpControllers[i].addListener(() {
+        prefs.setString('otp_field_$i', _otpControllers[i].text);
+      });
+    }
   }
 
   Future<void> _loadSession() async {
@@ -116,6 +133,17 @@ class _IndexScreenState extends State<IndexScreen> {
           Navigator.of(context).pushReplacement(
             MaterialPageRoute(builder: (_) => AppealScreen(sessionToken: _sessionToken)),
           );
+        }
+      } else if (response.statusCode == 401) {
+        // Sesión inválida o expirada, cerrar sesión globalmente
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Tu sesión ha expirado, vuelve a ingresar.', style: TextStyle(color: Colors.white)),
+              backgroundColor: Colors.redAccent,
+            ),
+          );
+          _handleLogout();
         }
       }
     } catch (e) {

@@ -11,7 +11,11 @@ class ApiClient {
 
   static Future<http.Response> _handleRequest(Future<http.Response> Function() requestFunc) async {
     try {
-      return await requestFunc().timeout(const Duration(seconds: 15));
+      final response = await requestFunc().timeout(const Duration(seconds: 15));
+      if (response.statusCode == 401) {
+        await SessionService.clearSession();
+      }
+      return response;
     } on TimeoutException {
       throw ApiException('Ups, la conexión tardó demasiado. Verifica tu internet.');
     } on SocketException {

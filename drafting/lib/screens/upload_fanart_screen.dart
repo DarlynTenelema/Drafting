@@ -76,10 +76,53 @@ class _UploadFanartScreenState extends State<UploadFanartScreen> {
       );
       Navigator.pop(context, true); // Go back and indicate success
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(result['message']), backgroundColor: Colors.red),
-      );
+      bool isBanned = result['banned'] == true;
+      String message = result['message']?.toString() ?? 'Error desconocido';
+      
+      if (isBanned || message.toLowerCase().contains('strike') || message.toLowerCase().contains('infracción')) {
+        _showStrikeWarning(message, isBanned);
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(message), backgroundColor: Colors.red),
+        );
+      }
     }
+  }
+
+  void _showStrikeWarning(String message, bool isBanned) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        backgroundColor: AppTheme.surface,
+        title: Row(
+          children: [
+            Icon(Icons.warning_amber_rounded, color: isBanned ? Colors.red : Colors.orange),
+            const SizedBox(width: 8),
+            Text(
+              isBanned ? 'Cuenta Suspendida' : 'Advertencia de Infracción',
+              style: GoogleFonts.outfit(color: isBanned ? Colors.red : Colors.orange, fontWeight: FontWeight.bold),
+            ),
+          ],
+        ),
+        content: Text(
+          message,
+          style: const TextStyle(color: Colors.white),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              if (isBanned) {
+                // Logout user and redirect to login
+                Navigator.of(context).pushReplacementNamed('/login');
+              }
+            },
+            child: const Text('Entendido', style: TextStyle(color: AppTheme.primary)),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _pickImage() async {

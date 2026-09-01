@@ -1,6 +1,8 @@
 package handlers
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"os"
@@ -88,10 +90,14 @@ func RechargeCoins(w http.ResponseWriter, r *http.Request) {
 	}
 
 	purchaseToken := strings.TrimSpace(req.PurchaseToken)
+	
+	// Create a hash of the token for idempotency check to avoid DB column size limits truncating the Google Play token
+	hash := sha256.Sum256([]byte(purchaseToken))
+	tokenHash := hex.EncodeToString(hash[:])
 
 	// Idempotency check
 	var existing models.Transaction
-	err := database.DB.Where("type = ? AND amount_essence = ? AND status = ?", "recharge_essence", essenceToAdd, purchaseToken).First(&existing).Error
+	err := database.DB.Where("type = ? AND amount_essence = ? AND status = ?", "recharge_essence", essenceToAdd, tokenHash).First(&existing).Error
 	if err == nil {
 		http.Error(w, "Purchase token already used", http.StatusConflict)
 		return
@@ -132,10 +138,10 @@ func RechargeCoins(w http.ResponseWriter, r *http.Request) {
 
 	// Record Transaction
 	transaction := models.Transaction{
-		UserID:     user.ID,
-		Type:       "recharge_essence",
+		UserID:        user.ID,
+		Type:          "recharge_essence",
 		AmountEssence: essenceToAdd,
-		Status:     purchaseToken, // Using status for idempotency temporarily
+		Status:        tokenHash, // Save hash to prevent DB truncation
 	}
 	if err := tx.Create(&transaction).Error; err != nil {
 		tx.Rollback()
@@ -276,6 +282,53 @@ func SubscribeToGroup(w http.ResponseWriter, r *http.Request) {
 	}
 	tx.Create(&buyerTx)
 
+	// Grant Esencias Azules based on the exact product purchased
+	var essenceBonus float64 = 0
+	switch req.SubscriptionID {
+	case "pro_1d":
+		essenceBonus = 50.0
+	case "ultra_1d":
+		essenceBonus = 100.0
+	case "plus_1w":
+		essenceBonus = 150.0
+	case "pro_1w":
+		essenceBonus = 300.0
+	case "ultra_1w":
+		essenceBonus = 600.0
+	case "plus_1m":
+		essenceBonus = 600.0
+	case "pro_1m":
+		essenceBonus = 1000.0
+	case "ultra_1m":
+		essenceBonus = 2000.0
+	case "plus_1y":
+		essenceBonus = 6000.0
+	case "pro_1y":
+		essenceBonus = 10000.0
+	case "ultra_1y":
+		essenceBonus = 20000.0
+	}
+
+	if essenceBonus > 0 {
+		var buyerWallet models.Wallet
+		if err := tx.Where("user_id = ?", user.ID).First(&buyerWallet).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				buyerWallet = models.Wallet{UserID: user.ID}
+				tx.Create(&buyerWallet)
+			}
+		}
+		buyerWallet.BalanceEssence += essenceBonus
+		tx.Save(&buyerWallet)
+
+		bonusTx := models.Transaction{
+			UserID:        user.ID,
+			Type:          "subscription_bonus",
+			AmountEssence: essenceBonus,
+			Status:        "completed",
+		}
+		tx.Create(&bonusTx)
+	}
+
 	// Record the active subscription linking the user to the GroupID.
 	user.ActiveGroupID = &groupID
 	if err := tx.Save(user).Error; err != nil {
@@ -389,6 +442,53 @@ func SubscribeToCreator(w http.ResponseWriter, r *http.Request) {
 		Status:          "completed",
 	}
 	tx.Create(&buyerTx)
+
+	// Grant Esencias Azules based on the exact product purchased
+	var essenceBonus float64 = 0
+	switch req.SubscriptionID {
+	case "pro_1d":
+		essenceBonus = 50.0
+	case "ultra_1d":
+		essenceBonus = 100.0
+	case "plus_1w":
+		essenceBonus = 150.0
+	case "pro_1w":
+		essenceBonus = 300.0
+	case "ultra_1w":
+		essenceBonus = 600.0
+	case "plus_1m":
+		essenceBonus = 600.0
+	case "pro_1m":
+		essenceBonus = 1000.0
+	case "ultra_1m":
+		essenceBonus = 2000.0
+	case "plus_1y":
+		essenceBonus = 6000.0
+	case "pro_1y":
+		essenceBonus = 10000.0
+	case "ultra_1y":
+		essenceBonus = 20000.0
+	}
+
+	if essenceBonus > 0 {
+		var buyerWallet models.Wallet
+		if err := tx.Where("user_id = ?", user.ID).First(&buyerWallet).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				buyerWallet = models.Wallet{UserID: user.ID}
+				tx.Create(&buyerWallet)
+			}
+		}
+		buyerWallet.BalanceEssence += essenceBonus
+		tx.Save(&buyerWallet)
+
+		bonusTx := models.Transaction{
+			UserID:        user.ID,
+			Type:          "subscription_bonus",
+			AmountEssence: essenceBonus,
+			Status:        "completed",
+		}
+		tx.Create(&bonusTx)
+	}
 
 	tx.Commit()
 

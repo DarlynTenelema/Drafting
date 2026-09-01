@@ -9,9 +9,9 @@ import (
 
 type ApiUsage struct {
 	ID        uuid.UUID `gorm:"type:uuid;primary_key;default:gen_random_uuid()"`
-	UserID    uuid.UUID `gorm:"type:uuid;not null;index"`
+	UserID    uuid.UUID `gorm:"type:uuid;not null;index:idx_user_created"`
 	TokensUsed int       `gorm:"default:0"` // Tracks Gemini token usage for cost deduction
-	CreatedAt time.Time
+	CreatedAt time.Time `gorm:"index:idx_user_created"`
 }
 
 func (apiUsage *ApiUsage) BeforeCreate(tx *gorm.DB) (err error) {

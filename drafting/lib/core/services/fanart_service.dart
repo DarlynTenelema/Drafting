@@ -107,10 +107,26 @@ class FanartService {
         filePath: imagePath,
         authenticated: true,
       );
-      if (response.statusCode != 200 && response.statusCode != 201) {
+      
+      try {
+        final data = jsonDecode(response.body);
+        if (response.statusCode == 200 || response.statusCode == 201) {
+          if (data['success'] == true || data['success'] == null) {
+            return {'success': true};
+          }
+        }
+        
+        return {
+          'success': false,
+          'message': data['message'] ?? 'Error del servidor: ${response.statusCode}',
+          'banned': data['banned'] ?? false,
+        };
+      } catch (_) {
+        if (response.statusCode == 200 || response.statusCode == 201) {
+          return {'success': true};
+        }
         return {'success': false, 'message': 'Error from server: ${response.statusCode}'};
       }
-      return {'success': true};
     } catch (e) {
       return {'success': false, 'message': e.toString()};
     }

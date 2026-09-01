@@ -2,6 +2,7 @@ package database
 
 import (
 	"log"
+	"time"
 
 	"backend/internal/config"
 	"backend/internal/models"
@@ -23,6 +24,16 @@ func Connect() {
 	if err != nil {
 		log.Fatalf("Failed to connect to database: %v", err)
 	}
+
+	sqlDB, err := db.DB()
+	if err != nil {
+		log.Fatalf("Failed to get sql.DB: %v", err)
+	}
+	
+	// Configuración para Producción (Connection Pooling)
+	sqlDB.SetMaxIdleConns(10)
+	sqlDB.SetMaxOpenConns(100)
+	sqlDB.SetConnMaxLifetime(time.Hour)
 
 	log.Println("Connected to the database successfully.")
 

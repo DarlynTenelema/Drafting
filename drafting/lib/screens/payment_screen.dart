@@ -158,7 +158,11 @@ class _PaymentScreenState extends State<PaymentScreen> {
           purchaseDetails.status == PurchaseStatus.restored) {
         final verified = await _verifyPurchaseOnBackend(purchaseDetails);
         if (verified && purchaseDetails.pendingCompletePurchase) {
-          await _inAppPurchase.completePurchase(purchaseDetails);
+          try {
+            await _inAppPurchase.completePurchase(purchaseDetails).timeout(const Duration(seconds: 15));
+          } catch (e) {
+            debugPrint("Error completando la compra nativa en payment_screen: $e");
+          }
         }
       }
     }

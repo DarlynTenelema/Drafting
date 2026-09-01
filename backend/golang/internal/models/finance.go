@@ -27,11 +27,11 @@ func (w *Wallet) BeforeCreate(tx *gorm.DB) (err error) {
 type Transaction struct {
 	ID              uuid.UUID `gorm:"type:uuid;primary_key;default:gen_random_uuid()"`
 	UserID          uuid.UUID `gorm:"type:uuid;not null;index"`
-	Type            string    `gorm:"type:varchar(50);not null"` // "recharge_essence", "purchase_fanart", "api_deduction", "payout"
+	Type            string    `gorm:"type:varchar(50);not null;index:idx_type_status"` // "recharge_essence", "purchase_fanart", "api_deduction", "payout"
 	AmountUSD       float64   `gorm:"type:decimal(10,2);default:0.00"`
 	AmountEssence   float64   `gorm:"type:decimal(10,2);default:0.00"`
 	RelatedEntityID *uuid.UUID `gorm:"type:uuid"` // E.g., FanartID, or APIUsageID
-	Status          string    `gorm:"type:text;default:'completed'"`
+	Status          string    `gorm:"type:text;default:'completed';index:idx_type_status"`
 	CreatedAt       time.Time
 	UpdatedAt       time.Time
 }

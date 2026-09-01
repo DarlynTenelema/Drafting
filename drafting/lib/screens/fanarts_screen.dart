@@ -51,9 +51,9 @@ class _FanartsScreenState extends State<FanartsScreen> {
         });
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(e.toString()),
+            content: Text(e.toString(), style: const TextStyle(color: Colors.white)),
             behavior: SnackBarBehavior.floating,
-            backgroundColor: AppTheme.surface,
+            backgroundColor: Colors.redAccent,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           ),
         );

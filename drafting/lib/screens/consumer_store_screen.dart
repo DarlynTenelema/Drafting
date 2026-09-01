@@ -152,7 +152,7 @@ class _ConsumerStoreScreenState extends State<ConsumerStoreScreen> with SingleTi
     }
   }
 
-  void _activateProduct(ProductItem product) {
+  void _activateProduct(ProductItem product) async {
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -181,14 +181,26 @@ class _ConsumerStoreScreenState extends State<ConsumerStoreScreen> with SingleTi
       },
     );
 
-    // Simulate network delay
-    Future.delayed(const Duration(seconds: 2), () async {
+    // Llamada real al backend en lugar de simulación
+    try {
+      await SubscriptionService.setActiveProduct(
+        productId: product.id,
+        sessionToken: widget.sessionToken,
+      );
       await ActiveProductState().setActiveProduct(product.title, product.id);
+      
       if (mounted) {
         Navigator.pop(context); // Close loading dialog
         _showSuccess(product);
       }
-    });
+    } catch (e) {
+      if (mounted) {
+        Navigator.pop(context); // Close loading dialog
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error al activar: $e')),
+        );
+      }
+    }
   }
 
   void _showSuccess(ProductItem product) {
@@ -296,6 +308,7 @@ class _ConsumerStoreScreenState extends State<ConsumerStoreScreen> with SingleTi
       return const Center(child: CircularProgressIndicator(color: AppTheme.primary));
     }
     if (_errorMessage != null) {
+      bool isUnauthorized = _errorMessage!.contains('401');
       return Center(
         child: Container(
           margin: const EdgeInsets.all(24),
@@ -303,18 +316,41 @@ class _ConsumerStoreScreenState extends State<ConsumerStoreScreen> with SingleTi
           decoration: BoxDecoration(
             color: AppTheme.surface,
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: Colors.redAccent.withOpacity(0.3)),
+            border: Border.all(color: Colors.redAccent.withValues(alpha: 0.3)),
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.wifi_off, color: Colors.redAccent, size: 48),
+              Icon(
+                isUnauthorized ? Icons.lock_clock : Icons.wifi_off, 
+                color: Colors.redAccent, 
+                size: 48
+              ),
               const SizedBox(height: 16),
               Text(
-                _errorMessage!,
+                isUnauthorized 
+                  ? 'Tu sesión ha expirado o es inválida.\nPor favor, vuelve a iniciar sesión.' 
+                  : 'No pudimos conectar con la tienda.\nVerifica tu conexión a internet.',
                 textAlign: TextAlign.center,
                 style: const TextStyle(color: Colors.white, fontSize: 16),
               ),
+              if (isUnauthorized) ...[
+                const SizedBox(height: 24),
+                ElevatedButton(
+                  onPressed: () {
+                    // Navigate to Login screen and clear session (fallback si el global falla)
+                    Navigator.of(context).pushAndRemoveUntil(
+                      MaterialPageRoute(builder: (_) => const LoginScreen()),
+                      (Route<dynamic> route) => false,
+                    );
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppTheme.primary,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  child: const Text('Iniciar Sesión', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                ),
+              ]
             ],
           ),
         ),

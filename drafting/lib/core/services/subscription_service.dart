@@ -134,4 +134,25 @@ class SubscriptionService {
     }
     return [];
   }
+
+  static Future<bool> setActiveProduct({
+    required String productId,
+    String? sessionToken,
+  }) async {
+    final response = await ApiClient.post(
+      '/api/v1/user/active-product',
+      authenticated: true,
+      sessionToken: sessionToken,
+      body: {
+        'product_id': productId,
+      },
+    );
+
+    if (response.statusCode == 200 || response.statusCode == 201) {
+      return true;
+    }
+    
+    final message = response.body.isNotEmpty ? response.body : 'Error al activar el producto en el servidor.';
+    throw ApiException(message, statusCode: response.statusCode);
+  }
 }
