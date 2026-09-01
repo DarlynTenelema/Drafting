@@ -137,6 +137,7 @@ func main() {
 			// Store
 			r.Get("/store/products", handlers.ListStoreProducts)
 			r.Get("/store/my_packages", handlers.GetMyPackages)
+			r.Post("/user/active-product", handlers.SetActiveProduct)
 
 			// Content & Moderation (Version 2)
 			r.Post("/content/channel", handlers.CreateChannel)

@@ -245,3 +245,35 @@ func GetMyPackages(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(products)
 }
+
+type SetActiveProductRequest struct {
+	ProductID string `json:"product_id"`
+}
+
+func SetActiveProduct(w http.ResponseWriter, r *http.Request) {
+	var req SetActiveProductRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	user, ok := r.Context().Value(middleware.UserContextKey).(*models.User)
+	if !ok {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	productUUID, err := uuid.Parse(req.ProductID)
+	if err != nil {
+		http.Error(w, "Invalid product ID", http.StatusBadRequest)
+		return
+	}
+
+	user.ActiveGroupID = &productUUID
+	if err := database.DB.Save(user).Error; err != nil {
+		http.Error(w, "Failed to activate product", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+}
