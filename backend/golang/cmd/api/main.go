@@ -133,6 +133,8 @@ func main() {
 			r.Post("/creator/profile", handlers.CreateCreatorProfile)
 			r.Get("/creator/profile", handlers.GetCreatorProfile)
 			r.Get("/creator/eligibility", handlers.CheckEligibility)
+			r.Get("/creator/plans", handlers.GetCreatorPlans)
+			r.Post("/creator/validate-invite", handlers.ValidateGroupInvite)
 
 			// Store
 			r.Get("/store/products", handlers.ListStoreProducts)

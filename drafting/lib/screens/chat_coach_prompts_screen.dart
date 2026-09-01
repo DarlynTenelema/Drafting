@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../theme/app_theme.dart';
 
 class ChatCoachPromptsScreen extends StatefulWidget {
   const ChatCoachPromptsScreen({super.key});
@@ -72,8 +73,13 @@ class _ChatCoachPromptsScreenState extends State<ChatCoachPromptsScreen> {
     
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Instrucciones guardadas localmente.')),
+        const SnackBar(
+          content: Text('Instrucciones guardadas exitosamente.'),
+          backgroundColor: Colors.green,
+          behavior: SnackBarBehavior.floating,
+        ),
       );
+      Navigator.pop(context); // Go back after saving
     }
   }
 
@@ -84,7 +90,11 @@ class _ChatCoachPromptsScreenState extends State<ChatCoachPromptsScreen> {
       });
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Solo puedes agregar un máximo de 5 instrucciones.')),
+        const SnackBar(
+          content: Text('Solo puedes agregar un máximo de 5 instrucciones.'),
+          backgroundColor: Colors.redAccent,
+          behavior: SnackBarBehavior.floating,
+        ),
       );
     }
   }
@@ -107,79 +117,131 @@ class _ChatCoachPromptsScreenState extends State<ChatCoachPromptsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: AppTheme.background,
       appBar: AppBar(
-        title: const Text('Configurar Prompts', style: TextStyle(color: Colors.white)),
-        backgroundColor: Colors.black,
+        title: const Text('Configuración IA', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        backgroundColor: AppTheme.background,
+        elevation: 0,
         iconTheme: const IconThemeData(color: Colors.white),
+        centerTitle: true,
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Instrucciones para tu AI Coach (Max 5)',
-                    style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 8),
-                  const Text(
-                    'Puedes añadir hasta 5 indicaciones de máximo 50 palabras cada una.',
-                    style: TextStyle(color: Colors.grey, fontSize: 14),
-                  ),
-                  const SizedBox(height: 24),
-                  Expanded(
-                    child: ListView.builder(
-                      itemCount: _controllers.length,
-                      itemBuilder: (context, index) {
-                        return Padding(
-                          padding: const EdgeInsets.only(bottom: 16.0),
-                          child: _buildPromptField(index),
-                        );
-                      },
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  if (_controllers.length < 5)
-                    SizedBox(
-                      width: double.infinity,
-                      height: 50,
-                      child: OutlinedButton.icon(
-                        style: OutlinedButton.styleFrom(
-                          side: const BorderSide(color: Colors.blueAccent),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12.0),
+          ? const Center(child: CircularProgressIndicator(color: Colors.blueAccent))
+          : SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 16.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Header Section
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: Colors.blueAccent.withOpacity(0.15),
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: const Icon(Icons.auto_awesome, color: Colors.blueAccent, size: 28),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: const [
+                              Text(
+                                'Entrena a tu Coach',
+                                style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold, letterSpacing: -0.5),
+                              ),
+                              SizedBox(height: 4),
+                              Text(
+                                'Personaliza hasta 5 reglas para el análisis de tus partidas.',
+                                style: TextStyle(color: Colors.white60, fontSize: 14, height: 1.4),
+                              ),
+                            ],
                           ),
                         ),
-                        icon: const Icon(Icons.add, color: Colors.blueAccent),
-                        label: const Text('Añadir otra instrucción', style: TextStyle(color: Colors.blueAccent, fontSize: 16)),
-                        onPressed: _addPromptField,
+                      ],
+                    ),
+                    const SizedBox(height: 32),
+                    
+                    // Prompts List
+                    Expanded(
+                      child: ListView.separated(
+                        itemCount: _controllers.length,
+                        separatorBuilder: (context, index) => const SizedBox(height: 16),
+                        itemBuilder: (context, index) {
+                          return _buildEnhancedPromptField(index);
+                        },
                       ),
                     ),
-                  const SizedBox(height: 16),
-                  SizedBox(
-                    width: double.infinity,
-                    height: 50,
-                    child: ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.blueAccent,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12.0),
+                    
+                    const SizedBox(height: 16),
+                    
+                    // Add Button
+                    if (_controllers.length < 5)
+                      Container(
+                        width: double.infinity,
+                        height: 56,
+                        margin: const EdgeInsets.only(bottom: 16),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(16.0),
+                          border: Border.all(color: Colors.blueAccent.withOpacity(0.5), width: 1.5),
+                        ),
+                        child: Material(
+                          color: Colors.transparent,
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(16.0),
+                            onTap: _addPromptField,
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: const [
+                                Icon(Icons.add_circle_outline, color: Colors.blueAccent, size: 20),
+                                SizedBox(width: 8),
+                                Text('Añadir nueva instrucción', style: TextStyle(color: Colors.blueAccent, fontSize: 16, fontWeight: FontWeight.w600)),
+                              ],
+                            ),
+                          ),
                         ),
                       ),
-                      onPressed: _savePrompts,
-                      child: const Text('Guardar', style: TextStyle(fontSize: 16, color: Colors.white)),
+
+                    // Save Button
+                    Container(
+                      width: double.infinity,
+                      height: 56,
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          colors: [Color(0xFF2B32B2), Color(0xFF1488CC)], // Premium Blue
+                          begin: Alignment.centerLeft,
+                          end: Alignment.centerRight,
+                        ),
+                        borderRadius: BorderRadius.circular(16.0),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.blueAccent.withOpacity(0.3),
+                            blurRadius: 12,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.transparent,
+                          shadowColor: Colors.transparent,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16.0)),
+                        ),
+                        onPressed: _savePrompts,
+                        child: const Text('Guardar Configuración', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white, letterSpacing: 0.5)),
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
     );
   }
 
-  Widget _buildPromptField(int index) {
+  Widget _buildEnhancedPromptField(int index) {
     return ValueListenableBuilder<TextEditingValue>(
       valueListenable: _controllers[index],
       builder: (context, value, child) {
@@ -187,48 +249,75 @@ class _ChatCoachPromptsScreenState extends State<ChatCoachPromptsScreen> {
         final wordCount = text.isEmpty ? 0 : text.split(RegExp(r'\s+')).length;
         final isOverLimit = wordCount > 50;
 
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _controllers[index],
-                    maxLines: 3,
-                    style: const TextStyle(color: Colors.white),
-                    decoration: InputDecoration(
-                      hintText: 'Ej: Enfócate en el macro-juego...',
-                      hintStyle: const TextStyle(color: Colors.grey),
-                      filled: true,
-                      fillColor: Colors.grey[900],
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12.0),
-                        borderSide: BorderSide.none,
-                      ),
-                      errorText: isOverLimit ? 'Límite de 50 palabras superado' : null,
+        return Container(
+          decoration: BoxDecoration(
+            color: AppTheme.surface,
+            borderRadius: BorderRadius.circular(16.0),
+            border: Border.all(color: isOverLimit ? Colors.redAccent.withOpacity(0.5) : Colors.white10),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.2),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          padding: const EdgeInsets.all(4.0),
+          child: Column(
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.only(top: 16.0, left: 12.0, right: 4.0),
+                    child: Text(
+                      '${index + 1}.',
+                      style: const TextStyle(color: Colors.blueAccent, fontWeight: FontWeight.bold, fontSize: 16),
                     ),
                   ),
-                ),
-                if (_controllers.length > 1)
-                  IconButton(
-                    icon: const Icon(Icons.delete, color: Colors.redAccent),
-                    onPressed: () => _removePromptField(index),
+                  Expanded(
+                    child: TextField(
+                      controller: _controllers[index],
+                      maxLines: 3,
+                      minLines: 2,
+                      style: const TextStyle(color: Colors.white, fontSize: 15, height: 1.4),
+                      decoration: InputDecoration(
+                        hintText: 'Ej: Enfócate en mi toma de decisiones en mid-game...',
+                        hintStyle: TextStyle(color: Colors.white.withOpacity(0.3)),
+                        border: InputBorder.none,
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 16.0),
+                      ),
+                    ),
                   ),
-              ],
-            ),
-            Padding(
-              padding: const EdgeInsets.only(top: 4.0, right: 8.0),
-              child: Text(
-                '$wordCount / 50 palabras',
-                style: TextStyle(
-                  color: isOverLimit ? Colors.redAccent : Colors.grey,
-                  fontSize: 12.0,
+                  if (_controllers.length > 1)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 4.0, right: 4.0),
+                      child: IconButton(
+                        icon: const Icon(Icons.close, color: Colors.white30, size: 20),
+                        onPressed: () => _removePromptField(index),
+                        splashRadius: 20,
+                      ),
+                    ),
+                ],
+              ),
+              Padding(
+                padding: const EdgeInsets.only(right: 16.0, bottom: 12.0),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    Text(
+                      '$wordCount / 50',
+                      style: TextStyle(
+                        color: isOverLimit ? Colors.redAccent : Colors.white54,
+                        fontSize: 12.0,
+                        fontWeight: isOverLimit ? FontWeight.bold : FontWeight.normal,
+                      ),
+                    ),
+                  ],
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         );
       },
     );

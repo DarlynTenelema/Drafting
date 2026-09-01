@@ -164,6 +164,42 @@ class EntrepreneurService {
     }
   }
 
+  /// Get available creator plans and their available slots
+  Future<List<dynamic>> getCreatorPlans() async {
+    try {
+      final response = await ApiClient.get(
+        '/creator/plans',
+        authenticated: true,
+      );
+      if (response.statusCode == 200) {
+        return json.decode(response.body) as List<dynamic>;
+      }
+      return [];
+    } catch (e) {
+      debugPrint("Error getting creator plans: $e");
+      return [];
+    }
+  }
+
+  /// Validate if an email exists for a group invite
+  Future<bool> validateInviteEmail(String email) async {
+    try {
+      final response = await ApiClient.post(
+        '/creator/validate-invite',
+        authenticated: true,
+        body: {'email': email},
+      );
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        return data['valid'] == true;
+      }
+      return false;
+    } catch (e) {
+      debugPrint("Error validating invite email: $e");
+      return false;
+    }
+  }
+
   /// Upload product image to Supabase
   Future<String?> uploadProductImage(File imageFile, String userId) async {
     try {

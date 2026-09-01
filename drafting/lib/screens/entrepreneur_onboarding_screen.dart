@@ -7,6 +7,7 @@ import 'calculator_screen.dart';
 import 'legal_screen.dart';
 import 'group_setup_screen.dart';
 import 'leaderboard_screen.dart';
+import '../core/services/entrepreneur_service.dart';
 
 class EntrepreneurOnboardingScreen extends StatefulWidget {
   const EntrepreneurOnboardingScreen({super.key});
@@ -63,109 +64,66 @@ class _EntrepreneurOnboardingScreenState extends State<EntrepreneurOnboardingScr
           ),
         ],
       ),
-      body: ListView(
-        padding: const EdgeInsets.all(24.0),
-        children: [
-          Text(
-            'Modelos Individuales (OTP)',
-            style: GoogleFonts.outfit(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Perfecto si eres experto en un solo campeón.',
-            style: GoogleFonts.inter(color: AppTheme.textMuted, fontSize: 14),
-          ),
-          const SizedBox(height: 16),
-          _buildPlanCard(
-            'OTP Básico', '50%', 10, 'mes',
-            availableSlots: 100,
-            features: [
-              'Empieza tu emprendimiento sin riesgo',
-              '50% de ganancia por cada suscriptor',
-              'Límite de 100 usuarios mensuales',
-              'Sin costos de infraestructura cloud',
+      body: FutureBuilder<List<dynamic>>(
+        future: EntrepreneurService().getCreatorPlans(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+
+          if (snapshot.hasError || !snapshot.hasData || snapshot.data!.isEmpty) {
+            return const Center(child: Text('Error cargando los planes', style: TextStyle(color: Colors.white)));
+          }
+
+          final plans = snapshot.data!;
+          final otpPlans = plans.where((p) => p['isGroup'] == false).toList();
+          final groupPlans = plans.where((p) => p['isGroup'] == true).toList();
+
+          return ListView(
+            padding: const EdgeInsets.all(24.0),
+            children: [
+              Text(
+                'Modelos Individuales (OTP)',
+                style: GoogleFonts.outfit(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Perfecto si eres experto en un solo campeón.',
+                style: GoogleFonts.inter(color: AppTheme.textMuted, fontSize: 14),
+              ),
+              const SizedBox(height: 16),
+              ...otpPlans.map((plan) => _buildPlanCard(plan)).toList(),
+              
+              const SizedBox(height: 32),
+              
+              Text(
+                'Modelos de Grupo (Equipos)',
+                style: GoogleFonts.outfit(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Entrena modelos generales con tu organización.',
+                style: GoogleFonts.inter(color: AppTheme.textMuted, fontSize: 14),
+              ),
+              const SizedBox(height: 16),
+              ...groupPlans.map((plan) => _buildPlanCard(plan)).toList(),
             ],
-          ),
-          _buildPlanCard(
-            'OTP Pro', '70%', 30, 'mes',
-            availableSlots: 45,
-            features: [
-              'Maximiza tus ingresos como experto',
-              '70% de ganancia por cada suscriptor',
-              'Límite de 300 usuarios mensuales',
-              'Insignia de "Creador Pro" en Leaderboard',
-              'Soporte prioritario para tu IA',
-            ],
-          ),
-          _buildPlanCard(
-            'OTP Leyenda', '90%', 50, 'mes',
-            availableSlots: 0,
-            features: [
-              'Conviértete en una leyenda de Drafting',
-              '90% de ganancia (la comisión máxima)',
-              'Límite de 500 usuarios mensuales',
-              'Destacado automático en la tienda',
-              'Acceso anticipado a nuevas funciones',
-            ],
-          ),
-          
-          const SizedBox(height: 32),
-          
-          Text(
-            'Modelos de Grupo (Equipos)',
-            style: GoogleFonts.outfit(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Entrena modelos generales con tu organización.',
-            style: GoogleFonts.inter(color: AppTheme.textMuted, fontSize: 14),
-          ),
-          const SizedBox(height: 16),
-          _buildPlanCard(
-            'Grupo Start', '50%', 100, 'mes',
-            isGroup: true,
-            availableSlots: 12,
-            features: [
-              'Ideal para academias y equipos amateur',
-              '50% de ganancias distribuidas',
-              'Límite de 1,000 suscriptores',
-              'Entrena IAs para los 5 roles del juego',
-              'Panel de control para múltiples analistas',
-            ],
-          ),
-          _buildPlanCard(
-            'Grupo Avanzado', '70%', 300, 'mes',
-            isGroup: true,
-            availableSlots: 0,
-            features: [
-              'Para organizaciones en crecimiento',
-              '70% de ganancias para tu equipo',
-              'Límite de 3,000 suscriptores',
-              'Perfil de equipo verificado con logo',
-              'Herramientas de análisis de rendimiento',
-              'Algoritmo de recomendación prioritario',
-            ],
-          ),
-          _buildPlanCard(
-            'Grupo Elite', '90%', 500, 'mes',
-            isGroup: true,
-            availableSlots: 2,
-            features: [
-              'El plan definitivo para equipos Tier 1',
-              '90% de ganancia (máxima rentabilidad)',
-              'Límite masivo de 5,000 suscriptores',
-              'Promoción destacada en la app principal',
-              'Monetización global sin restricciones',
-              'Insignia dorada de "Equipo Elite"',
-              'Soporte VIP 24/7 con ingenieros',
-            ],
-          ),
-        ],
+          );
+        },
       ),
     );
   }
 
-  Widget _buildPlanCard(String name, String percentage, double price, String period, {bool isGroup = false, int availableSlots = 100, List<String> features = const []}) {
+  Widget _buildPlanCard(dynamic plan) {
+    String name = plan['name'];
+    String percentage = plan['percentage'];
+    double price = (plan['price'] as num).toDouble();
+    String period = plan['period'];
+    bool isGroup = plan['isGroup'] ?? false;
+    int availableSlots = plan['availableSlots'] ?? 0;
+    int totalSlots = plan['totalSlots'] ?? 100;
+    List<String> features = (plan['features'] as List<dynamic>).map((e) => e.toString()).toList();
+
     bool isPremium = name.contains('Leyenda') || name.contains('Elite');
     bool isPro = name.contains('Pro') || name.contains('Avanzado');
     bool isFull = availableSlots == 0;
@@ -249,7 +207,7 @@ class _EntrepreneurOnboardingScreenState extends State<EntrepreneurOnboardingScr
               Icon(Icons.people_alt_outlined, color: isFull ? Colors.redAccent : AppTheme.primary, size: 16),
               const SizedBox(width: 6),
               Text(
-                isFull ? 'Cupos Agotados' : 'Cupos: $availableSlots/100',
+                isFull ? 'Cupos Agotados' : 'Cupos: $availableSlots/$totalSlots',
                 style: GoogleFonts.inter(
                   color: isFull ? Colors.redAccent : AppTheme.primary,
                   fontWeight: FontWeight.bold,

@@ -516,12 +516,12 @@ class _ChatCoachScreenState extends State<ChatCoachScreen> {
 
   Widget _buildDrawer() {
     return Drawer(
-      backgroundColor: Colors.grey[900],
+      backgroundColor: AppTheme.surface,
       child: ListView(
         padding: EdgeInsets.zero,
         children: [
           const DrawerHeader(
-            decoration: BoxDecoration(color: Colors.black),
+            decoration: BoxDecoration(color: AppTheme.background),
             child: Text(
               'Menú Chat Coach',
               style: TextStyle(color: Colors.white, fontSize: 24),

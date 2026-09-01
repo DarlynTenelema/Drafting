@@ -285,27 +285,29 @@ func SubscribeToGroup(w http.ResponseWriter, r *http.Request) {
 	// Grant Esencias Azules based on the exact product purchased
 	var essenceBonus float64 = 0
 	switch req.SubscriptionID {
-	case "pro_1d":
+	case "plus_1d", "creator_plus_1d":
+		essenceBonus = 0.0 // No bonus for daily plus
+	case "pro_1d", "creator_pro_1d":
 		essenceBonus = 50.0
-	case "ultra_1d":
+	case "ultra_1d", "creator_ultra_1d":
 		essenceBonus = 100.0
-	case "plus_1w":
+	case "plus_1w", "creator_plus_1w":
 		essenceBonus = 150.0
-	case "pro_1w":
+	case "pro_1w", "creator_pro_1w":
 		essenceBonus = 300.0
-	case "ultra_1w":
+	case "ultra_1w", "creator_ultra_1w":
 		essenceBonus = 600.0
-	case "plus_1m":
+	case "plus_1m", "creator_plus_1m":
 		essenceBonus = 600.0
-	case "pro_1m":
+	case "pro_1m", "creator_pro_1m":
 		essenceBonus = 1000.0
-	case "ultra_1m":
+	case "ultra_1m", "creator_ultra_1m":
 		essenceBonus = 2000.0
-	case "plus_1y":
+	case "plus_1y", "creator_plus_1y":
 		essenceBonus = 6000.0
-	case "pro_1y":
+	case "pro_1y", "creator_pro_1y":
 		essenceBonus = 10000.0
-	case "ultra_1y":
+	case "ultra_1y", "creator_ultra_1y":
 		essenceBonus = 20000.0
 	}
 
@@ -446,27 +448,29 @@ func SubscribeToCreator(w http.ResponseWriter, r *http.Request) {
 	// Grant Esencias Azules based on the exact product purchased
 	var essenceBonus float64 = 0
 	switch req.SubscriptionID {
-	case "pro_1d":
+	case "plus_1d", "creator_plus_1d":
+		essenceBonus = 0.0 // No bonus for daily plus
+	case "pro_1d", "creator_pro_1d":
 		essenceBonus = 50.0
-	case "ultra_1d":
+	case "ultra_1d", "creator_ultra_1d":
 		essenceBonus = 100.0
-	case "plus_1w":
+	case "plus_1w", "creator_plus_1w":
 		essenceBonus = 150.0
-	case "pro_1w":
+	case "pro_1w", "creator_pro_1w":
 		essenceBonus = 300.0
-	case "ultra_1w":
+	case "ultra_1w", "creator_ultra_1w":
 		essenceBonus = 600.0
-	case "plus_1m":
+	case "plus_1m", "creator_plus_1m":
 		essenceBonus = 600.0
-	case "pro_1m":
+	case "pro_1m", "creator_pro_1m":
 		essenceBonus = 1000.0
-	case "ultra_1m":
+	case "ultra_1m", "creator_ultra_1m":
 		essenceBonus = 2000.0
-	case "plus_1y":
+	case "plus_1y", "creator_plus_1y":
 		essenceBonus = 6000.0
-	case "pro_1y":
+	case "pro_1y", "creator_pro_1y":
 		essenceBonus = 10000.0
-	case "ultra_1y":
+	case "ultra_1y", "creator_ultra_1y":
 		essenceBonus = 20000.0
 	}
 
@@ -524,8 +528,14 @@ func PurchaseFanart(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if req.FanartID == "mock_fanart_1" {
+		fanartID = uuid.MustParse("00000000-0000-0000-0000-000000000001")
+	} else if req.FanartID == "mock_fanart_2" {
+		fanartID = uuid.MustParse("00000000-0000-0000-0000-000000000002")
+	}
+
 	var fanart models.Fanart
-	if fanartID.String() == "00000000-0000-0000-0000-000000000001" || req.FanartID == "mock_fanart_1" || req.FanartID == "mock_fanart_2" {
+	if req.FanartID == "mock_fanart_1" || req.FanartID == "mock_fanart_2" {
 		fanart = models.Fanart{
 			CreatorID: buyer.ID, // Just use buyer as creator for mock
 			PriceEssence: 50.0,
@@ -604,10 +614,18 @@ func CheckFanartPurchase(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	fanartID, err := uuid.Parse(fanartIDStr)
-	if err != nil {
-		http.Error(w, "Invalid Fanart ID", http.StatusBadRequest)
-		return
+	var fanartID uuid.UUID
+	var err error
+	if fanartIDStr == "mock_fanart_1" {
+		fanartID = uuid.MustParse("00000000-0000-0000-0000-000000000001")
+	} else if fanartIDStr == "mock_fanart_2" {
+		fanartID = uuid.MustParse("00000000-0000-0000-0000-000000000002")
+	} else {
+		fanartID, err = uuid.Parse(fanartIDStr)
+		if err != nil {
+			http.Error(w, "Invalid Fanart ID", http.StatusBadRequest)
+			return
+		}
 	}
 
 	user, ok := r.Context().Value(middleware.UserContextKey).(*models.User)
@@ -659,6 +677,12 @@ func DonateVideo(w http.ResponseWriter, r *http.Request) {
 	if err != nil && req.VideoID != "mock_vid_1" && req.VideoID != "mock_vid_2" {
 		http.Error(w, "Invalid Video ID", http.StatusBadRequest)
 		return
+	}
+
+	if req.VideoID == "mock_vid_1" {
+		videoID = uuid.MustParse("00000000-0000-0000-0000-000000000011")
+	} else if req.VideoID == "mock_vid_2" {
+		videoID = uuid.MustParse("00000000-0000-0000-0000-000000000012")
 	}
 
 	var video models.VideoEmbed

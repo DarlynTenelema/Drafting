@@ -171,17 +171,29 @@ class _GroupSetupScreenState extends State<GroupSetupScreen> {
   bool get _isProductConfigured => _productNameCtrl.text.isNotEmpty && _productImageFile != null;
   bool get _canProceed => _isMembersGoalMet && _isChampionsGoalMet && _isProductConfigured;
 
-  void _inviteMember() {
+  void _inviteMember() async {
     final email = _emailController.text.trim();
     if (email.isNotEmpty && email.contains('@')) {
-      setState(() {
-        // En demo, la primera invitación siempre la marcamos como "aceptada" al tocar para simular
-        _invitedMembers.add(InvitedMember(email));
-        _emailController.clear();
-      });
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Invitación enviada. (Toca el correo en la lista para simular que aceptaron)')),
+        const SnackBar(content: Text('Verificando usuario...')),
       );
+
+      final isValid = await EntrepreneurService().validateInviteEmail(email);
+      if (!mounted) return;
+
+      if (isValid) {
+        setState(() {
+          _invitedMembers.add(InvitedMember(email));
+          _emailController.clear();
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Usuario verificado. Se le enviará la invitación oficial al pagar.')),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Error: No hay ningún usuario registrado con ese correo.'), backgroundColor: Colors.redAccent),
+        );
+      }
     }
   }
 

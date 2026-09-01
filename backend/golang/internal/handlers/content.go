@@ -11,6 +11,7 @@ import (
 	"os"
 	"regexp"
 	"strings"
+	"time"
 
 	"backend/internal/database"
 	"backend/internal/gemini"
@@ -372,7 +373,7 @@ func UploadFanart(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	fileName := fmt.Sprintf("%s_%s", user.ID, header.Filename)
+	fileName := fmt.Sprintf("%s_%d_%s", user.ID, time.Now().UnixNano(), header.Filename)
 	uploadURL := fmt.Sprintf("%s/storage/v1/object/fanarts/%s", supabaseURL, fileName)
 	
 	reqUpload, err := http.NewRequest("POST", uploadURL, bytes.NewReader(imgData))
@@ -386,11 +387,14 @@ func UploadFanart(w http.ResponseWriter, r *http.Request) {
 
 	client := &http.Client{}
 	resp, err := client.Do(reqUpload)
-	if err != nil || resp.StatusCode >= 400 {
-		http.Error(w, "Error uploading to Supabase", http.StatusInternalServerError)
-		if resp != nil {
-			resp.Body.Close()
-		}
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Error uploading to Supabase: %v", err), http.StatusInternalServerError)
+		return
+	}
+	if resp.StatusCode >= 400 {
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		http.Error(w, fmt.Sprintf("Supabase rejected upload (Status %d): %s", resp.StatusCode, string(bodyBytes)), http.StatusInternalServerError)
 		return
 	}
 	resp.Body.Close()
@@ -409,7 +413,7 @@ func UploadFanart(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := database.DB.Create(&fanart).Error; err != nil {
-		http.Error(w, "Failed to upload fanart", http.StatusInternalServerError)
+		http.Error(w, fmt.Sprintf("Failed to save fanart to DB: %v", err), http.StatusInternalServerError)
 		return
 	}
 
