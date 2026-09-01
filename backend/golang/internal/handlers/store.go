@@ -8,6 +8,8 @@ import (
 	"backend/internal/database"
 	"backend/internal/middleware"
 	"backend/internal/models"
+
+	"github.com/google/uuid"
 )
 
 type StoreProductResponse struct {
