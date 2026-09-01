@@ -569,7 +569,12 @@ func PurchaseFanart(w http.ResponseWriter, r *http.Request) {
 	buyerWallet.BalanceEssence -= fanart.PriceEssence
 	tx.Save(&buyerWallet)
 
-	// Add to creator
+	// Add to creator (reload to avoid overwriting if buyer == creator)
+	if buyer.ID == fanart.CreatorID {
+		creatorWallet = buyerWallet
+	} else {
+		if err := tx.Where("user_id = ?", fanart.CreatorID).First(&creatorWallet).Error; err != nil {}
+	}
 	creatorWallet.BalanceUSD += usdEarned
 	tx.Save(&creatorWallet)
 

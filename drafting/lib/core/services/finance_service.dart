@@ -27,7 +27,7 @@ class FinanceService extends ChangeNotifier {
   Future<bool> donateToVideo(String videoId, double amountCoin) async {
     try {
       final response = await ApiClient.post(
-        '/finance/donate',
+        '/api/v1/finance/donate',
         authenticated: true,
         body: {
           'video_id': videoId,
@@ -45,7 +45,7 @@ class FinanceService extends ChangeNotifier {
     isLoading = true;
     notifyListeners();
     try {
-      final response = await ApiClient.get('/finance/dashboard', authenticated: true);
+      final response = await ApiClient.get('/api/v1/finance/dashboard', authenticated: true);
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         _totalUsd = (data['total_usd'] as num).toDouble();
@@ -65,7 +65,7 @@ class FinanceService extends ChangeNotifier {
 
   Future<bool> withdrawFunds() async {
     try {
-      final response = await ApiClient.post('/finance/withdraw', authenticated: true);
+      final response = await ApiClient.post('/api/v1/finance/withdraw', authenticated: true);
       if (response.statusCode == 200 || response.statusCode == 201) {
         // Clear local state or refetch
         _totalUsd = 0.0;
@@ -82,7 +82,7 @@ class FinanceService extends ChangeNotifier {
 
   Future<String?> getStripeOnboardingLink() async {
     try {
-      final response = await ApiClient.post('/stripe/onboarding', authenticated: true);
+      final response = await ApiClient.post('/api/v1/stripe/onboarding', authenticated: true);
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         return data['url'] as String?;
@@ -97,7 +97,7 @@ class FinanceService extends ChangeNotifier {
   Future<bool> rechargeCoins(String productId, String purchaseToken) async {
     try {
       final response = await ApiClient.post(
-        '/finance/recharge-coins',
+        '/api/v1/finance/recharge-coins',
         authenticated: true,
         body: {
           'product_id': productId,
@@ -120,7 +120,7 @@ class FinanceService extends ChangeNotifier {
 
   Future<List<dynamic>> getLeaderboard() async {
     try {
-      final response = await ApiClient.get('/finance/leaderboard', authenticated: true);
+      final response = await ApiClient.get('/api/v1/finance/leaderboard', authenticated: true);
       if (response.statusCode == 200) {
         return jsonDecode(response.body) as List<dynamic>;
       }
@@ -133,7 +133,7 @@ class FinanceService extends ChangeNotifier {
 
   Future<List<dynamic>> getPendingCustomCoins() async {
     try {
-      final response = await ApiClient.get('/finance/custom-coins/pending', authenticated: true);
+      final response = await ApiClient.get('/api/v1/finance/custom-coins/pending', authenticated: true);
       if (response.statusCode == 200) {
         return jsonDecode(response.body) as List<dynamic>;
       }
@@ -147,7 +147,7 @@ class FinanceService extends ChangeNotifier {
   Future<bool> reviewCustomCoin(String coinId, bool isApproved) async {
     try {
       final response = await ApiClient.post(
-        '/finance/custom-coins/review',
+        '/api/v1/finance/custom-coins/review',
         authenticated: true,
         body: {
           'coin_id': coinId,

@@ -142,7 +142,7 @@ class _FanartDetailScreenState extends State<FanartDetailScreen> {
 
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         backgroundColor: AppTheme.surface,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Text(
@@ -155,7 +155,7 @@ class _FanartDetailScreenState extends State<FanartDetailScreen> {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(dialogContext),
             child: Text(
               'Cancelar',
               style: GoogleFonts.inter(color: AppTheme.textMuted),
@@ -163,7 +163,7 @@ class _FanartDetailScreenState extends State<FanartDetailScreen> {
           ),
           ElevatedButton(
             onPressed: () async {
-              Navigator.pop(context);
+              Navigator.pop(dialogContext);
               
               // Mostrar indicador de carga
               showDialog(
