@@ -92,6 +92,7 @@ class _IndexScreenState extends State<IndexScreen> {
 
   Future<void> _fetchUserData() async {
     try {
+      // 1. Hidratación del usuario
       final response = await ApiClient.get('/api/v1/auth/me', authenticated: true);
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
@@ -105,6 +106,10 @@ class _IndexScreenState extends State<IndexScreen> {
             if (_userTier == 'ultra') _visibleFields = 1; // Start with 1, can add up to 5
           });
         }
+
+        // 2. Hidratación de Economía (Esencias y USD)
+        await FinanceService().fetchDashboardStats();
+
         if (data['is_pending_ban'] == true) {
           if (!mounted) return;
           // Force navigate to AppealScreen

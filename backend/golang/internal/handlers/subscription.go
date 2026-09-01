@@ -162,8 +162,34 @@ func VerifyPurchase(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Grant 1000 Esencias Azules for Pro and Ultra plans
-	if planID == "pro" || planID == "ultra" {
+	// Grant Esencias Azules based on the exact product purchased
+	var essenceBonus float64 = 0
+	switch req.ProductID {
+	case "pro_1d":
+		essenceBonus = 50.0
+	case "ultra_1d":
+		essenceBonus = 100.0
+	case "plus_1w":
+		essenceBonus = 150.0
+	case "pro_1w":
+		essenceBonus = 300.0
+	case "ultra_1w":
+		essenceBonus = 600.0
+	case "plus_1m":
+		essenceBonus = 600.0
+	case "pro_1m":
+		essenceBonus = 1000.0
+	case "ultra_1m":
+		essenceBonus = 2000.0
+	case "plus_1y":
+		essenceBonus = 6000.0
+	case "pro_1y":
+		essenceBonus = 10000.0
+	case "ultra_1y":
+		essenceBonus = 20000.0
+	}
+
+	if essenceBonus > 0 {
 		var wallet models.Wallet
 		if err := tx.Where("user_id = ?", user.ID).First(&wallet).Error; err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -180,7 +206,7 @@ func VerifyPurchase(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
-		wallet.BalanceEssence += 1000.0
+		wallet.BalanceEssence += essenceBonus
 		if err := tx.Save(&wallet).Error; err != nil {
 			tx.Rollback()
 			http.Error(w, "Failed to update wallet", http.StatusInternalServerError)
@@ -190,7 +216,7 @@ func VerifyPurchase(w http.ResponseWriter, r *http.Request) {
 		bonusTx := models.Transaction{
 			UserID:        user.ID,
 			Type:          "subscription_bonus",
-			AmountEssence: 1000.0,
+			AmountEssence: essenceBonus,
 			Status:        "completed",
 		}
 		if err := tx.Create(&bonusTx).Error; err != nil {

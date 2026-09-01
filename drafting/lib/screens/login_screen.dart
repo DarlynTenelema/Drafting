@@ -30,7 +30,11 @@ class _LoginScreenState extends State<LoginScreen> {
     });
 
     try {
-      final googleUser = await _googleSignIn.signIn();
+      // Limpieza profunda de sesión para evitar caché de cuentas previas
+      try { await _googleSignIn.disconnect(); } catch (_) {}
+      try { await _googleSignIn.signOut(); } catch (_) {}
+
+      final googleUser = await _googleSignIn.authenticate();
       if (googleUser == null) {
         throw Exception('canceled'); // User canceled sign in
       }
