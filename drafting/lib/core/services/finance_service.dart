@@ -34,7 +34,13 @@ class FinanceService extends ChangeNotifier {
           'amount': amountCoin,
         },
       );
-      return response.statusCode == 200 || response.statusCode == 201;
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        _totalCoins -= amountCoin;
+        if (_totalCoins < 0) _totalCoins = 0;
+        notifyListeners();
+        return true;
+      }
+      return false;
     } catch (e) {
       debugPrint('Exception donating to video: $e');
       return false;

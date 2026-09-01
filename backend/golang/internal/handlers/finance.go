@@ -687,6 +687,11 @@ func DonateVideo(w http.ResponseWriter, r *http.Request) {
 	usdEquivalent := req.Amount / 100.0
 
 	tx := database.DB.Begin()
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+		}
+	}()
 
 	var buyerWallet models.Wallet
 	if err := tx.Where("user_id = ?", viewer.ID).First(&buyerWallet).Error; err != nil {
@@ -699,37 +704,64 @@ func DonateVideo(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Insufficient Esencia Azul", http.StatusPaymentRequired)
 		return
 	}
-	buyerWallet.BalanceEssence -= req.Amount
-	tx.Save(&buyerWallet)
+	
+	// Atomic update for buyer
+	if err := tx.Model(&buyerWallet).UpdateColumn("balance_essence", gorm.Expr("balance_essence - ?", req.Amount)).Error; err != nil {
+		tx.Rollback()
+		http.Error(w, "Database error", http.StatusInternalServerError)
+		return
+	}
 
-	var creatorWallet models.Wallet
+	// Update creator
 	if viewer.ID == channel.OwnerID {
-		creatorWallet = buyerWallet
+		// Atomic update for creator (who is also the buyer)
+		if err := tx.Model(&buyerWallet).UpdateColumn("balance_usd", gorm.Expr("balance_usd + ?", usdEquivalent)).Error; err != nil {
+			tx.Rollback()
+			http.Error(w, "Database error", http.StatusInternalServerError)
+			return
+		}
 	} else {
+		var creatorWallet models.Wallet
 		if err := tx.Where("user_id = ?", channel.OwnerID).First(&creatorWallet).Error; err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
-				creatorWallet = models.Wallet{UserID: channel.OwnerID}
-				tx.Create(&creatorWallet)
+				creatorWallet = models.Wallet{UserID: channel.OwnerID, BalanceUSD: usdEquivalent}
+				if err := tx.Create(&creatorWallet).Error; err != nil {
+					tx.Rollback()
+					http.Error(w, "Database error", http.StatusInternalServerError)
+					return
+				}
 			} else {
+				tx.Rollback()
+				http.Error(w, "Database error", http.StatusInternalServerError)
+				return
+			}
+		} else {
+			if err := tx.Model(&creatorWallet).UpdateColumn("balance_usd", gorm.Expr("balance_usd + ?", usdEquivalent)).Error; err != nil {
 				tx.Rollback()
 				http.Error(w, "Database error", http.StatusInternalServerError)
 				return
 			}
 		}
 	}
-	creatorWallet.BalanceUSD += usdEquivalent
-	tx.Save(&creatorWallet)
 
 	txRec := models.Transaction{
-		UserID:          channel.OwnerID, // We record this on the creator's ledger for dashboard
+		UserID:          channel.OwnerID,
 		Type:            "donation",
 		AmountUSD:       usdEquivalent,
-		AmountEssence:      req.Amount,
+		AmountEssence:   req.Amount,
 		RelatedEntityID: &videoID,
 		Status:          "completed",
 	}
-	tx.Create(&txRec)
-	tx.Commit()
+	if err := tx.Create(&txRec).Error; err != nil {
+		tx.Rollback()
+		http.Error(w, "Database error", http.StatusInternalServerError)
+		return
+	}
+	
+	if err := tx.Commit().Error; err != nil {
+		http.Error(w, "Database error", http.StatusInternalServerError)
+		return
+	}
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{"success": true})
