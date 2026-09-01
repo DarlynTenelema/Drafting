@@ -688,31 +688,33 @@ func DonateVideo(w http.ResponseWriter, r *http.Request) {
 
 	tx := database.DB.Begin()
 
-	if !isTestAccount(viewer.Email) {
-		var buyerWallet models.Wallet
-		if err := tx.Where("user_id = ?", viewer.ID).First(&buyerWallet).Error; err != nil {
-			tx.Rollback()
-			http.Error(w, "Viewer wallet not found", http.StatusBadRequest)
-			return
-		}
-		if buyerWallet.BalanceEssence < req.Amount {
-			tx.Rollback()
-			http.Error(w, "Insufficient Esencia Azul", http.StatusPaymentRequired)
-			return
-		}
-		buyerWallet.BalanceEssence -= req.Amount
-		tx.Save(&buyerWallet)
+	var buyerWallet models.Wallet
+	if err := tx.Where("user_id = ?", viewer.ID).First(&buyerWallet).Error; err != nil {
+		tx.Rollback()
+		http.Error(w, "Viewer wallet not found", http.StatusBadRequest)
+		return
 	}
+	if buyerWallet.BalanceEssence < req.Amount {
+		tx.Rollback()
+		http.Error(w, "Insufficient Esencia Azul", http.StatusPaymentRequired)
+		return
+	}
+	buyerWallet.BalanceEssence -= req.Amount
+	tx.Save(&buyerWallet)
 
 	var creatorWallet models.Wallet
-	if err := tx.Where("user_id = ?", channel.OwnerID).First(&creatorWallet).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			creatorWallet = models.Wallet{UserID: channel.OwnerID}
-			tx.Create(&creatorWallet)
-		} else {
-			tx.Rollback()
-			http.Error(w, "Database error", http.StatusInternalServerError)
-			return
+	if viewer.ID == channel.OwnerID {
+		creatorWallet = buyerWallet
+	} else {
+		if err := tx.Where("user_id = ?", channel.OwnerID).First(&creatorWallet).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				creatorWallet = models.Wallet{UserID: channel.OwnerID}
+				tx.Create(&creatorWallet)
+			} else {
+				tx.Rollback()
+				http.Error(w, "Database error", http.StatusInternalServerError)
+				return
+			}
 		}
 	}
 	creatorWallet.BalanceUSD += usdEquivalent
