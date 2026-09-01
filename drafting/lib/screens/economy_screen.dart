@@ -206,7 +206,7 @@ class _EconomyScreenState extends State<EconomyScreen> {
                   ),
                 ),
               ),
-              
+            ),
               // Current Balance HUD
               Container(
                 margin: const EdgeInsets.symmetric(horizontal: 32),

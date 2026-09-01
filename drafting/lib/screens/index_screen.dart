@@ -118,7 +118,7 @@ class _IndexScreenState extends State<IndexScreen> {
             _userName = data['username'];
             _userPhotoUrl = data['profile_pic'];
             _isPremium = data['is_premium'] == true;
-            _userTier = data['plan_tier'] ?? 'plus';
+            _userTier = (data['plan_tier'] ?? 'plus').toString().toLowerCase();
             if (_userTier == 'pro') _visibleFields = 2;
             if (_userTier == 'ultra') _visibleFields = 1; // Start with 1, can add up to 5
           });

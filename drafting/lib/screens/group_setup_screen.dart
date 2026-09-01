@@ -844,7 +844,6 @@ Situational: ${_situationalCtrl.text}
             duration: Duration(seconds: 5),
           ));
         }
-      if (result['success'] == true) {
         if (mounted) {
           if (_loadingContext != null) {
             Navigator.pop(_loadingContext!);

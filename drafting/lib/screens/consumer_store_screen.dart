@@ -7,6 +7,7 @@ import '../theme/app_theme.dart';
 import '../core/state/active_product_state.dart';
 import '../core/services/subscription_service.dart';
 import 'payment_screen.dart';
+import 'login_screen.dart';
 
 class ConsumerStoreScreen extends StatefulWidget {
   final String sessionToken;
