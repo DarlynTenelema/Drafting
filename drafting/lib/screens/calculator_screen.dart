@@ -268,7 +268,7 @@ class _CalculatorScreenState extends State<CalculatorScreen> {
                   const Padding(padding: EdgeInsets.symmetric(vertical: 12.0), child: Divider(color: Colors.white12)),
                   
                   _buildRow('Tu Porcentaje (${(_selectedPlan.percentage * 100).toInt()}%)', _entrepreneurShare),
-                  _buildRow('Costo de API', -(_apiCosts * 0.80), isDeduction: true),
+                  _buildRow('Costo de API Gemini', -(_apiCosts * 0.80), isDeduction: true),
                   _buildRow('Ancho de banda', -(_apiCosts * 0.20), isDeduction: true),
                   _buildRow('Comisión Retiro (Stripe)', -_withdrawalFee, isDeduction: true),
                   

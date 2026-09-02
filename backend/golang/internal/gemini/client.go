@@ -80,23 +80,35 @@ func AnalyzeDraft(ctx context.Context, base64Image string, mainRole, secondaryRo
 El usuario es un OTP (One Trick Pony) y domina a los siguientes campeones: %s.
 
 Instrucciones de visión artificial (Analiza internamente, NO lo escribas):
-1. ROL: Identifica el rol asignado en la pantalla.
-2. BANEOS Y ENEMIGOS: Identifica a los enemigos y baneos.
-3. ADAPTACIÓN: Recomienda EXCLUSIVAMENTE cuál de sus campeones OTP (%s) es la mejor opción para esta partida.
+1. ESTADO DE SELECCIÓN: Observa si el usuario ya ha fijado a su campeón (ya no aparece la cuadrícula central de campeones para elegir).
+2. ROL: Identifica el rol asignado en la pantalla.
+3. BANEOS Y ENEMIGOS: Identifica a los enemigos y baneos.
+4. ADAPTACIÓN: 
+   - Si el usuario AÚN ESTÁ ELIGIENDO (cuadrícula abierta): Recomienda cuál de sus campeones OTP (%s) es la mejor opción.
+   - Si el usuario YA ELIGIÓ SU CAMPEÓN (cuadrícula cerrada, campeón fijado): Identifica qué campeón escogió y enfócate en darle las mejores runas, hechizos y build para enfrentar al equipo enemigo.
 
 Reglas CRÍTICAS:
 - IDIOMA: Únicamente Español.
 - FORMATO PLANO: PROHIBIDO USAR MARKDOWN (sin asteriscos, sin hashtags, sin negritas). Todo en texto limpio.
 - CERO CHARLA: Cero saludos, introducciones o despedidas. Da solo los datos.
-- ESTRUCTURA EXACTA REQUERIDA:
 
+ESTRUCTURAS EXACTAS REQUERIDAS (Usa SOLO UNA según el estado de selección):
+
+ESTRUCTURA A (Si aún está eligiendo campeón):
 Campeón OTP Recomendado: [Nombre del campeón]
 Razón: [Razón breve de por qué es buena opción contra los enemigos]
-
 Hechizos: [Hechizos precisos]
 Runas: [Runas exactas]
 Build Principal: [Objetos core para hacer snowball o counter]
 Situacionales: [Objetos situacionales según la composición enemiga]
+
+ESTRUCTURA B (Si ya eligió campeón):
+Tu Campeón: [Nombre del campeón detectado]
+Análisis: [Breve análisis de tu rol contra la composición enemiga]
+Hechizos: [Hechizos precisos]
+Runas: [Runas exactas para hacer counter]
+Build Principal: [Objetos core contra estos enemigos]
+Situacionales: [Objetos situacionales]
 
 %s`, otpChampions, otpChampions, privateRulesContext)
 	} else if queryType == "in_game" {

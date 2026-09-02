@@ -190,6 +190,10 @@ class CaptureService : Service() {
         val inflater = getSystemService(Context.LAYOUT_INFLATER_SERVICE) as LayoutInflater
         floatingView = inflater.inflate(R.layout.layout_overlay, null)
 
+        val expandedContainer = floatingView.findViewById<LinearLayout>(R.id.expandedContainer)
+        val btnCollapsedBubble = floatingView.findViewById<ImageButton>(R.id.btnCollapsedBubble)
+        val btnMinimize = floatingView.findViewById<ImageButton>(R.id.btnMinimize)
+
         val btnCaptureAutofill = floatingView.findViewById<ImageButton>(R.id.btnCaptureAutofill)
         val btnCaptureOTP = floatingView.findViewById<ImageButton>(R.id.btnCaptureOTP)
         val btnCaptureInGame = floatingView.findViewById<ImageButton>(R.id.btnCaptureInGame)
@@ -224,6 +228,19 @@ class CaptureService : Service() {
             }
         }
         
+        btnMinimize.setOnClickListener {
+            // Oculta el contenedor expandido y muestra la burbuja miniatura
+            expandedContainer.visibility = View.GONE
+            floatingView.findViewById<FrameLayout>(R.id.messageContainer).visibility = View.GONE
+            btnCollapsedBubble.visibility = View.VISIBLE
+        }
+
+        btnCollapsedBubble.setOnClickListener {
+            // Muestra el contenedor expandido y oculta la burbuja
+            btnCollapsedBubble.visibility = View.GONE
+            expandedContainer.visibility = View.VISIBLE
+        }
+
         btnClose.setOnClickListener {
             stopSelf()
         }
@@ -525,5 +542,7 @@ class CaptureService : Service() {
         virtualDisplay?.release()
         imageReader?.close()
         mediaProjection?.stop()
+        
+        sendResultToActivity("stopped", 999, "Service stopped")
     }
 }

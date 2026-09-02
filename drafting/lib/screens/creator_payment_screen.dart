@@ -533,65 +533,49 @@ class _CreatorPaymentScreenState extends State<CreatorPaymentScreen> {
           if (isPlus) {
             tierColor = Colors.blue.shade900;
             features = [
-              _PlanFeature('Consulta el mejor pick para tu partida', iconBuilder: (c) => Image.asset('assets/images/rift_outline.png', color: c, width: 20, height: 20)),
-              _PlanFeature('10 consultas por hora', iconData: Icons.hourglass_empty),
-              _PlanFeature('Sin anuncios', iconBuilder: (c) => _buildAdsBlockIcon(c)),
-              _PlanFeature('Más campos de texto para ajustar tu IA (Max. 1)', iconData: Icons.build),
+              _PlanFeature('Conocimiento y experiencias escritas por una persona real.', iconData: Icons.person),
+              _PlanFeature('Consulta el mejor pick para tus partidas.', iconBuilder: (c) => Image.asset('assets/images/rift_outline.png', color: c, width: 20, height: 20)),
+              _PlanFeature('10 consultas por hora.', iconData: Icons.hourglass_empty),
+              _PlanFeature('Sin anuncios.', iconBuilder: (c) => _buildAdsBlockIcon(c)),
+              _PlanFeature('Más campos de texto para ajustar tu IA (Max. 1).', iconData: Icons.build),
             ];
-            if (p.id.endsWith('_1w')) {
-              features.add(_PlanFeature('150 escencias azules', iconBuilder: (c) => Image.asset('assets/images/crystal_coin_outline.png', color: c, width: 20, height: 20)));
-            } else if (p.id.endsWith('_1m')) {
-              features.add(_PlanFeature('600 escencias azules', iconBuilder: (c) => Image.asset('assets/images/crystal_coin_outline.png', color: c, width: 20, height: 20)));
-            } else if (p.id.endsWith('_1y')) {
-              features.add(_PlanFeature('6,000 escencias azules', iconBuilder: (c) => Image.asset('assets/images/crystal_coin_outline.png', color: c, width: 20, height: 20)));
-            }
           } else if (isPro) {
             tierColor = Colors.blue;
             features = [
-              _PlanFeature('Consulta el mejor pick para tu partida', iconBuilder: (c) => Image.asset('assets/images/rift_outline.png', color: c, width: 20, height: 20)),
-              _PlanFeature('Consulta las mejores runas para tu OTP', iconBuilder: (c) => Image.asset('assets/images/mastery_outline.png', color: c, width: 20, height: 20)),
-              _PlanFeature('Consulta los objetos adecuados en partida', iconData: Icons.shopping_bag_outlined),
-              _PlanFeature('20 consultas por hora', iconData: Icons.hourglass_empty),
-              _PlanFeature('Sin anuncios', iconBuilder: (c) => _buildAdsBlockIcon(c)),
-              _PlanFeature('Más campos de texto para ajustar tu IA (Max. 2)', iconData: Icons.build),
+              _PlanFeature('Conocimiento y experiencias escritas por una persona real.', iconData: Icons.person),
+              _PlanFeature('Consulta el mejor pick para tus partidas.', iconBuilder: (c) => Image.asset('assets/images/rift_outline.png', color: c, width: 20, height: 20)),
+              _PlanFeature('Consulta las mejores runas para tu OTP.', iconBuilder: (c) => Image.asset('assets/images/mastery_outline.png', color: c, width: 20, height: 20)),
+              _PlanFeature('Consulta los objetos adecuados en partida.', iconData: Icons.shopping_bag_outlined),
+              _PlanFeature('20 consultas por hora.', iconData: Icons.hourglass_empty),
+              _PlanFeature('Sin anuncios.', iconBuilder: (c) => _buildAdsBlockIcon(c)),
+              _PlanFeature('Más campos de texto para ajustar tu IA (Max. 2).', iconData: Icons.build),
             ];
-            
-            String essenceAmount = '0';
-            if (p.id.endsWith('_1d')) essenceAmount = '50';
-            else if (p.id.endsWith('_1w')) essenceAmount = '300';
-            else if (p.id.endsWith('_1m')) essenceAmount = '1,000';
-            else if (p.id.endsWith('_1y')) essenceAmount = '10,000';
-            
-            features.add(_PlanFeature('$essenceAmount escencias azules', iconBuilder: (c) => Image.asset('assets/images/crystal_coin_outline.png', color: c, width: 20, height: 20)));
           } else if (isUltra) {
             tierColor = Colors.lightBlueAccent;
             features = [
-              _PlanFeature('Consulta el mejor pick para tu partida', iconBuilder: (c) => Image.asset('assets/images/rift_outline.png', color: c, width: 20, height: 20)),
-              _PlanFeature('Consulta las mejores runas para tu OTP', iconBuilder: (c) => Image.asset('assets/images/mastery_outline.png', color: c, width: 20, height: 20)),
-              _PlanFeature('Consulta los objetos adecuados en partida', iconData: Icons.shopping_bag_outlined),
-              _PlanFeature('30 consultas por hora', iconData: Icons.hourglass_empty),
-              _PlanFeature('Acceso al Chat Coach (CC)', iconData: Icons.headset_mic),
-              _PlanFeature('Más campos de texto para ajustar tu IA (Max. 5)', iconData: Icons.build),
+              _PlanFeature('Conocimiento y experiencias escritas por una persona real.', iconData: Icons.person),
+              _PlanFeature('Consulta el mejor pick para tus partidas.', iconBuilder: (c) => Image.asset('assets/images/rift_outline.png', color: c, width: 20, height: 20)),
+              _PlanFeature('Consulta las mejores runas para tu OTP.', iconBuilder: (c) => Image.asset('assets/images/mastery_outline.png', color: c, width: 20, height: 20)),
+              _PlanFeature('Consulta los objetos adecuados en partida.', iconData: Icons.shopping_bag_outlined),
+              _PlanFeature('30 consultas por hora.', iconData: Icons.hourglass_empty),
+              _PlanFeature('Acceso al Chat Coach (CC).', iconData: Icons.headset_mic),
+              _PlanFeature('Más campos de texto para ajustar tu IA (Max. 5).', iconData: Icons.build),
             ];
             
             if (p.id.endsWith('_1d')) {
-              features.add(_PlanFeature('250K de tokens por 24 horas', iconData: Icons.memory));
-              features.add(_PlanFeature('Sin anuncios', iconBuilder: (c) => _buildAdsBlockIcon(c)));
-              features.add(_PlanFeature('100 escencias azules', iconBuilder: (c) => Image.asset('assets/images/crystal_coin_outline.png', color: c, width: 20, height: 20)));
+              features.add(_PlanFeature('250K de tokens por 24 horas.', iconData: Icons.memory));
+              features.add(_PlanFeature('Sin anuncios.', iconBuilder: (c) => _buildAdsBlockIcon(c)));
             } else if (p.id.endsWith('_1w')) {
-              features.add(_PlanFeature('300K de tokens diarios por una semana', iconData: Icons.memory));
-              features.add(_PlanFeature('Sin anuncios', iconBuilder: (c) => _buildAdsBlockIcon(c)));
-              features.add(_PlanFeature('600 escencias azules', iconBuilder: (c) => Image.asset('assets/images/crystal_coin_outline.png', color: c, width: 20, height: 20)));
+              features.add(_PlanFeature('300K de tokens diarios por una semana.', iconData: Icons.memory));
+              features.add(_PlanFeature('Sin anuncios.', iconBuilder: (c) => _buildAdsBlockIcon(c)));
             } else if (p.id.endsWith('_1m')) {
-              features.add(_PlanFeature('2.5M de tokens semanales por un mes', iconData: Icons.memory));
-              features.add(_PlanFeature('3 GB de almacenamiento (permanente)', iconData: Icons.cloud_done_outlined));
-              features.add(_PlanFeature('Sin anuncios', iconBuilder: (c) => _buildAdsBlockIcon(c)));
-              features.add(_PlanFeature('2,000 escencias azules', iconBuilder: (c) => Image.asset('assets/images/crystal_coin_outline.png', color: c, width: 20, height: 20)));
+              features.add(_PlanFeature('2.5M de tokens semanales por un mes.', iconData: Icons.memory));
+              features.add(_PlanFeature('3 GB de almacenamiento (permanente).', iconData: Icons.cloud_done_outlined));
+              features.add(_PlanFeature('Sin anuncios.', iconBuilder: (c) => _buildAdsBlockIcon(c)));
             } else if (p.id.endsWith('_1y')) {
-              features.add(_PlanFeature('12M de tokens mensuales por un año', iconData: Icons.memory));
-              features.add(_PlanFeature('36 GB de almacenamiento (permanente)', iconData: Icons.cloud_done_outlined));
-              features.add(_PlanFeature('Sin anuncios', iconBuilder: (c) => _buildAdsBlockIcon(c)));
-              features.add(_PlanFeature('20,000 escencias azules', iconBuilder: (c) => Image.asset('assets/images/crystal_coin_outline.png', color: c, width: 20, height: 20)));
+              features.add(_PlanFeature('12M de tokens mensuales por un año.', iconData: Icons.memory));
+              features.add(_PlanFeature('36 GB de almacenamiento (permanente).', iconData: Icons.cloud_done_outlined));
+              features.add(_PlanFeature('Sin anuncios.', iconBuilder: (c) => _buildAdsBlockIcon(c)));
             }
           }
 

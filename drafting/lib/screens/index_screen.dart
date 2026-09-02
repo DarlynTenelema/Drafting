@@ -56,7 +56,10 @@ class _IndexScreenState extends State<IndexScreen> {
     }
     
     _eventSubscription = NativeService.onEvent.listen((event) {
-      if (event['code'] == 402) {
+      if (event['code'] == 999) {
+        if (!mounted) return;
+        setState(() { _isActive = false; });
+      } else if (event['code'] == 402) {
         if (!mounted) return;
         // Payment required
         Navigator.of(context).push(
@@ -399,59 +402,42 @@ class _IndexScreenState extends State<IndexScreen> {
                           
                           return Container(
                             margin: const EdgeInsets.only(bottom: 24.0),
-                            padding: const EdgeInsets.symmetric(vertical: 12.0, horizontal: 16.0),
+                            padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 16.0),
                             decoration: BoxDecoration(
                               color: Colors.greenAccent.withValues(alpha: 0.1),
                               borderRadius: BorderRadius.circular(12),
                               border: Border.all(color: Colors.greenAccent.withValues(alpha: 0.5), width: 1),
                             ),
-                            child: Column(
+                            child: Row(
                               children: [
-                                Row(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    const Icon(Icons.star, color: Colors.greenAccent, size: 20),
-                                    const SizedBox(width: 8),
-                                    Expanded(
-                                      child: Text(
-                                        '✨ Sistema Activo: $activeProduct',
-                                        style: const TextStyle(
-                                          color: Colors.greenAccent,
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 14,
-                                        ),
-                                      ),
+                                const Icon(Icons.star, color: Colors.greenAccent, size: 20),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    activeProduct,
+                                    style: const TextStyle(
+                                      color: Colors.greenAccent,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 14,
                                     ),
-                                  ],
-                                ),
-                                const SizedBox(height: 12),
-                                SizedBox(
-                                  width: double.infinity,
-                                  child: ElevatedButton.icon(
-                                    onPressed: () async {
-                                      // Desactivar lógica
-                                      await ActiveProductState().clearActiveProduct();
-                                      if (_isActive) {
-                                        _toggleService(); // Stop the service if running
-                                      }
-                                      if (mounted) {
-                                        ScaffoldMessenger.of(context).showSnackBar(
-                                          const SnackBar(content: Text('Sistema de tienda desactivado. Usa el modo por defecto.')),
-                                        );
-                                      }
-                                    },
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: Colors.redAccent.withValues(alpha: 0.2),
-                                      foregroundColor: Colors.redAccent,
-                                      elevation: 0,
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(8),
-                                        side: BorderSide(color: Colors.redAccent.withValues(alpha: 0.5)),
-                                      ),
-                                    ),
-                                    icon: const Icon(Icons.power_settings_new, size: 18),
-                                    label: const Text('Desactivar Sistema', style: TextStyle(fontWeight: FontWeight.bold)),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
                                   ),
+                                ),
+                                IconButton(
+                                  icon: const Icon(Icons.power_settings_new, color: Colors.redAccent),
+                                  tooltip: 'Desactivar Sistema',
+                                  onPressed: () async {
+                                    await ActiveProductState().clearActiveProduct();
+                                    if (_isActive) {
+                                      _toggleService(); // Stop the service if running
+                                    }
+                                    if (mounted) {
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        const SnackBar(content: Text('Sistema de tienda desactivado. Usa el modo por defecto.')),
+                                      );
+                                    }
+                                  },
                                 ),
                               ],
                             ),
