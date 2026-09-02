@@ -135,6 +135,13 @@ func main() {
 			r.Get("/creator/eligibility", handlers.CheckEligibility)
 			r.Get("/creator/plans", handlers.GetCreatorPlans)
 			r.Post("/creator/validate-invite", handlers.ValidateGroupInvite)
+			
+			// Creator Settings (Phase 2 & 3)
+			r.Get("/groups/active-subscriptions", handlers.CheckActiveSubscriptions)
+			r.Post("/groups/schedule-deletion", handlers.ScheduleProductDeletion)
+			r.Post("/groups/delete-now", handlers.DeleteProductNow)
+			r.Post("/groups/update-visibility", handlers.UpdateGroupVisibility)
+			r.Post("/groups/update-info", handlers.UpdateGroupInfo)
 
 			// Store
 			r.Get("/store/products", handlers.ListStoreProducts)

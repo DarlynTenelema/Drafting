@@ -13,7 +13,9 @@
         android:background="@drawable/bg_hextech_button"
         android:src="@drawable/ic_general" 
         android:tint="#FFFFFF"
-        android:scaleType="centerInside"
+        android:scaleType="fitCenter"
+        android:padding="10dp"
+        android:cropToPadding="true"
         android:elevation="6dp"
         android:alpha="0.75"
         android:contentDescription="Expandir Controles"
@@ -113,7 +115,9 @@
                     android:background="@drawable/bg_hextech_button"
                     android:src="@drawable/ic_general"
                     android:tint="#C89B3C"
-                    android:scaleType="centerInside"
+                    android:scaleType="fitCenter"
+                    android:padding="10dp"
+                    android:cropToPadding="true"
                     android:elevation="6dp"
                     android:contentDescription="Autofill" />
 
@@ -126,7 +130,9 @@
                     android:background="@drawable/bg_hextech_button"
                     android:src="@drawable/ic_otp"
                     android:tint="#C89B3C"
-                    android:scaleType="centerInside"
+                    android:scaleType="fitCenter"
+                    android:padding="10dp"
+                    android:cropToPadding="true"
                     android:elevation="6dp"
                     android:contentDescription="OTP" />
 
@@ -138,7 +144,9 @@
                     android:background="@drawable/bg_hextech_button"
                     android:src="@drawable/ic_in_game"
                     android:tint="#C89B3C"
-                    android:scaleType="centerInside"
+                    android:scaleType="fitCenter"
+                    android:padding="10dp"
+                    android:cropToPadding="true"
                     android:elevation="6dp"
                     android:contentDescription="En Partida" />
             </LinearLayout>
@@ -160,7 +168,9 @@
                     android:background="@drawable/bg_hextech_button"
                     android:src="@android:drawable/ic_menu_close_clear_cancel"
                     android:tint="#FFFFFF"
-                    android:scaleType="centerInside"
+                    android:scaleType="fitCenter"
+                    android:padding="8dp"
+                    android:cropToPadding="true"
                     android:elevation="6dp"
                     android:contentDescription="Ocultar" />
 
@@ -172,7 +182,9 @@
                     android:background="@drawable/bg_hextech_close"
                     android:src="@android:drawable/ic_lock_power_off"
                     android:tint="#FFFFFF"
-                    android:scaleType="centerInside"
+                    android:scaleType="fitCenter"
+                    android:padding="8dp"
+                    android:cropToPadding="true"
                     android:elevation="6dp"
                     android:contentDescription="Apagar Sistema" />
             </LinearLayout>

@@ -362,16 +362,8 @@ class CaptureService : Service() {
         // Remove padding to get exact screen bounds
         val croppedBitmap = Bitmap.createBitmap(bitmap, 0, 0, imgWidth, imgHeight)
         
-        // Escalar imagen para no colapsar la red y ahorrar tokens (máx 720p aprox)
-        val maxDim = 1280.0f
-        val scale = if (croppedBitmap.width > maxDim || croppedBitmap.height > maxDim) {
-            Math.min(maxDim / croppedBitmap.width, maxDim / croppedBitmap.height)
-        } else {
-            1.0f
-        }
-        val scaledWidth = (croppedBitmap.width * scale).toInt()
-        val scaledHeight = (croppedBitmap.height * scale).toInt()
-        val finalBitmap = Bitmap.createScaledBitmap(croppedBitmap, scaledWidth, scaledHeight, true)
+        // Enviar la imagen en su resolución original (sin escalar) para no perder los textos diminutos.
+        val finalBitmap = croppedBitmap
 
         // Compress and encode
         val stream = ByteArrayOutputStream()

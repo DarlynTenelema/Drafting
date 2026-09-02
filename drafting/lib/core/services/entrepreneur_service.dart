@@ -128,6 +128,160 @@ class EntrepreneurService {
     }
   }
 
+  /// Get all saved AI models (Database tab)
+  Future<List<Map<String, dynamic>>> getAllAIModels() async {
+    try {
+      final response = await ApiClient.get(
+        '/creator/ai-models',
+        authenticated: true,
+      );
+      if (response.statusCode == 200) {
+        final List<dynamic> data = json.decode(response.body);
+        return List<Map<String, dynamic>>.from(data);
+      }
+      return [];
+    } catch (e) {
+      debugPrint("Error getting all AI models: $e");
+      return [];
+    }
+  }
+
+  /// Update an existing AI model
+  Future<Map<String, dynamic>> updateAIModel(Map<String, dynamic> data) async {
+    try {
+      final response = await ApiClient.post(
+        '/creator/ai-model/update',
+        body: data,
+        authenticated: true,
+      );
+      if (response.statusCode == 200) {
+        return json.decode(response.body);
+      }
+      return {'success': false, 'error': 'Failed to update model'};
+    } catch (e) {
+      debugPrint("Error updating AI model: $e");
+      return {'success': false, 'error': e.toString()};
+    }
+  }
+
+  /// Delete an AI model
+  Future<Map<String, dynamic>> deleteAIModel(String championName) async {
+    try {
+      final response = await ApiClient.post(
+        '/creator/ai-model/delete',
+        body: {'champion_name': championName},
+        authenticated: true,
+      );
+      if (response.statusCode == 200) {
+        return json.decode(response.body);
+      }
+      return {'success': false, 'error': 'Failed to delete model'};
+    } catch (e) {
+      debugPrint("Error deleting AI model: $e");
+      return {'success': false, 'error': e.toString()};
+    }
+  }
+
+  /// Toggle product visibility from the store
+  Future<Map<String, dynamic>> toggleProductVisibility(bool isHidden) async {
+    try {
+      final response = await ApiClient.post(
+        '/groups/update-visibility',
+        body: {'is_hidden': isHidden},
+        authenticated: true,
+      );
+      if (response.statusCode == 200) {
+        return json.decode(response.body);
+      }
+      return {'success': false, 'error': 'Failed to update product visibility'};
+    } catch (e) {
+      debugPrint("Error toggling product visibility: $e");
+      return {'success': false, 'error': e.toString()};
+    }
+  }
+
+  /// Update Group Settings (Name and Image)
+  Future<Map<String, dynamic>> updateGroupSettings(String name, String? imagePath) async {
+    try {
+      String? uploadedImageUrl;
+      if (imagePath != null && imagePath.isNotEmpty) {
+        uploadedImageUrl = await uploadProductImage(File(imagePath), "creator_id_placeholder");
+      }
+
+      final body = {'name': name};
+      if (uploadedImageUrl != null) {
+        body['product_image'] = uploadedImageUrl;
+      }
+
+      final response = await ApiClient.post(
+        '/groups/update-info',
+        body: body,
+        authenticated: true,
+      );
+      
+      if (response.statusCode == 200) {
+        return json.decode(response.body);
+      }
+      return {'success': false, 'error': 'Failed to update group settings'};
+    } catch (e) {
+      debugPrint("Error updating group settings: $e");
+      return {'success': false, 'error': e.toString()};
+    }
+  }
+
+  /// Check active subscriptions for the creator's product
+  Future<Map<String, dynamic>> checkActiveSubscriptions() async {
+    try {
+      final response = await ApiClient.get(
+        '/groups/active-subscriptions',
+        authenticated: true,
+      );
+      if (response.statusCode == 200) {
+        return json.decode(response.body); // e.g. {"hasActive": true, "lastEndDate": "2026-12-01T00:00:00Z"}
+      }
+      return {'hasActive': false, 'lastEndDate': null};
+    } catch (e) {
+      debugPrint("Error checking active subscriptions: $e");
+      return {'hasActive': false, 'lastEndDate': null};
+    }
+  }
+
+  /// Schedule product for deletion after a certain date
+  Future<Map<String, dynamic>> scheduleProductDeletion(DateTime deletionDate) async {
+    try {
+      final response = await ApiClient.post(
+        '/groups/schedule-deletion',
+        body: {'deletion_date': deletionDate.toIso8601String()},
+        authenticated: true,
+      );
+      if (response.statusCode == 200) {
+        return json.decode(response.body);
+      }
+      return {'success': false, 'error': 'Failed to schedule deletion'};
+    } catch (e) {
+      debugPrint("Error scheduling deletion: $e");
+      return {'success': false, 'error': e.toString()};
+    }
+  }
+
+  /// Delete product immediately
+  Future<Map<String, dynamic>> deleteProductNow() async {
+    try {
+      final response = await ApiClient.post(
+        '/groups/delete-now',
+        body: {},
+        authenticated: true,
+      );
+      if (response.statusCode == 200) {
+        return json.decode(response.body);
+      }
+      return {'success': false, 'error': 'Failed to delete product'};
+    } catch (e) {
+      debugPrint("Error deleting product now: $e");
+      return {'success': false, 'error': e.toString()};
+    }
+  }
+
   /// Get list of configured champions for this creator
   Future<List<String>> getMyChampions() async {
     try {

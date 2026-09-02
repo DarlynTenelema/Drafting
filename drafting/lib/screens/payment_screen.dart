@@ -22,6 +22,7 @@ class PaymentScreen extends StatefulWidget {
   final bool isGroup;
   final String? creatorProductName;
   final double? creatorProductPrice;
+  final bool isProductHidden;
   
   const PaymentScreen({
     super.key, 
@@ -30,6 +31,7 @@ class PaymentScreen extends StatefulWidget {
     this.isGroup = false,
     this.creatorProductName,
     this.creatorProductPrice,
+    this.isProductHidden = false,
   });
 
   @override
@@ -390,7 +392,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
                 padding: const EdgeInsets.symmetric(vertical: 16),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               ),
-              onPressed: (_verifying || isCurrentPlan) ? null : onPressed,
+              onPressed: (_verifying || isCurrentPlan || widget.isProductHidden) ? null : onPressed,
               child: Text(
                 isCurrentPlan ? 'Plan Actual' : 'Obtener Plan',
                 style: GoogleFonts.inter(
@@ -495,6 +497,30 @@ class _PaymentScreenState extends State<PaymentScreen> {
       padding: const EdgeInsets.all(24),
       children: [
         _buildStatusBanner(),
+        
+        if (widget.isProductHidden)
+          Container(
+            margin: const EdgeInsets.only(bottom: 24),
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.redAccent.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: Colors.redAccent.withValues(alpha: 0.5)),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Icon(Icons.warning_amber_rounded, color: Colors.redAccent),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    '¡No es posible realizar más compras con este plan por precaución! El creador de este producto ha iniciado el proceso de eliminación. ¡Tranquilo!, si tienes un plan activo aquí, el sistema no eliminará este producto hasta finalizar todos los planes.',
+                    style: GoogleFonts.inter(color: Colors.redAccent, fontSize: 13, fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ],
+            ),
+          ),
         
         Container(
           margin: const EdgeInsets.only(bottom: 24),
