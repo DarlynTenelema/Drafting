@@ -158,4 +158,16 @@ func UpdateProfile(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// GetCreatorTrialStatus returns whether the user is eligible for the creator free trial
+func GetCreatorTrialStatus(w http.ResponseWriter, r *http.Request) {
+	user, ok := r.Context().Value(middleware.UserContextKey).(*models.User)
+	if !ok {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
 
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]bool{
+		"is_eligible": !user.HasUsedCreatorTrial,
+	})
+}

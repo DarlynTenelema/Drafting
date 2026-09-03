@@ -23,6 +23,7 @@ type User struct {
 	Banned       bool      `gorm:"default:false"`
 	IsPendingBan bool      `gorm:"default:false"`
 	PendingBanUntil *time.Time
+	HasUsedCreatorTrial bool `gorm:"default:false"`
 	ActiveGroupID *uuid.UUID `gorm:"type:uuid"` // The group the user is subscribed to
 	CurrentGoal   *string    `gorm:"type:varchar(255)"` // The current short-term goal for the AI coach
 	ActivePlan    *string    `gorm:"type:varchar(50);default:'freemium'"` // e.g., 'freemium', 'plus', 'pro', 'ultra'

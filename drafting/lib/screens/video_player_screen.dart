@@ -261,7 +261,7 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
                         icon: Icons.share_outlined, 
                         label: 'Compartir',
                         onTap: () {
-                          Share.share('¡Mira este video genial en Drafting! https://youtube.com/watch?v=${widget.video.videoId}');
+                          Share.share('¡Mira el increíble video "${widget.video.title}" en Drafting!\n\nDescarga la app para apoyar a tus creadores favoritos: https://drafting.app');
                         }
                       ),
                     ],
@@ -538,7 +538,7 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
           );
         }
       ),
-    );
+    ).then((_) => proofController.dispose());
   }
 
   void _handleRapidDonate() {

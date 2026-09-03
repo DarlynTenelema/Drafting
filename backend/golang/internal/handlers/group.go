@@ -162,14 +162,8 @@ type CreateGroupRequest struct {
 }
 
 // helper to check if user is eligible internally
-func checkUserEligibility(userID uuid.UUID) bool {
-	var groupCount int64
-	database.DB.Model(&models.Group{}).Where("owner_id = ?", userID).Count(&groupCount)
-
-	var otpCount int64
-	database.DB.Model(&models.OTPProfile{}).Where("owner_id = ?", userID).Count(&otpCount)
-
-	return groupCount == 0 && otpCount == 0
+func checkUserEligibility(user *models.User) bool {
+	return !user.HasUsedCreatorTrial
 }
 
 func CreateGroup(w http.ResponseWriter, r *http.Request) {
@@ -199,10 +193,10 @@ func CreateGroup(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 2. Validate Payment
-	isEligible := checkUserEligibility(user.ID)
+	isEligible := checkUserEligibility(user)
 	if !isEligible {
 		if req.PurchaseToken == "" {
-			http.Error(w, "Payment required", http.StatusPaymentRequired)
+			http.Error(w, "Payment required. Free trial already used.", http.StatusPaymentRequired)
 			return
 		}
 		if playStoreVerifier != nil && playStoreVerifier.Enabled() {
@@ -242,8 +236,12 @@ func CreateGroup(w http.ResponseWriter, r *http.Request) {
 
 	if user.Role != "entrepreneur" {
 		user.Role = "entrepreneur"
-		database.DB.Save(user)
 	}
+	
+	if isEligible && req.PurchaseToken == "" {
+		user.HasUsedCreatorTrial = true
+	}
+	database.DB.Save(user)
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
@@ -273,10 +271,10 @@ func CreateOTPProfile(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Validate Payment
-	isEligible := checkUserEligibility(user.ID)
+	isEligible := checkUserEligibility(user)
 	if !isEligible {
 		if req.PurchaseToken == "" {
-			http.Error(w, "Payment required", http.StatusPaymentRequired)
+			http.Error(w, "Payment required. Free trial already used.", http.StatusPaymentRequired)
 			return
 		}
 		if playStoreVerifier != nil && playStoreVerifier.Enabled() {
@@ -305,8 +303,12 @@ func CreateOTPProfile(w http.ResponseWriter, r *http.Request) {
 
 	if user.Role != "entrepreneur" {
 		user.Role = "entrepreneur"
-		database.DB.Save(user)
 	}
+	
+	if isEligible && req.PurchaseToken == "" {
+		user.HasUsedCreatorTrial = true
+	}
+	database.DB.Save(user)
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
@@ -321,7 +323,7 @@ func CheckEligibility(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	eligible := checkUserEligibility(user.ID)
+	eligible := checkUserEligibility(user)
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]bool{"eligible": eligible})

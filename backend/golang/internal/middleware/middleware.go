@@ -99,7 +99,7 @@ func Auth(next http.Handler) http.Handler {
 	})
 }
 
-	// Check if user has an active subscription or if the global free trial is active
+// Check if user has an active subscription or if the global free trial is active
 func SubscriptionCheck(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		user, ok := r.Context().Value(UserContextKey).(*models.User)
@@ -153,14 +153,15 @@ func Cooldown(next http.Handler) http.Handler {
 		}
 
 		limit := int64(10) // Plus limit
-		if plan == "pro" {
+		if strings.HasPrefix(plan, "pro") || strings.HasPrefix(plan, "creator_pro") {
+			limit = 20
+		} else if strings.HasPrefix(plan, "ultra") || strings.HasPrefix(plan, "creator_ultra") {
 			limit = 30
-		} else if plan == "ultra" {
-			limit = 30
-		} else if plan == "freemium" {
-			limit = 3 // 3 per hour or day? The user said 3 per day, but currently it's per hour. Let's do 3 per hour for now since we don't have per-day logic yet.
+		} else if strings.HasPrefix(plan, "freemium") {
+			limit = 0 // 0 per hour or day? The user said 3 per day, but currently it's per hour. Let's do 3 per hour for now since we don't have per-day logic yet.
 		}
 
+		// 1. Check Requests per hour (Cooldown)
 		var count int64
 		database.DB.Model(&models.ApiUsage{}).Where("user_id = ? AND created_at > ?", user.ID, time.Now().Add(-1*time.Hour)).Count(&count)
 		if count >= limit {
@@ -170,6 +171,44 @@ func Cooldown(next http.Handler) http.Handler {
 				"error": "Límite de consultas por hora alcanzado para tu plan. Intenta de nuevo más tarde o mejora tu plan.",
 			})
 			return
+		}
+
+		// 2. Check Total Tokens Quota for Ultra plans
+		if strings.HasPrefix(plan, "ultra") || strings.HasPrefix(plan, "creator_ultra") {
+			var maxTokens int64 = 0
+			var since time.Time
+
+			switch plan {
+			case "ultra_1d", "creator_ultra_1d":
+				maxTokens = 250000
+				since = time.Now().Add(-24 * time.Hour)
+			case "ultra_1w", "creator_ultra_1w":
+				maxTokens = 300000
+				since = time.Now().Add(-24 * time.Hour) // 300K diarios
+			case "ultra_1m", "creator_ultra_1m":
+				maxTokens = 2500000
+				since = time.Now().Add(-7 * 24 * time.Hour) // 2.5M semanales
+			case "ultra_1y", "creator_ultra_1y":
+				maxTokens = 12000000
+				since = time.Now().Add(-30 * 24 * time.Hour) // 12M mensuales
+			}
+
+			if maxTokens > 0 {
+				var tokensUsed int64
+				database.DB.Model(&models.ApiUsage{}).
+					Where("user_id = ? AND created_at > ?", user.ID, since).
+					Select("COALESCE(SUM(tokens_used), 0)").
+					Row().Scan(&tokensUsed)
+
+				if tokensUsed >= maxTokens {
+					w.Header().Set("Content-Type", "application/json")
+					w.WriteHeader(http.StatusTooManyRequests)
+					json.NewEncoder(w).Encode(map[string]string{
+						"error": "Has alcanzado el límite de tokens de IA para tu plan. Espera a que se renueve tu cuota.",
+					})
+					return
+				}
+			}
 		}
 
 		next.ServeHTTP(w, r)

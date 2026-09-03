@@ -5,6 +5,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"regexp"
 	"time"
 
 	"backend/internal/chatcoach"
@@ -39,6 +40,22 @@ func AnalyzeDraft(w http.ResponseWriter, r *http.Request) {
 
 	if req.ImageBase64 == "" {
 		http.Error(w, "image_base64 is required", http.StatusBadRequest)
+		return
+	}
+
+	// Strict validation for text fields to prevent prompt injection and token abuse
+	if len(req.OTPChampions) > 100 {
+		http.Error(w, "OTPChampions field is too long", http.StatusBadRequest)
+		return
+	}
+	urlRegex := regexp.MustCompile(`(?i)(http|https|www|\.com|\.net|\.org|\.io|\.gg)`)
+	if urlRegex.MatchString(req.OTPChampions) {
+		http.Error(w, "URLs are not allowed in text fields", http.StatusBadRequest)
+		return
+	}
+	injectionKeywords := regexp.MustCompile(`(?i)(ignora|instrucciones|prompt|system)`)
+	if injectionKeywords.MatchString(req.OTPChampions) {
+		http.Error(w, "Invalid keywords in text fields", http.StatusBadRequest)
 		return
 	}
 

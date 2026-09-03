@@ -98,7 +98,7 @@ class _AppDrawerState extends State<AppDrawer> {
           ),
           ListTile(
             leading: Image.asset('assets/images/crystal_coin_outline.png', width: 36, height: 36),
-            title: const Text('Compra de monedas', style: TextStyle(color: Colors.white)),
+            title: const Text('Escencias Azules', style: TextStyle(color: Colors.white)),
             onTap: () {
               Navigator.pop(context);
               Navigator.of(context).push(MaterialPageRoute(builder: (_) => const EconomyScreen()));
@@ -114,7 +114,7 @@ class _AppDrawerState extends State<AppDrawer> {
           ),
           ListTile(
             leading: Image.asset('assets/images/chest_outline.png', width: 36, height: 36),
-            title: const Text('Planes de pago', style: TextStyle(color: Colors.white)),
+            title: const Text('Payments', style: TextStyle(color: Colors.white)),
             onTap: () async {
               Navigator.pop(context);
               final token = await SessionService.getSessionToken();

@@ -8,7 +8,8 @@ import {
   Users, 
   Activity, 
   Settings,
-  AlertCircle
+  AlertCircle,
+  CheckCircle
 } from 'lucide-react';
 
 export const Sidebar = () => {
@@ -43,6 +44,10 @@ export const Sidebar = () => {
         <NavLink to="/appeals" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
           <AlertCircle size={20} />
           <span>Apelaciones</span>
+        </NavLink>
+        <NavLink to="/verifications" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+          <CheckCircle size={20} />
+          <span>Verificaciones</span>
         </NavLink>
         <NavLink to="/finance" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
           <Activity size={20} />

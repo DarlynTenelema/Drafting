@@ -8,6 +8,7 @@ import { Moderation } from './pages/Moderation';
 import { Users } from './pages/Users';
 import { Finance } from './pages/Finance';
 import { Appeals } from './pages/Appeals';
+import { Verifications } from './pages/Verifications';
 
 function App() {
   return (
@@ -24,6 +25,7 @@ function App() {
             <Route path="/users" element={<Users />} />
             <Route path="/finance" element={<Finance />} />
             <Route path="/appeals" element={<Appeals />} />
+            <Route path="/verifications" element={<Verifications />} />
           </Routes>
         </main>
       </div>

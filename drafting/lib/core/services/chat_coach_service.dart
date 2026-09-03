@@ -62,6 +62,8 @@ class ChatCoachService {
 
     if (response.statusCode == 200 || response.statusCode == 201) {
       return MatchChatMessage.fromJson(jsonDecode(response.body));
+    } else if (response.statusCode == 402 || response.statusCode == 403) {
+      throw Exception('LIMITE_TOKENS');
     } else {
       throw Exception('Failed to send message: ${response.statusCode}');
     }

@@ -194,9 +194,25 @@ class _ChatCoachScreenState extends State<ChatCoachScreen> {
       }
     } catch (e) {
       debugPrint('Error sending message: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Error al enviar el mensaje.')),
-      );
+      
+      // Revert the locally added user message since it failed
+      setState(() {
+        _messages.removeLast();
+      });
+
+      if (e.toString().contains('LIMITE_TOKENS')) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Has alcanzado el límite de tokens de tu plan Ultra.'),
+            backgroundColor: Colors.orange,
+            duration: Duration(seconds: 4),
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Error al enviar el mensaje.')),
+        );
+      }
     } finally {
       if (mounted) setState(() => _isSending = false);
     }
@@ -461,6 +477,7 @@ class _ChatCoachScreenState extends State<ChatCoachScreen> {
                       controller: _messageController,
                       style: const TextStyle(color: Colors.white, fontSize: 15),
                       maxLines: null,
+                      maxLength: 1500,
                       keyboardType: TextInputType.multiline,
                       decoration: InputDecoration(
                         hintText: 'Escribe tu reflexión...',

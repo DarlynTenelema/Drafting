@@ -99,7 +99,7 @@ type ChatCoachChatMessage struct {
 }
 
 // ChatCoachConverse handles the conversation between the user and Chat Coach
-func ChatCoachConverse(ctx context.Context, imagesBase64 []string, chatHistory []ChatCoachChatMessage, userMessage string, currentGoal *string) (string, error) {
+func ChatCoachConverse(ctx context.Context, imagesBase64 []string, chatHistory []ChatCoachChatMessage, userMessage string, currentGoal *string) (string, int32, error) {
 	if aiClient == nil {
 		return "", fmt.Errorf("AI client not initialized")
 	}
@@ -160,11 +160,16 @@ Responde a su mensaje final de forma útil, estratégica y analítica.
 	resp, err := aiClient.Models.GenerateContent(ctx, "gemini-2.5-flash", contents, nil)
 	if err != nil {
 		log.Printf("Gemini ChatCoachConverse error: %v", err)
-		return "", err
+		return "", 0, err
 	}
 
 	if len(resp.Candidates) == 0 || len(resp.Candidates[0].Content.Parts) == 0 {
-		return "", fmt.Errorf("no response from model")
+		return "", 0, fmt.Errorf("no response from model")
+	}
+
+	var tokens int32 = 0
+	if resp.UsageMetadata != nil {
+		tokens = resp.UsageMetadata.TotalTokenCount
 	}
 
 	var responseText string
@@ -174,7 +179,7 @@ Responde a su mensaje final de forma útil, estratégica y analítica.
 		}
 	}
 
-	return responseText, nil
+	return responseText, tokens, nil
 }
 
 // GenerateChatTitle generates a very short title based on the first user message
@@ -300,7 +305,7 @@ Bajo ninguna circunstancia debes inventar información, deducir conceptos extern
 
 
 // ChatCoachConverseVideo handles the conversation with a video file
-func ChatCoachConverseVideo(ctx context.Context, videoBytes []byte, mimeType string, chatHistory []ChatCoachChatMessage, userMessage string, currentGoal *string) (string, error) {
+func ChatCoachConverseVideo(ctx context.Context, videoBytes []byte, mimeType string, chatHistory []ChatCoachChatMessage, userMessage string, currentGoal *string) (string, int32, error) {
 	if aiClient == nil {
 		return "", fmt.Errorf("AI client not initialized")
 	}
@@ -355,11 +360,16 @@ Responde a su mensaje final de forma constructiva y profesional.
 	resp, err := aiClient.Models.GenerateContent(ctx, "gemini-2.5-flash", contents, nil)
 	if err != nil {
 		log.Printf("Gemini ChatCoachConverseVideo error: %v", err)
-		return "", err
+		return "", 0, err
 	}
 
 	if len(resp.Candidates) == 0 || len(resp.Candidates[0].Content.Parts) == 0 {
-		return "", fmt.Errorf("no response from model")
+		return "", 0, fmt.Errorf("no response from model")
+	}
+
+	var tokens int32 = 0
+	if resp.UsageMetadata != nil {
+		tokens = resp.UsageMetadata.TotalTokenCount
 	}
 
 	var responseText string
@@ -369,6 +379,6 @@ Responde a su mensaje final de forma constructiva y profesional.
 		}
 	}
 
-	return responseText, nil
+	return responseText, tokens, nil
 }
 

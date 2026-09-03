@@ -62,7 +62,7 @@ class _GroupSetupScreenState extends State<GroupSetupScreen> {
 
   bool _hasReadTerms = false;
   bool _acceptedTerms = false;
-  bool _isEligible = true;
+  bool _isEligible = false; // By default false, will check backend
 
   // IAP
   final InAppPurchase _inAppPurchase = InAppPurchase.instance;
@@ -101,6 +101,17 @@ class _GroupSetupScreenState extends State<GroupSetupScreen> {
         if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Error en compra')));
       },
     );
+
+    _checkEligibility();
+  }
+
+  void _checkEligibility() async {
+    final eligible = await EntrepreneurService().checkFirstTimeEligibility();
+    if (mounted) {
+      setState(() {
+        _isEligible = eligible;
+      });
+    }
   }
 
   void _listenToPurchaseUpdated(List<PurchaseDetails> purchaseDetailsList) async {
@@ -441,9 +452,9 @@ Situational: ${_situationalCtrl.text}
                                   else if (widget.planName.contains('Avanzado')) productId = 'emp_grupo_pro_300';
                                   else if (widget.planName.contains('Elite')) productId = 'emp_grupo_enterprise_500';
                                 } else {
-                                  if (widget.planName.contains('Básico')) productId = 'emp_otp_basico_10';
-                                  else if (widget.planName.contains('Pro')) productId = 'emp_otp_pro_30';
-                                  else if (widget.planName.contains('Leyenda')) productId = 'emp_otp_enterprise_50';
+                                  if (widget.planName.contains('Básico')) productId = 'emp_ctp_basico_10';
+                                  else if (widget.planName.contains('Pro')) productId = 'emp_ctp_pro_30';
+                                  else if (widget.planName.contains('Leyenda')) productId = 'emp_ctp_enterprise_50';
                                 }
 
                                 final response = await _inAppPurchase.queryProductDetails({productId});
@@ -613,7 +624,7 @@ Situational: ${_situationalCtrl.text}
                         const SizedBox(width: 12),
                         Expanded(
                           child: Text(
-                            'La IA analiza todo lo que escribes. Usa términos de juego libremente (ej. "matar", "explotar"), pero amenazas, insultos graves o contenido basura resultarán en strikes inmediatos.',
+                            'La IA analiza todo lo que escribes. Usa términos de juego libremente (ej. "matar", "explotar"), pero amenazas, insultos graves o contenido sexual explicito resultarán en strikes inmediatos.',
                             style: GoogleFonts.inter(color: Colors.orange, fontSize: 12),
                           ),
                         ),

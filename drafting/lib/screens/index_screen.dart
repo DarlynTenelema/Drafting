@@ -1,6 +1,6 @@
 import 'dart:async';
-import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import '../core/config/app_config.dart';
@@ -75,8 +75,11 @@ class _IndexScreenState extends State<IndexScreen> {
         );
       } else if (event['code'] == 429) {
         if (!mounted) return;
+        int limit = 10;
+        if (_userTier == 'pro') limit = 20;
+        if (_userTier == 'ultra') limit = 30;
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Has alcanzado el límite de 10 consultas. Debes esperar 60 minutos.')),
+          SnackBar(content: Text('Has alcanzado el límite de $limit consultas de tu plan. Debes esperar a que se renueve tu cuota por hora.')),
         );
       }
     });
@@ -295,7 +298,7 @@ class _IndexScreenState extends State<IndexScreen> {
             ),
             ListTile(
               leading: Image.asset('assets/images/crystal_coin_outline.png', width: 36, height: 36),
-              title: const Text('Compra de monedas', style: TextStyle(color: Colors.white)),
+              title: const Text('Escencias Azules', style: TextStyle(color: Colors.white)),
               onTap: () {
                 Navigator.pop(context);
                 Navigator.of(context).push(MaterialPageRoute(builder: (_) => const EconomyScreen()));
@@ -303,7 +306,7 @@ class _IndexScreenState extends State<IndexScreen> {
             ),
             ListTile(
               leading: Image.asset('assets/images/chest_outline.png', width: 36, height: 36),
-              title: const Text('Planes de pago', style: TextStyle(color: Colors.white)),
+              title: const Text('Payments', style: TextStyle(color: Colors.white)),
               onTap: () async {
                 Navigator.pop(context);
                 final result = await Navigator.of(context).push(MaterialPageRoute(builder: (_) => PaymentScreen(sessionToken: _sessionToken)));
@@ -470,6 +473,10 @@ class _IndexScreenState extends State<IndexScreen> {
                             padding: const EdgeInsets.only(bottom: 12.0),
                             child: TextField(
                               controller: _otpControllers[index],
+                              maxLength: 15,
+                              inputFormatters: [
+                                FilteringTextInputFormatter.deny(RegExp(r'(http|https|www|\.com|\.net|\.org|\.io|\.gg)')),
+                              ],
                               style: const TextStyle(color: AppTheme.textLight),
                               decoration: InputDecoration(
                                 labelText: index < labels.length ? labels[index] : 'Extra',

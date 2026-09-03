@@ -135,6 +135,7 @@ func main() {
 			r.Get("/creator/eligibility", handlers.CheckEligibility)
 			r.Get("/creator/plans", handlers.GetCreatorPlans)
 			r.Post("/creator/validate-invite", handlers.ValidateGroupInvite)
+			r.Get("/user/creator-trial-status", handlers.GetCreatorTrialStatus)
 			
 			// Creator Settings (Phase 2 & 3)
 			r.Get("/groups/active-subscriptions", handlers.CheckActiveSubscriptions)

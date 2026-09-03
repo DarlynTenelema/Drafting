@@ -265,7 +265,7 @@ class _VideoCardState extends State<VideoCard> with SingleTickerProviderStateMix
                                 title: const Text('Compartir', style: TextStyle(color: Colors.white)),
                                 onTap: () {
                                   Navigator.pop(context);
-                                  Share.share('¡Mira este video! https://youtube.com/watch?v=${widget.video.videoId}');
+                                  Share.share('¡Mira el increíble video "${widget.video.title}" en Drafting!\n\nDescarga la app para apoyar a tus creadores favoritos: https://drafting.app');
                                 },
                               ),
                               ListTile(

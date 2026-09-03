@@ -173,6 +173,11 @@ func PostChatCoachMessage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if len(req.Content) > 1500 {
+		http.Error(w, "El mensaje excede el límite permitido (máx 1500 caracteres).", http.StatusBadRequest)
+		return
+	}
+
 	user, ok := r.Context().Value(middleware.UserContextKey).(*models.User)
 	if !ok {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
@@ -241,12 +246,15 @@ func PostChatCoachMessage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 6. Call Gemini API
-	aiResponseText, err := gemini.ChatCoachConverse(r.Context(), imagesBase64, geminiHistory, req.Content, user.CurrentGoal)
+	aiResponseText, tokens, err := gemini.ChatCoachConverse(r.Context(), imagesBase64, geminiHistory, req.Content, user.CurrentGoal)
 	if err != nil {
 		log.Printf("ChatCoachHandler: Gemini Error: %v", err)
 		http.Error(w, "Ups, el coach no pudo responder. Intenta de nuevo.", http.StatusInternalServerError)
 		return
 	}
+
+	// 6.5 Record API Usage to trigger Cooldown properly
+	database.DB.Create(&models.ApiUsage{UserID: user.ID, TokensUsed: int(tokens), CreatedAt: time.Now()})
 
 	// 7. Save AI Message
 	aiMsg := models.MatchChatMessage{
@@ -351,12 +359,15 @@ func PostChatCoachVideoMessage(w http.ResponseWriter, r *http.Request) {
 	// 3. Call Gemini API for Video (We need to implement this in gemini package)
 	// For now, we will read the file into bytes
 	videoBytes, _ := io.ReadAll(file)
-	aiResponseText, err := gemini.ChatCoachConverseVideo(r.Context(), videoBytes, header.Header.Get("Content-Type"), geminiHistory, content, user.CurrentGoal)
+	aiResponseText, tokens, err := gemini.ChatCoachConverseVideo(r.Context(), videoBytes, header.Header.Get("Content-Type"), geminiHistory, content, user.CurrentGoal)
 	if err != nil {
 		log.Printf("ChatCoachHandler: Gemini Video Error: %v", err)
 		http.Error(w, "Error al analizar el video.", http.StatusInternalServerError)
 		return
 	}
+
+	// 3.5 Record API Usage to trigger Cooldown properly
+	database.DB.Create(&models.ApiUsage{UserID: user.ID, TokensUsed: int(tokens), CreatedAt: time.Now()})
 
 	// 4. Save AI Message
 	aiMsg := models.MatchChatMessage{
