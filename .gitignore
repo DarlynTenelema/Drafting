@@ -22,3 +22,12 @@ backend/golang/*.exe
 # Android build reports and artifacts
 drafting/android/build/
 *.apk
+
+# Global Secrets and Keys (Catch-all)
+*.keystore
+*.jks
+key.properties
+google-services.json
+GoogleService-Info.plist
+*service-account*.json
+*credentials*.json
