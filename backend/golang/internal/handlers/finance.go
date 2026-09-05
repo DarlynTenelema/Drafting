@@ -486,8 +486,12 @@ func SubscribeToCreator(w http.ResponseWriter, r *http.Request) {
 	if parsed, err := strconv.ParseFloat(profile.SubscriptionPlan, 64); err == nil {
 		planPrice = parsed
 	}
-	// For OTP/Creator: 0.05 + (price * 0.005)
-	geminiPercentage := 0.05 + (planPrice * 0.005)
+	geminiPercentage := 0.05
+	if strings.Contains(strings.ToLower(profile.SubscriptionPlan), "grupo") {
+		geminiPercentage += (planPrice * 0.0005)
+	} else {
+		geminiPercentage += (planPrice * 0.005)
+	}
 	apiCost := gross * geminiPercentage
 	finalEntrepreneurPayout := entrepreneurShare - apiCost
 
