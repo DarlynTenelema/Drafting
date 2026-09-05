@@ -225,14 +225,24 @@ func SubmitVideo(w http.ResponseWriter, r *http.Request) {
 	if ytID != "" {
 		thumbURL := fmt.Sprintf("https://img.youtube.com/vi/%s/hqdefault.jpg", ytID)
 		thumbResp, err := http.Get(thumbURL)
-		if err == nil {
-			defer thumbResp.Body.Close()
-			imgData, err := io.ReadAll(thumbResp.Body)
-			if err == nil {
-				base64Thumb := base64.StdEncoding.EncodeToString(imgData)
-				approved, reason, err := gemini.ModerateYouTubeContent(r.Context(), title, description, tags, base64Thumb)
-				
-				if err == nil && !approved {
+		if err != nil {
+			http.Error(w, "No se pudo obtener la miniatura del video para moderación.", http.StatusServiceUnavailable)
+			return
+		}
+		defer thumbResp.Body.Close()
+		imgData, err := io.ReadAll(thumbResp.Body)
+		if err != nil {
+			http.Error(w, "Error al procesar la miniatura del video.", http.StatusServiceUnavailable)
+			return
+		}
+		base64Thumb := base64.StdEncoding.EncodeToString(imgData)
+		approved, reason, err := gemini.ModerateYouTubeContent(r.Context(), title, description, tags, base64Thumb)
+		if err != nil {
+			http.Error(w, "El servicio de moderación de IA no está disponible.", http.StatusServiceUnavailable)
+			return
+		}
+		
+		if !approved {
 					user.Strikes++
 					if user.Strikes >= 5 {
 						user.Banned = true
@@ -254,8 +264,6 @@ func SubmitVideo(w http.ResponseWriter, r *http.Request) {
 					})
 					return
 				}
-			}
-		}
 	}
 
 	video := models.VideoEmbed{
@@ -306,6 +314,9 @@ func UploadFanart(w http.ResponseWriter, r *http.Request) {
 	
 	var priceCoin float64
 	fmt.Sscanf(priceCoinStr, "%f", &priceCoin)
+	if priceCoin < 0 {
+		priceCoin = 0
+	}
 
 	user, ok := r.Context().Value(middleware.UserContextKey).(*models.User)
 	if !ok {
@@ -332,6 +343,19 @@ func UploadFanart(w http.ResponseWriter, r *http.Request) {
 	}
 	defer file.Close()
 
+	contentType := header.Header.Get("Content-Type")
+	if contentType != "image/jpeg" && contentType != "image/png" && contentType != "image/webp" {
+		http.Error(w, "Formato de archivo no permitido. Solo JPG, PNG y WEBP.", http.StatusBadRequest)
+		return
+	}
+	
+	ext := ".jpg"
+	if contentType == "image/png" {
+		ext = ".png"
+	} else if contentType == "image/webp" {
+		ext = ".webp"
+	}
+
 	imgData, err := io.ReadAll(file)
 	if err != nil {
 		http.Error(w, "Error reading image", http.StatusInternalServerError)
@@ -341,7 +365,11 @@ func UploadFanart(w http.ResponseWriter, r *http.Request) {
 	// Moderate image
 	base64Img := base64.StdEncoding.EncodeToString(imgData)
 	approved, reason, err := gemini.ModerateImage(r.Context(), base64Img)
-	if err == nil && !approved {
+	if err != nil {
+		http.Error(w, "Servicio de moderación de IA no disponible", http.StatusServiceUnavailable)
+		return
+	}
+	if !approved {
 		user.Strikes++
 		if user.Strikes >= 5 {
 			user.Banned = true
@@ -373,7 +401,7 @@ func UploadFanart(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	fileName := fmt.Sprintf("%s_%d_%s", user.ID, time.Now().UnixNano(), header.Filename)
+	fileName := fmt.Sprintf("%s_%d%s", user.ID, time.Now().UnixNano(), ext)
 	uploadURL := fmt.Sprintf("%s/storage/v1/object/fanarts/%s", supabaseURL, fileName)
 	
 	reqUpload, err := http.NewRequest("POST", uploadURL, bytes.NewReader(imgData))
@@ -732,6 +760,22 @@ func DeleteFanart(w http.ResponseWriter, r *http.Request) {
 	if fanart.CreatorID != user.ID {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
+	}
+
+	// Delete from Supabase Storage to prevent orphan files
+	supabaseURL := os.Getenv("SUPABASE_URL")
+	supabaseKey := os.Getenv("SUPABASE_SERVICE_ROLE_KEY")
+	if supabaseURL != "" && supabaseKey != "" && fanart.ImageURL != "" {
+		deleteURL := strings.Replace(fanart.ImageURL, "/public/", "/", 1)
+		req, err := http.NewRequest("DELETE", deleteURL, nil)
+		if err == nil {
+			req.Header.Set("Authorization", "Bearer "+supabaseKey)
+			client := &http.Client{Timeout: 10 * time.Second}
+			resp, err := client.Do(req)
+			if err == nil && resp != nil {
+				resp.Body.Close()
+			}
+		}
 	}
 
 	if err := database.DB.Delete(&fanart).Error; err != nil {

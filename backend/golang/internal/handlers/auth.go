@@ -63,10 +63,9 @@ func GoogleLogin(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	} else {
-		// Update existing user with new session jti and sync profile data
+		// Update existing user with new session jti only. Do NOT overwrite Username and ProfilePic
+		// because the user might have customized them via UpdateProfile.
 		user.SessionToken = jti
-		user.Username = claims.Name
-		user.ProfilePic = claims.Picture
 		if err := database.DB.Save(&user).Error; err != nil {
 			http.Error(w, "Internal server error: failed to update session: " + err.Error(), http.StatusInternalServerError)
 			return

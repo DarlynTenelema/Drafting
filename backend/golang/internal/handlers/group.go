@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"github.com/google/uuid"
 
 	"backend/internal/database"
 	"backend/internal/middleware"
@@ -155,6 +154,7 @@ type CreateGroupRequest struct {
 	Name             string   `json:"name"`
 	Description      string   `json:"description"`
 	SubscriptionPlan string   `json:"subscription_plan"` // E.g., "100", "300", "500"
+	ProductID        string   `json:"product_id"`
 	ProductName      string   `json:"product_name"`
 	ProductImage     string   `json:"product_image"`
 	PurchaseToken    string   `json:"purchase_token"`
@@ -178,6 +178,12 @@ func CreateGroup(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
+	// Validate Subscription Plan
+	allowedGroupPlans := map[string]bool{"100": true, "300": true, "500": true, "100.0": true, "100.00": true, "300.0": true, "300.00": true, "500.0": true, "500.00": true}
+	if !allowedGroupPlans[req.SubscriptionPlan] {
+		http.Error(w, "Invalid subscription plan", http.StatusBadRequest)
+		return
+	}
 
 	// 1. Validate Invites based on Plan
 	requiredInvites := 5
@@ -194,17 +200,37 @@ func CreateGroup(w http.ResponseWriter, r *http.Request) {
 
 	// 2. Validate Payment
 	isEligible := checkUserEligibility(user)
-	if !isEligible {
-		if req.PurchaseToken == "" {
-			http.Error(w, "Payment required. Free trial already used.", http.StatusPaymentRequired)
+	
+	if req.PurchaseToken == "" || req.ProductID == "" {
+		http.Error(w, "Payment required and Product ID must be provided.", http.StatusPaymentRequired)
+		return
+	}
+	
+	if playStoreVerifier != nil && playStoreVerifier.Enabled() {
+		// Enforces that the purchase token belongs to the given product ID
+		if _, err := playStoreVerifier.VerifySubscriptionPurchase(r.Context(), req.ProductID, req.PurchaseToken); err != nil {
+			http.Error(w, "Payment verification failed: "+err.Error(), http.StatusPaymentRequired)
 			return
 		}
-		if playStoreVerifier != nil && playStoreVerifier.Enabled() {
-			if err := playStoreVerifier.VerifySubscriptionPurchase(r.Context(), req.PurchaseToken); err != nil {
-				http.Error(w, "Payment verification failed: "+err.Error(), http.StatusPaymentRequired)
-				return
-			}
-		}
+	}
+
+	// Security Check: Prevent PurchaseToken reuse (Replay Attack)
+	var existingTx models.PaymentTransaction
+	if err := database.DB.Where("purchase_token = ?", req.PurchaseToken).First(&existingTx).Error; err == nil {
+		http.Error(w, "Este recibo de compra ya ha sido procesado anteriormente. No puedes reusarlo.", http.StatusConflict)
+		return
+	}
+
+	// 3. Enforce Single Enterprise Rule
+	var existingGroup models.Group
+	if err := database.DB.Where("owner_id = ?", user.ID).First(&existingGroup).Error; err == nil {
+		http.Error(w, "You already have a Group. Please upgrade your existing plan instead.", http.StatusConflict)
+		return
+	}
+	var existingOTP models.OTPProfile
+	if err := database.DB.Where("owner_id = ?", user.ID).First(&existingOTP).Error; err == nil {
+		http.Error(w, "You already have an OTP profile. Please upgrade or migrate to a Group instead.", http.StatusConflict)
+		return
 	}
 
 	group := models.Group{
@@ -216,12 +242,24 @@ func CreateGroup(w http.ResponseWriter, r *http.Request) {
 		ProductImage:     req.ProductImage,
 		PrivateJSONData:  "{}",
 		IsActive:         true, // Active immediately for Free Month
+		PurchaseToken:    req.PurchaseToken,
 	}
 
 	if err := database.DB.Create(&group).Error; err != nil {
 		http.Error(w, "Failed to create group", http.StatusInternalServerError)
 		return
 	}
+
+	// Record the payment in PaymentTransaction so RTDN knows who this belongs to
+	paymentTx := models.PaymentTransaction{
+		UserID:        user.ID,
+		PlanID:        req.ProductID,
+		ProductID:     req.ProductID,
+		PurchaseToken: req.PurchaseToken,
+		Amount:        getPriceForProduct(req.ProductID),
+		Status:        "completed",
+	}
+	database.DB.Create(&paymentTx)
 
 	if len(req.Invites) > 0 {
 		for _, email := range req.Invites {
@@ -238,7 +276,7 @@ func CreateGroup(w http.ResponseWriter, r *http.Request) {
 		user.Role = "entrepreneur"
 	}
 	
-	if isEligible && req.PurchaseToken == "" {
+	if isEligible {
 		user.HasUsedCreatorTrial = true
 	}
 	database.DB.Save(user)
@@ -252,6 +290,7 @@ type CreateOTPProfileRequest struct {
 	ChampionName     string `json:"champion_name"`
 	Description      string `json:"description"`
 	SubscriptionPlan string `json:"subscription_plan"` // E.g., "10", "30", "50"
+	ProductID        string `json:"product_id"`
 	ProductName      string `json:"product_name"`
 	ProductImage     string `json:"product_image"`
 	PurchaseToken    string `json:"purchase_token"`
@@ -269,20 +308,46 @@ func CreateOTPProfile(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
+	// Validate Subscription Plan
+	allowedOTPPlans := map[string]bool{"10": true, "30": true, "50": true, "10.0": true, "10.00": true, "30.0": true, "30.00": true, "50.0": true, "50.00": true}
+	if !allowedOTPPlans[req.SubscriptionPlan] {
+		http.Error(w, "Invalid subscription plan", http.StatusBadRequest)
+		return
+	}
 
 	// Validate Payment
 	isEligible := checkUserEligibility(user)
-	if !isEligible {
-		if req.PurchaseToken == "" {
-			http.Error(w, "Payment required. Free trial already used.", http.StatusPaymentRequired)
+	
+	if req.PurchaseToken == "" || req.ProductID == "" {
+		http.Error(w, "Payment required and Product ID must be provided.", http.StatusPaymentRequired)
+		return
+	}
+	
+	if playStoreVerifier != nil && playStoreVerifier.Enabled() {
+		// Enforces that the purchase token belongs to the given product ID
+		if _, err := playStoreVerifier.VerifySubscriptionPurchase(r.Context(), req.ProductID, req.PurchaseToken); err != nil {
+			http.Error(w, "Payment verification failed: "+err.Error(), http.StatusPaymentRequired)
 			return
 		}
-		if playStoreVerifier != nil && playStoreVerifier.Enabled() {
-			if err := playStoreVerifier.VerifySubscriptionPurchase(r.Context(), req.PurchaseToken); err != nil {
-				http.Error(w, "Payment verification failed: "+err.Error(), http.StatusPaymentRequired)
-				return
-			}
-		}
+	}
+
+	// Security Check: Prevent PurchaseToken reuse (Replay Attack)
+	var existingTx models.PaymentTransaction
+	if err := database.DB.Where("purchase_token = ?", req.PurchaseToken).First(&existingTx).Error; err == nil {
+		http.Error(w, "Este recibo de compra ya ha sido procesado anteriormente. No puedes reusarlo.", http.StatusConflict)
+		return
+	}
+
+	// Enforce Single Enterprise Rule
+	var existingGroup models.Group
+	if err := database.DB.Where("owner_id = ?", user.ID).First(&existingGroup).Error; err == nil {
+		http.Error(w, "You already have a Group. Please upgrade your existing plan instead.", http.StatusConflict)
+		return
+	}
+	var existingOTP models.OTPProfile
+	if err := database.DB.Where("owner_id = ?", user.ID).First(&existingOTP).Error; err == nil {
+		http.Error(w, "You already have an OTP profile. Please upgrade your existing plan instead.", http.StatusConflict)
+		return
 	}
 
 	otp := models.OTPProfile{
@@ -294,6 +359,7 @@ func CreateOTPProfile(w http.ResponseWriter, r *http.Request) {
 		ProductImage:     req.ProductImage,
 		PrivateJSONData:  "{}",
 		IsActive:         true, // Active immediately for Free Month
+		PurchaseToken:    req.PurchaseToken,
 	}
 
 	if err := database.DB.Create(&otp).Error; err != nil {
@@ -301,11 +367,22 @@ func CreateOTPProfile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Record the payment in PaymentTransaction so RTDN knows who this belongs to
+	paymentTx := models.PaymentTransaction{
+		UserID:        user.ID,
+		PlanID:        req.ProductID,
+		ProductID:     req.ProductID,
+		PurchaseToken: req.PurchaseToken,
+		Amount:        getPriceForProduct(req.ProductID),
+		Status:        "completed",
+	}
+	database.DB.Create(&paymentTx)
+
 	if user.Role != "entrepreneur" {
 		user.Role = "entrepreneur"
 	}
 	
-	if isEligible && req.PurchaseToken == "" {
+	if isEligible {
 		user.HasUsedCreatorTrial = true
 	}
 	database.DB.Save(user)

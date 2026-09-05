@@ -101,7 +101,7 @@ type ChatCoachChatMessage struct {
 // ChatCoachConverse handles the conversation between the user and Chat Coach
 func ChatCoachConverse(ctx context.Context, imagesBase64 []string, chatHistory []ChatCoachChatMessage, userMessage string, currentGoal *string) (string, int32, error) {
 	if aiClient == nil {
-		return "", fmt.Errorf("AI client not initialized")
+		return "", 0, fmt.Errorf("AI client not initialized")
 	}
 
 	prompt := `Eres un "Chat Coach" (CC) experto de Wild Rift. 
@@ -129,11 +129,18 @@ Responde a su mensaje final de forma útil, estratégica y analítica.
 		Parts: initParts,
 	})
 	
-	// Add initial model acknowledgement to keep structure valid
-	contents = append(contents, &genai.Content{
-		Role: "model",
-		Parts: []*genai.Part{genai.NewPartFromText("Entendido. Analicé las capturas de la partida. ¿En qué te puedo ayudar?")},
-	})
+	// Add initial model acknowledgement conditionally
+	if len(imagesBase64) > 0 {
+		contents = append(contents, &genai.Content{
+			Role: "model",
+			Parts: []*genai.Part{genai.NewPartFromText("Entendido. Analicé las capturas de la partida. ¿En qué te puedo ayudar?")},
+		})
+	} else if len(chatHistory) == 0 {
+		contents = append(contents, &genai.Content{
+			Role: "model",
+			Parts: []*genai.Part{genai.NewPartFromText("¡Hola! ¿En qué te puedo ayudar con tus partidas hoy?")},
+		})
+	}
 
 	// 2. Chat History (limit to 12 messages max)
 	if len(chatHistory) > 12 {
@@ -226,159 +233,4 @@ Mensaje:
 	return responseText, nil
 }
 
-// ProductTutorConverse handles the conversation for a purchased product (Course/Guide)
-// with strict grounding to the provided JSON data.
-func ProductTutorConverse(ctx context.Context, productJSON string, chatHistory []ChatCoachChatMessage, userMessage string) (string, error) {
-	if aiClient == nil {
-		return "", fmt.Errorf("AI client not initialized")
-	}
-
-	prompt := fmt.Sprintf(`Eres un Tutor Interactivo de Wild Rift. 
-Tu ÚNICA función es enseñar y explicar el contenido del producto/guía que el usuario ha comprado.
-
-REGLA DE ORO (ESTRICTA): 
-Solo puedes responder basándote ÚNICAMENTE en la siguiente información del producto (formato JSON).
-Si la pregunta del usuario NO se puede responder con esta información, debes responder obligatoriamente: 
-"Esa información no está cubierta en el curso." o "Lo siento, como tutor de esta guía, solo puedo responder preguntas sobre su contenido."
-Bajo ninguna circunstancia debes inventar información, deducir conceptos externos o usar tus conocimientos previos de Wild Rift.
-
---- INFORMACIÓN DEL PRODUCTO ---
-%s
---------------------------------`, productJSON)
-
-	var contents []*genai.Content
-
-	contents = append(contents, &genai.Content{
-		Role:  "user",
-		Parts: []*genai.Part{genai.NewPartFromText(prompt)},
-	})
-	
-	contents = append(contents, &genai.Content{
-		Role: "model",
-		Parts: []*genai.Part{genai.NewPartFromText("Entendido. Soy el Tutor de este producto y me limitaré estrictamente a su contenido. ¿Qué deseas aprender?")},
-	})
-
-	if len(chatHistory) > 12 {
-		chatHistory = chatHistory[len(chatHistory)-12:]
-	}
-
-	for _, msg := range chatHistory {
-		role := "user"
-		if msg.Role == "model" || msg.Role == "system" {
-			role = "model"
-		}
-		contents = append(contents, &genai.Content{
-			Role:  role,
-			Parts: []*genai.Part{genai.NewPartFromText(msg.Content)},
-		})
-	}
-
-	contents = append(contents, &genai.Content{
-		Role:  "user",
-		Parts: []*genai.Part{genai.NewPartFromText(userMessage)},
-	})
-
-	// Use low temperature to strictly follow the prompt
-	config := &genai.GenerateContentConfig{
-		Temperature: genai.Ptr(float32(0.1)),
-	}
-
-	resp, err := aiClient.Models.GenerateContent(ctx, "gemini-2.5-flash", contents, config)
-	if err != nil {
-		log.Printf("Gemini ProductTutorConverse error: %v", err)
-		return "", err
-	}
-
-	if len(resp.Candidates) == 0 || len(resp.Candidates[0].Content.Parts) == 0 {
-		return "", fmt.Errorf("no response from model")
-	}
-
-	var responseText string
-	for _, part := range resp.Candidates[0].Content.Parts {
-		if part.Text != "" {
-			responseText += part.Text
-		}
-	}
-
-	return responseText, nil
-}
-
-
-// ChatCoachConverseVideo handles the conversation with a video file
-func ChatCoachConverseVideo(ctx context.Context, videoBytes []byte, mimeType string, chatHistory []ChatCoachChatMessage, userMessage string, currentGoal *string) (string, int32, error) {
-	if aiClient == nil {
-		return "", fmt.Errorf("AI client not initialized")
-	}
-
-	prompt := `Eres un "Chat Coach" (CC) experto de Wild Rift. 
-El usuario te ha enviado un clip de video (VOD) de su partida.
-Analiza detalladamente las jugadas, el posicionamiento, el uso de habilidades (micro-juego) y la toma de decisiones (macro-juego).
-Responde a su mensaje final de forma constructiva y profesional.
-`
-	if currentGoal != nil && *currentGoal != "" {
-		prompt += fmt.Sprintf("\n\nRecordatorio oculto del sistema: La meta actual de este jugador a largo plazo es '%s'. Usa esta meta para guiar tus consejos.\n", *currentGoal)
-	}
-
-	var contents []*genai.Content
-
-	var initParts []*genai.Part
-	initParts = append(initParts, genai.NewPartFromText(prompt))
-	
-	// Upload video bytes as a Part
-	initParts = append(initParts, genai.NewPartFromBytes(videoBytes, mimeType))
-
-	contents = append(contents, &genai.Content{
-		Role:  "user",
-		Parts: initParts,
-	})
-	
-	contents = append(contents, &genai.Content{
-		Role: "model",
-		Parts: []*genai.Part{genai.NewPartFromText("Entendido. Analicé el clip de video. ¿En qué te puedo ayudar?")},
-	})
-
-	if len(chatHistory) > 12 {
-		chatHistory = chatHistory[len(chatHistory)-12:]
-	}
-
-	for _, msg := range chatHistory {
-		role := "user"
-		if msg.Role == "model" || msg.Role == "system" {
-			role = "model"
-		}
-		contents = append(contents, &genai.Content{
-			Role:  role,
-			Parts: []*genai.Part{genai.NewPartFromText(msg.Content)},
-		})
-	}
-
-	contents = append(contents, &genai.Content{
-		Role:  "user",
-		Parts: []*genai.Part{genai.NewPartFromText(userMessage)},
-	})
-
-	resp, err := aiClient.Models.GenerateContent(ctx, "gemini-2.5-flash", contents, nil)
-	if err != nil {
-		log.Printf("Gemini ChatCoachConverseVideo error: %v", err)
-		return "", 0, err
-	}
-
-	if len(resp.Candidates) == 0 || len(resp.Candidates[0].Content.Parts) == 0 {
-		return "", 0, fmt.Errorf("no response from model")
-	}
-
-	var tokens int32 = 0
-	if resp.UsageMetadata != nil {
-		tokens = resp.UsageMetadata.TotalTokenCount
-	}
-
-	var responseText string
-	for _, part := range resp.Candidates[0].Content.Parts {
-		if part.Text != "" {
-			responseText += part.Text
-		}
-	}
-
-	return responseText, tokens, nil
-}
 

@@ -108,18 +108,18 @@ class _EconomyScreenState extends State<EconomyScreen> {
                 const SnackBar(content: Text('Esencias acreditadas exitosamente'), backgroundColor: Colors.green),
               );
             }
+            if (purchaseDetails.pendingCompletePurchase) {
+              await _inAppPurchase.completePurchase(purchaseDetails);
+            }
           } else {
             if (mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('El pago se realizó pero falló la verificación en el servidor.'), backgroundColor: Colors.orange),
+                const SnackBar(content: Text('El pago se realizó pero falló la verificación en el servidor. Intentaremos de nuevo automáticamente.'), backgroundColor: Colors.orange),
               );
             }
           }
         }
         
-        if (purchaseDetails.pendingCompletePurchase) {
-          await _inAppPurchase.completePurchase(purchaseDetails);
-        }
         if (mounted) setState(() => _purchasing = false);
       }
     }
@@ -128,7 +128,7 @@ class _EconomyScreenState extends State<EconomyScreen> {
   void _purchasePackage(ProductDetails product) {
     if (_purchasing) return;
     final purchaseParam = PurchaseParam(productDetails: product);
-    _inAppPurchase.buyConsumable(purchaseParam: purchaseParam);
+    _inAppPurchase.buyConsumable(purchaseParam: purchaseParam, autoConsume: false);
   }
 
 

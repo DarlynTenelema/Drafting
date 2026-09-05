@@ -10,7 +10,7 @@ class EntrepreneurService {
   EntrepreneurService._internal();
 
   /// Create a Group Plan
-  Future<Map<String, dynamic>> createGroup(String name, String plan, List<String> invites, String productName, String productImage, String purchaseToken) async {
+  Future<Map<String, dynamic>> createGroup(String name, String plan, String productId, List<String> invites, String productName, String productImage, String purchaseToken) async {
     try {
       final response = await ApiClient.post(
         '/groups/create',
@@ -18,6 +18,7 @@ class EntrepreneurService {
           'name': name,
           'description': 'Group plan: $plan',
           'subscription_plan': plan,
+          'product_id': productId,
           'product_name': productName,
           'product_image': productImage,
           'purchase_token': purchaseToken,
@@ -43,7 +44,7 @@ class EntrepreneurService {
   }
 
   /// Create an OTP Profile (Creator Profile)
-  Future<Map<String, dynamic>> createOTPProfile(String championName, String plan, String productName, String productImage, String purchaseToken) async {
+  Future<Map<String, dynamic>> createOTPProfile(String championName, String plan, String productId, String productName, String productImage, String purchaseToken) async {
     try {
       final response = await ApiClient.post(
         '/group/otp/create', // It's mapped to CreateOTPProfile in backend routing
@@ -51,6 +52,7 @@ class EntrepreneurService {
           'champion_name': championName,
           'description': 'OTP plan: $plan',
           'subscription_plan': plan,
+          'product_id': productId,
           'product_name': productName,
           'product_image': productImage,
           'purchase_token': purchaseToken,

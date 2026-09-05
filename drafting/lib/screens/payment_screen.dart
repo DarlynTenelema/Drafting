@@ -50,9 +50,9 @@ class _PaymentScreenState extends State<PaymentScreen> {
   final Set<String> _processedPurchaseKeys = {};
 
   static const Set<String> _kProductIds = {
-    'plus_1d', 'plus_1w', 'plus_1m', 'plus_1y',
-    'pro_1d', 'pro_1w', 'pro_1m', 'pro_1y',
-    'ultra_1d', 'ultra_1w', 'ultra_1m', 'ultra_1y',
+    'sub_plus_1d', 'sub_plus_1w', 'sub_plus_1m', 'sub_plus_1y',
+    'sub_pro_1d', 'sub_pro_1w', 'sub_pro_1m', 'sub_pro_1y',
+    'sub_ultra_1d', 'sub_ultra_1w', 'sub_ultra_1m', 'sub_ultra_1y',
   };
 
   @override
@@ -267,10 +267,9 @@ class _PaymentScreenState extends State<PaymentScreen> {
     if (_verifying) return;
 
     final purchaseParam = PurchaseParam(productDetails: product);
-    // Como son planes prepago (renovables manualmente) y en Google Play 
-    // están como Productos Únicos, deben tratarse como consumibles 
-    // para que Google Play permita volver a comprarlos una vez expiren.
-    await _inAppPurchase.buyConsumable(purchaseParam: purchaseParam, autoConsume: true);
+    // Al ser Productos Únicos con caducidad, debemos usar buyConsumable
+    // para que Google Play permita recomprarlos en el futuro.
+    await _inAppPurchase.buyConsumable(purchaseParam: purchaseParam, autoConsume: false);
   }
 
 
@@ -488,8 +487,18 @@ class _PaymentScreenState extends State<PaymentScreen> {
     // Sort products: plus -> pro -> ultra
     tabProducts.sort((a, b) {
       final order = {'plus': 0, 'pro': 1, 'ultra': 2};
-      int wA = order[a.id.split('_').first] ?? 0;
-      int wB = order[b.id.split('_').first] ?? 0;
+      
+      // a.id es 'sub_plus_1d', por lo que el nivel (plus, pro, ultra) está en el índice 1
+      String getTier(String id) {
+        final parts = id.split('_');
+        if (parts.length > 1 && parts[0] == 'sub') {
+          return parts[1];
+        }
+        return parts.first;
+      }
+
+      int wA = order[getTier(a.id)] ?? 0;
+      int wB = order[getTier(b.id)] ?? 0;
       return wA.compareTo(wB);
     });
 
@@ -545,9 +554,9 @@ class _PaymentScreenState extends State<PaymentScreen> {
         ),
 
         ...tabProducts.map((p) {
-          final isPlus = p.id.startsWith('plus');
-          final isPro = p.id.startsWith('pro');
-          final isUltra = p.id.startsWith('ultra');
+          final isPlus = p.id.contains('plus');
+          final isPro = p.id.contains('pro');
+          final isUltra = p.id.contains('ultra');
           
           Color tierColor = Colors.blueAccent;
           List<_PlanFeature> features = [];
@@ -620,7 +629,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
           bool isCurrentPlan = false;
           if (_subscriptionStatus?.hasActiveSubscription == true && _subscriptionStatus?.planName != null) {
             final activePlan = _subscriptionStatus!.planName!.toLowerCase();
-            if ((isPlus && activePlan == 'plus') || (isPro && activePlan == 'pro') || (isUltra && activePlan == 'ultra')) {
+            if ((isPlus && activePlan.contains('plus')) || (isPro && activePlan.contains('pro')) || (isUltra && activePlan.contains('ultra'))) {
               isCurrentPlan = true;
             }
           }

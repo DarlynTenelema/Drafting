@@ -77,6 +77,9 @@ func main() {
 		
 		// Stripe Webhook (Public)
 		r.Post("/stripe/webhook", handlers.StripeWebhook)
+
+		// Google Play RTDN Webhook (Public)
+		r.Post("/webhooks/playstore", handlers.PlayStoreWebhook)
 		
 		r.Group(func(r chi.Router) {
 			r.Use(middleware.Auth)
@@ -116,8 +119,6 @@ func main() {
 				r.Post("/chat-coach/matches/{id}/threads", handlers.CreateChatCoachThread)
 				r.Get("/chat-coach/threads/{id}/messages", handlers.GetChatCoachMessages)
 				r.Post("/chat-coach/threads/{id}/message", handlers.PostChatCoachMessage)
-				r.Post("/chat-coach/threads/{id}/video-message", handlers.PostChatCoachVideoMessage)
-				r.Post("/chat-coach/threads/{id}/tutor-message", handlers.PostTutorMessage)
 				r.Delete("/chat-coach/threads/{id}", handlers.DeleteChatCoachThread)
 			})
 

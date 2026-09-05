@@ -69,19 +69,4 @@ class ChatCoachService {
     }
   }
 
-  static Future<MatchChatMessage> sendVideoMessage(String threadId, String content, String videoPath) async {
-    final response = await ApiClient.multipartPost(
-      '/chat-coach/threads/$threadId/video-message',
-      fields: {'content': content},
-      fileField: 'video',
-      filePath: videoPath,
-      authenticated: true,
-    );
-
-    if (response.statusCode == 200 || response.statusCode == 201) {
-      return MatchChatMessage.fromJson(jsonDecode(response.body));
-    } else {
-      throw Exception('Failed to send video message: ${response.statusCode}');
-    }
-  }
 }

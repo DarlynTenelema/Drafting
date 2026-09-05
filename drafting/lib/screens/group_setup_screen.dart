@@ -446,16 +446,7 @@ Situational: ${_situationalCtrl.text}
                                   return;
                                 }
 
-                                String productId = '';
-                                if (widget.isGroup) {
-                                  if (widget.planName.contains('Start')) productId = 'emp_grupo_basico_100';
-                                  else if (widget.planName.contains('Avanzado')) productId = 'emp_grupo_pro_300';
-                                  else if (widget.planName.contains('Elite')) productId = 'emp_grupo_enterprise_500';
-                                } else {
-                                  if (widget.planName.contains('Básico')) productId = 'emp_ctp_basico_10';
-                                  else if (widget.planName.contains('Pro')) productId = 'emp_ctp_pro_30';
-                                  else if (widget.planName.contains('Leyenda')) productId = 'emp_ctp_enterprise_50';
-                                }
+                                String productId = _getProductId();
 
                                 final response = await _inAppPurchase.queryProductDetails({productId});
                                 if (response.productDetails.isEmpty) {
@@ -848,9 +839,9 @@ Situational: ${_situationalCtrl.text}
       Map<String, dynamic> result;
       if (widget.isGroup) {
         final emails = _invitedMembers.map((e) => e.email).toList();
-        result = await EntrepreneurService().createGroup('Grupo de ${widget.planName}', widget.price.toString(), emails, _productNameCtrl.text, imageUrl, _purchaseToken);
+        result = await EntrepreneurService().createGroup('Grupo de ${widget.planName}', widget.price.toString(), _getProductId(), emails, _productNameCtrl.text, imageUrl, _purchaseToken);
       } else {
-        result = await EntrepreneurService().createOTPProfile(_configuredChampions.keys.first, widget.price.toString(), _productNameCtrl.text, imageUrl, _purchaseToken);
+        result = await EntrepreneurService().createOTPProfile(_configuredChampions.keys.first, widget.price.toString(), _getProductId(), _productNameCtrl.text, imageUrl, _purchaseToken);
       }
 
       if (result['success'] == true) {
@@ -908,6 +899,20 @@ Situational: ${_situationalCtrl.text}
         Navigator.pop(_loadingContext!); 
         _loadingContext = null; 
       }
+    }
+  }
+
+  String _getProductId() {
+    if (widget.isGroup) {
+      if (widget.planName.contains('Start')) return 'emp_grupo_basico_100';
+      if (widget.planName.contains('Avanzado')) return 'emp_grupo_pro_300';
+      if (widget.planName.contains('Elite')) return 'emp_grupo_enterprise_500';
+      return 'emp_grupo_basico_100';
+    } else {
+      if (widget.planName.contains('Básico')) return 'emp_otp_basico_10';
+      if (widget.planName.contains('Pro')) return 'emp_otp_pro_30';
+      if (widget.planName.contains('Leyenda')) return 'emp_otp_enterprise_50';
+      return 'emp_otp_basico_10';
     }
   }
 

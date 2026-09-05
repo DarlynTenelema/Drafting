@@ -32,6 +32,7 @@ type Transaction struct {
 	AmountEssence   float64   `gorm:"type:decimal(10,2);default:0.00"`
 	RelatedEntityID *uuid.UUID `gorm:"type:uuid"` // E.g., FanartID, or APIUsageID
 	Status          string    `gorm:"type:text;default:'completed';index:idx_type_status"`
+	PurchaseToken   *string   `gorm:"type:varchar(512);uniqueIndex"` // Used for idempotency in purchases
 	CreatedAt       time.Time
 	UpdatedAt       time.Time
 }

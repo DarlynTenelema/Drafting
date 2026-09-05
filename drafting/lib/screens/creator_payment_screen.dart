@@ -48,9 +48,9 @@ class _CreatorPaymentScreenState extends State<CreatorPaymentScreen> {
   final Set<String> _processedPurchaseKeys = {};
 
   static const Set<String> _kProductIds = {
-    'creator_plus_1d', 'creator_plus_1w', 'creator_plus_1m', 'creator_plus_1y',
-    'creator_pro_1d', 'creator_pro_1w', 'creator_pro_1m', 'creator_pro_1y',
-    'creator_ultra_1d', 'creator_ultra_1w', 'creator_ultra_1m', 'creator_ultra_1y',
+    'sub_creator_plus_1d', 'sub_creator_plus_1w', 'sub_creator_plus_1m', 'sub_creator_plus_1y',
+    'sub_creator_pro_1d', 'sub_creator_pro_1w', 'sub_creator_pro_1m', 'sub_creator_pro_1y',
+    'sub_creator_ultra_1d', 'sub_creator_ultra_1w', 'sub_creator_ultra_1m', 'sub_creator_ultra_1y',
   };
 
   @override
@@ -265,10 +265,9 @@ class _CreatorPaymentScreenState extends State<CreatorPaymentScreen> {
     if (_verifying) return;
 
     final purchaseParam = PurchaseParam(productDetails: product);
-    // Como son planes prepago (renovables manualmente) y en Google Play 
-    // están como Productos Únicos, deben tratarse como consumibles 
-    // para que Google Play permita volver a comprarlos una vez expiren.
-    await _inAppPurchase.buyConsumable(purchaseParam: purchaseParam, autoConsume: true);
+    // Al ser Productos Únicos con caducidad, debemos usar buyConsumable
+    // para que Google Play permita recomprarlos en el futuro.
+    await _inAppPurchase.buyConsumable(purchaseParam: purchaseParam, autoConsume: false);
   }
 
 
@@ -486,12 +485,15 @@ class _CreatorPaymentScreenState extends State<CreatorPaymentScreen> {
     // Sort products: plus -> pro -> ultra
     tabProducts.sort((a, b) {
       final order = {'creator_plus': 0, 'creator_pro': 1, 'creator_ultra': 2};
-      // For 'creator_plus_1d', id.split('_') is ['creator', 'plus', '1d']
-      // We want 'creator_plus'
-      String keyA = a.id.split('_').sublist(0, 2).join('_');
-      String keyB = b.id.split('_').sublist(0, 2).join('_');
-      int wA = order[keyA] ?? 0;
-      int wB = order[keyB] ?? 0;
+      
+      String getTier(String id) {
+        if (id.contains('creator_plus')) return 'creator_plus';
+        if (id.contains('creator_pro')) return 'creator_pro';
+        return 'creator_ultra';
+      }
+
+      int wA = order[getTier(a.id)] ?? 0;
+      int wB = order[getTier(b.id)] ?? 0;
       return wA.compareTo(wB);
     });
 
@@ -523,9 +525,9 @@ class _CreatorPaymentScreenState extends State<CreatorPaymentScreen> {
         ),
 
         ...tabProducts.map((p) {
-          final isPlus = p.id.startsWith('creator_plus');
-          final isPro = p.id.startsWith('creator_pro');
-          final isUltra = p.id.startsWith('creator_ultra');
+          final isPlus = p.id.contains('creator_plus');
+          final isPro = p.id.contains('creator_pro');
+          final isUltra = p.id.contains('creator_ultra');
           
           Color tierColor = Colors.blueAccent;
           List<_PlanFeature> features = [];
@@ -582,7 +584,7 @@ class _CreatorPaymentScreenState extends State<CreatorPaymentScreen> {
           bool isCurrentPlan = false;
           if (_subscriptionStatus?.hasActiveSubscription == true && _subscriptionStatus?.planName != null) {
             final activePlan = _subscriptionStatus!.planName!.toLowerCase();
-            if ((isPlus && activePlan == 'plus') || (isPro && activePlan == 'pro') || (isUltra && activePlan == 'ultra')) {
+            if ((isPlus && activePlan.contains('plus')) || (isPro && activePlan.contains('pro')) || (isUltra && activePlan.contains('ultra'))) {
               isCurrentPlan = true;
             }
           }

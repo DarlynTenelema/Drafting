@@ -19,6 +19,7 @@ type Group struct {
 	MaxSalesLimit   int       `gorm:"not null;default:1000"`
 	PrivateJSONData string    `gorm:"type:jsonb"` // Store champion data/rules here
 	IsActive        bool      `gorm:"default:true"`
+	PurchaseToken   string    `gorm:"type:varchar(512);uniqueIndex"` // Used to track Google Play subscription
 	DeletionScheduledFor *time.Time `gorm:"type:timestamp with time zone;default:null"`
 	CreatedAt       time.Time
 	UpdatedAt       time.Time
@@ -43,6 +44,7 @@ type OTPProfile struct {
 	ProductImage    string    `gorm:"type:varchar(500)"`
 	PrivateJSONData string    `gorm:"type:jsonb"` // Store OTP specific rules here
 	IsActive        bool      `gorm:"default:true"`
+	PurchaseToken   string    `gorm:"type:varchar(512);uniqueIndex"` // Used to track Google Play subscription
 	DeletionScheduledFor *time.Time `gorm:"type:timestamp with time zone;default:null"`
 	CreatedAt       time.Time
 	UpdatedAt       time.Time

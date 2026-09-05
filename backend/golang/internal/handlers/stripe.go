@@ -12,6 +12,7 @@ import (
 	"backend/internal/models"
 
 	"github.com/google/uuid"
+	"gorm.io/gorm"
 	"github.com/stripe/stripe-go/v78"
 	"github.com/stripe/stripe-go/v78/account"
 	"github.com/stripe/stripe-go/v78/accountlink"
@@ -186,6 +187,15 @@ func StripeWebhook(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		
+		// Security Check: Prevent double-processing of the same session
+		var count int64
+		database.DB.Model(&models.Transaction{}).Where("purchase_token = ?", session.ID).Count(&count)
+		if count > 0 {
+			log.Printf("Stripe session %s already processed. Ignoring.", session.ID)
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+		
 		userID := session.ClientReferenceID
 		packageID := session.Metadata["package_id"]
 		log.Printf("Payment received for User %s, Package %s", userID, packageID)
@@ -200,14 +210,14 @@ func StripeWebhook(w http.ResponseWriter, r *http.Request) {
 					wallet = models.Wallet{UserID: uid, BalanceEssence: 0}
 					tx.Create(&wallet)
 				}
-				wallet.BalanceEssence += essenceToAdd
-				tx.Save(&wallet)
+				tx.Model(&wallet).UpdateColumn("balance_essence", gorm.Expr("balance_essence + ?", essenceToAdd))
 
 				txRec := models.Transaction{
 					UserID:     uid,
 					Type:       "recharge_essence",
 					AmountEssence: essenceToAdd,
 					Status:     "completed_stripe",
+					PurchaseToken: &session.ID,
 				}
 				tx.Create(&txRec)
 				tx.Commit()

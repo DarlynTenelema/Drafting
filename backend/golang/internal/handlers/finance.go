@@ -18,6 +18,7 @@ import (
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 	"github.com/stripe/stripe-go/v78"
 	"github.com/stripe/stripe-go/v78/transfer"
 )
@@ -95,11 +96,20 @@ func RechargeCoins(w http.ResponseWriter, r *http.Request) {
 	hash := sha256.Sum256([]byte(purchaseToken))
 	tokenHash := hex.EncodeToString(hash[:])
 
-	// Idempotency check
+	// Idempotency check (early exit, real check is DB unique constraint)
 	var existing models.Transaction
-	err := database.DB.Where("type = ? AND amount_essence = ? AND status = ?", "recharge_essence", essenceToAdd, tokenHash).First(&existing).Error
+	err := database.DB.Where("purchase_token = ?", tokenHash).First(&existing).Error
 	if err == nil {
 		http.Error(w, "Purchase token already used", http.StatusConflict)
+		return
+	}
+
+	// Rate limiting: 10 daily purchases per user
+	var dailyPurchases int64
+	today := time.Now().Truncate(24 * time.Hour)
+	database.DB.Model(&models.Transaction{}).Where("user_id = ? AND type = 'recharge_essence' AND created_at >= ?", user.ID, today).Count(&dailyPurchases)
+	if dailyPurchases >= 10 {
+		http.Error(w, "Daily purchase limit reached (max 10)", http.StatusTooManyRequests)
 		return
 	}
 
@@ -129,8 +139,7 @@ func RechargeCoins(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Update Wallet
-	wallet.BalanceEssence += essenceToAdd
-	if err := tx.Save(&wallet).Error; err != nil {
+	if err := tx.Model(&wallet).UpdateColumn("balance_essence", gorm.Expr("balance_essence + ?", essenceToAdd)).Error; err != nil {
 		tx.Rollback()
 		http.Error(w, "Failed to update wallet", http.StatusInternalServerError)
 		return
@@ -141,11 +150,16 @@ func RechargeCoins(w http.ResponseWriter, r *http.Request) {
 		UserID:        user.ID,
 		Type:          "recharge_essence",
 		AmountEssence: essenceToAdd,
-		Status:        tokenHash, // Save hash to prevent DB truncation
+		Status:        "completed",
+		PurchaseToken: &tokenHash,
 	}
 	if err := tx.Create(&transaction).Error; err != nil {
 		tx.Rollback()
-		http.Error(w, "Failed to record transaction", http.StatusInternalServerError)
+		if strings.Contains(err.Error(), "duplicate key value") || strings.Contains(err.Error(), "unique constraint") {
+			http.Error(w, "Purchase token already used", http.StatusConflict)
+		} else {
+			http.Error(w, "Failed to record transaction", http.StatusInternalServerError)
+		}
 		return
 	}
 
@@ -176,6 +190,21 @@ func SubscribeToGroup(w http.ResponseWriter, r *http.Request) {
 	groupID, err := uuid.Parse(req.GroupID)
 	if err != nil {
 		http.Error(w, "Invalid Group ID", http.StatusBadRequest)
+		return
+	}
+
+	purchaseToken := strings.TrimSpace(req.PurchaseToken)
+	hash := sha256.Sum256([]byte(purchaseToken))
+	tokenHash := hex.EncodeToString(hash[:])
+
+	// Idempotency check
+	var existing models.Transaction
+	if err := database.DB.Where("purchase_token = ?", tokenHash).First(&existing).Error; err == nil {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": true,
+			"message": "Already subscribed.",
+		})
 		return
 	}
 
@@ -256,8 +285,7 @@ func SubscribeToGroup(w http.ResponseWriter, r *http.Request) {
 				tx.Create(&wallet)
 			}
 		}
-		wallet.BalanceUSD += splitAmount
-		tx.Save(&wallet)
+		tx.Model(&wallet).UpdateColumn("balance_usd", gorm.Expr("balance_usd + ?", splitAmount))
 
 		// Record Transaction for each member
 		transaction := models.Transaction{
@@ -279,35 +307,55 @@ func SubscribeToGroup(w http.ResponseWriter, r *http.Request) {
 		AmountUSD:       gross, // What the buyer paid
 		RelatedEntityID: &groupID,
 		Status:          "completed",
+		PurchaseToken:   &tokenHash,
 	}
-	tx.Create(&buyerTx)
+	if err := tx.Create(&buyerTx).Error; err != nil {
+		tx.Rollback()
+		http.Error(w, "Transaction processing failed or token reused.", http.StatusConflict)
+		return
+	}
 
-	// Grant Esencias Azules based on the exact product purchased
+	// Create a PaymentTransaction in plain text so Webhooks (RTDN) can renew this subscription
+	paymentTx := models.PaymentTransaction{
+		UserID:        user.ID,
+		PlanID:        req.SubscriptionID,
+		ProductID:     req.SubscriptionID,
+		PurchaseToken: purchaseToken,
+		Amount:        gross,
+		Status:        "completed",
+	}
+	if err := tx.Create(&paymentTx).Error; err != nil {
+		tx.Rollback()
+		http.Error(w, "Payment transaction record failed.", http.StatusInternalServerError)
+		return
+	}
+
+	// Grant Esencias Azules based on the exact product purchased (Only Global Plans have bonuses now)
 	var essenceBonus float64 = 0
 	switch req.SubscriptionID {
-	case "plus_1d", "creator_plus_1d":
+	case "sub_plus_1d":
 		essenceBonus = 0.0 // No bonus for daily plus
-	case "pro_1d", "creator_pro_1d":
+	case "sub_pro_1d":
 		essenceBonus = 50.0
-	case "ultra_1d", "creator_ultra_1d":
+	case "sub_ultra_1d":
 		essenceBonus = 100.0
-	case "plus_1w", "creator_plus_1w":
+	case "sub_plus_1w":
 		essenceBonus = 150.0
-	case "pro_1w", "creator_pro_1w":
+	case "sub_pro_1w":
 		essenceBonus = 300.0
-	case "ultra_1w", "creator_ultra_1w":
+	case "sub_ultra_1w":
 		essenceBonus = 600.0
-	case "plus_1m", "creator_plus_1m":
+	case "sub_plus_1m":
 		essenceBonus = 600.0
-	case "pro_1m", "creator_pro_1m":
+	case "sub_pro_1m":
 		essenceBonus = 1000.0
-	case "ultra_1m", "creator_ultra_1m":
+	case "sub_ultra_1m":
 		essenceBonus = 2000.0
-	case "plus_1y", "creator_plus_1y":
+	case "sub_plus_1y":
 		essenceBonus = 6000.0
-	case "pro_1y", "creator_pro_1y":
+	case "sub_pro_1y":
 		essenceBonus = 10000.0
-	case "ultra_1y", "creator_ultra_1y":
+	case "sub_ultra_1y":
 		essenceBonus = 20000.0
 	}
 
@@ -319,8 +367,7 @@ func SubscribeToGroup(w http.ResponseWriter, r *http.Request) {
 				tx.Create(&buyerWallet)
 			}
 		}
-		buyerWallet.BalanceEssence += essenceBonus
-		tx.Save(&buyerWallet)
+		tx.Model(&buyerWallet).UpdateColumn("balance_essence", gorm.Expr("balance_essence + ?", essenceBonus))
 
 		bonusTx := models.Transaction{
 			UserID:        user.ID,
@@ -333,9 +380,26 @@ func SubscribeToGroup(w http.ResponseWriter, r *http.Request) {
 
 	// Record the active subscription linking the user to the GroupID.
 	user.ActiveGroupID = &groupID
+	
+	// Update buyer's subscription expiration and active plan
+	duration := getDurationForProduct(req.SubscriptionID)
+	planID, hasPlan := getPlanIDForProduct(req.SubscriptionID)
+	
+	if hasPlan {
+		now := time.Now()
+		if user.SubscriptionEndsAt != nil && user.SubscriptionEndsAt.After(now) {
+			newEndsAt := user.SubscriptionEndsAt.Add(duration)
+			user.SubscriptionEndsAt = &newEndsAt
+		} else {
+			newEndsAt := now.Add(duration)
+			user.SubscriptionEndsAt = &newEndsAt
+		}
+		user.ActivePlan = &planID
+	}
+
 	if err := tx.Save(user).Error; err != nil {
 		tx.Rollback()
-		http.Error(w, "Failed to link user to group", http.StatusInternalServerError)
+		http.Error(w, "Failed to link user to group and update subscription", http.StatusInternalServerError)
 		return
 	}
 
@@ -372,6 +436,21 @@ func SubscribeToCreator(w http.ResponseWriter, r *http.Request) {
 	profileID, err := uuid.Parse(req.CreatorID)
 	if err != nil {
 		http.Error(w, "Invalid Creator ID", http.StatusBadRequest)
+		return
+	}
+
+	purchaseToken := strings.TrimSpace(req.PurchaseToken)
+	hash := sha256.Sum256([]byte(purchaseToken))
+	tokenHash := hex.EncodeToString(hash[:])
+
+	// Idempotency check
+	var existing models.Transaction
+	if err := database.DB.Where("purchase_token = ?", tokenHash).First(&existing).Error; err == nil {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": true,
+			"message": "Already subscribed.",
+		})
 		return
 	}
 
@@ -421,8 +500,7 @@ func SubscribeToCreator(w http.ResponseWriter, r *http.Request) {
 			tx.Create(&entWallet)
 		}
 	}
-	entWallet.BalanceUSD += finalEntrepreneurPayout
-	tx.Save(&entWallet)
+	tx.Model(&entWallet).UpdateColumn("balance_usd", gorm.Expr("balance_usd + ?", finalEntrepreneurPayout))
 
 	_ = appShare 
 
@@ -442,35 +520,55 @@ func SubscribeToCreator(w http.ResponseWriter, r *http.Request) {
 		AmountUSD:       gross, // What the buyer paid
 		RelatedEntityID: &profileID,
 		Status:          "completed",
+		PurchaseToken:   &tokenHash,
 	}
-	tx.Create(&buyerTx)
+	if err := tx.Create(&buyerTx).Error; err != nil {
+		tx.Rollback()
+		http.Error(w, "Transaction processing failed or token reused.", http.StatusConflict)
+		return
+	}
 
-	// Grant Esencias Azules based on the exact product purchased
+	// Create a PaymentTransaction in plain text so Webhooks (RTDN) can renew this subscription
+	paymentTx := models.PaymentTransaction{
+		UserID:        user.ID,
+		PlanID:        req.SubscriptionID,
+		ProductID:     req.SubscriptionID,
+		PurchaseToken: purchaseToken,
+		Amount:        gross,
+		Status:        "completed",
+	}
+	if err := tx.Create(&paymentTx).Error; err != nil {
+		tx.Rollback()
+		http.Error(w, "Payment transaction record failed.", http.StatusInternalServerError)
+		return
+	}
+
+	// Grant Esencias Azules based on the exact product purchased (Only Global Plans have bonuses now)
 	var essenceBonus float64 = 0
 	switch req.SubscriptionID {
-	case "plus_1d", "creator_plus_1d":
+	case "sub_plus_1d":
 		essenceBonus = 0.0 // No bonus for daily plus
-	case "pro_1d", "creator_pro_1d":
+	case "sub_pro_1d":
 		essenceBonus = 50.0
-	case "ultra_1d", "creator_ultra_1d":
+	case "sub_ultra_1d":
 		essenceBonus = 100.0
-	case "plus_1w", "creator_plus_1w":
+	case "sub_plus_1w":
 		essenceBonus = 150.0
-	case "pro_1w", "creator_pro_1w":
+	case "sub_pro_1w":
 		essenceBonus = 300.0
-	case "ultra_1w", "creator_ultra_1w":
+	case "sub_ultra_1w":
 		essenceBonus = 600.0
-	case "plus_1m", "creator_plus_1m":
+	case "sub_plus_1m":
 		essenceBonus = 600.0
-	case "pro_1m", "creator_pro_1m":
+	case "sub_pro_1m":
 		essenceBonus = 1000.0
-	case "ultra_1m", "creator_ultra_1m":
+	case "sub_ultra_1m":
 		essenceBonus = 2000.0
-	case "plus_1y", "creator_plus_1y":
+	case "sub_plus_1y":
 		essenceBonus = 6000.0
-	case "pro_1y", "creator_pro_1y":
+	case "sub_pro_1y":
 		essenceBonus = 10000.0
-	case "ultra_1y", "creator_ultra_1y":
+	case "sub_ultra_1y":
 		essenceBonus = 20000.0
 	}
 
@@ -482,8 +580,7 @@ func SubscribeToCreator(w http.ResponseWriter, r *http.Request) {
 				tx.Create(&buyerWallet)
 			}
 		}
-		buyerWallet.BalanceEssence += essenceBonus
-		tx.Save(&buyerWallet)
+		tx.Model(&buyerWallet).UpdateColumn("balance_essence", gorm.Expr("balance_essence + ?", essenceBonus))
 
 		bonusTx := models.Transaction{
 			UserID:        user.ID,
@@ -492,6 +589,26 @@ func SubscribeToCreator(w http.ResponseWriter, r *http.Request) {
 			Status:        "completed",
 		}
 		tx.Create(&bonusTx)
+	}
+
+	// Update buyer's subscription expiration and active plan
+	duration := getDurationForProduct(req.SubscriptionID)
+	planID, hasPlan := getPlanIDForProduct(req.SubscriptionID)
+	
+	if hasPlan {
+		var dbUser models.User
+		if err := tx.First(&dbUser, user.ID).Error; err == nil {
+			now := time.Now()
+			if dbUser.SubscriptionEndsAt != nil && dbUser.SubscriptionEndsAt.After(now) {
+				newEndsAt := dbUser.SubscriptionEndsAt.Add(duration)
+				dbUser.SubscriptionEndsAt = &newEndsAt
+			} else {
+				newEndsAt := now.Add(duration)
+				dbUser.SubscriptionEndsAt = &newEndsAt
+			}
+			dbUser.ActivePlan = &planID
+			tx.Save(&dbUser)
+		}
 	}
 
 	tx.Commit()
@@ -557,9 +674,9 @@ func PurchaseFanart(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if buyerWallet.BalanceEssence < fanart.PriceEssence {
+	if buyerWallet.BalanceEssence < fanart.PriceEssence || fanart.PriceEssence <= 0 {
 		tx.Rollback()
-		http.Error(w, "Insufficient Esencias Azules", http.StatusPaymentRequired)
+		http.Error(w, "Insufficient Esencias Azules or invalid fanart price", http.StatusPaymentRequired)
 		return
 	}
 
@@ -571,22 +688,31 @@ func PurchaseFanart(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Calculate equivalent USD (100 Esencias Azules = $1 USD)
+	// Calculate equivalent USD (1000 Esencias Azules = $1 USD)
 	// Creator takes 50% of the real USD value
-	usdEarned := (fanart.PriceEssence / 100.0) * 0.50
+	usdEarned := (fanart.PriceEssence / 1000.0) * 0.50
+
+	// Prevent self-purchasing exploit
+	if buyer.ID == fanart.CreatorID {
+		tx.Rollback()
+		http.Error(w, "No puedes comprar tu propio Fanart", http.StatusForbidden)
+		return
+	}
 
 	// Deduct from buyer
-	buyerWallet.BalanceEssence -= fanart.PriceEssence
-	tx.Save(&buyerWallet)
-
-	// Add to creator (reload to avoid overwriting if buyer == creator)
-	if buyer.ID == fanart.CreatorID {
-		creatorWallet = buyerWallet
-	} else {
-		if err := tx.Where("user_id = ?", fanart.CreatorID).First(&creatorWallet).Error; err != nil {}
+	result := tx.Model(&buyerWallet).Where("balance_essence >= ?", fanart.PriceEssence).UpdateColumn("balance_essence", gorm.Expr("balance_essence - ?", fanart.PriceEssence))
+	if result.Error != nil || result.RowsAffected == 0 {
+		tx.Rollback()
+		http.Error(w, "Saldo insuficiente o error de base de datos", http.StatusPaymentRequired)
+		return
 	}
-	creatorWallet.BalanceUSD += usdEarned
-	tx.Save(&creatorWallet)
+
+	// Add to creator
+	if err := tx.Model(&creatorWallet).UpdateColumn("balance_usd", gorm.Expr("balance_usd + ?", usdEarned)).Error; err != nil {
+		tx.Rollback()
+		http.Error(w, "Database error", http.StatusInternalServerError)
+		return
+	}
 
 	// Record Transaction
 	txRec := models.Transaction{
@@ -707,8 +833,14 @@ func DonateVideo(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// 100 Esencias Azules = $1 USD
-	usdEquivalent := req.Amount / 100.0
+	// Prevent self-donating exploit
+	if viewer.ID == channel.OwnerID {
+		http.Error(w, "No puedes donar a tu propio video", http.StatusForbidden)
+		return
+	}
+
+	// 1000 Esencias Azules = $1 USD
+	usdEquivalent := req.Amount / 1000.0
 
 	tx := database.DB.Begin()
 	defer func() {
@@ -723,6 +855,11 @@ func DonateVideo(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Viewer wallet not found", http.StatusBadRequest)
 		return
 	}
+	if req.Amount <= 0 {
+		tx.Rollback()
+		http.Error(w, "Invalid donation amount", http.StatusBadRequest)
+		return
+	}
 	if buyerWallet.BalanceEssence < req.Amount {
 		tx.Rollback()
 		http.Error(w, "Insufficient Esencia Azul", http.StatusPaymentRequired)
@@ -730,41 +867,33 @@ func DonateVideo(w http.ResponseWriter, r *http.Request) {
 	}
 	
 	// Atomic update for buyer
-	if err := tx.Model(&buyerWallet).UpdateColumn("balance_essence", gorm.Expr("balance_essence - ?", req.Amount)).Error; err != nil {
+	result := tx.Model(&buyerWallet).Where("balance_essence >= ?", req.Amount).UpdateColumn("balance_essence", gorm.Expr("balance_essence - ?", req.Amount))
+	if result.Error != nil || result.RowsAffected == 0 {
 		tx.Rollback()
-		http.Error(w, "Database error", http.StatusInternalServerError)
+		http.Error(w, "Saldo insuficiente o error de base de datos", http.StatusPaymentRequired)
 		return
 	}
 
 	// Update creator
-	if viewer.ID == channel.OwnerID {
-		// Atomic update for creator (who is also the buyer)
-		if err := tx.Model(&buyerWallet).UpdateColumn("balance_usd", gorm.Expr("balance_usd + ?", usdEquivalent)).Error; err != nil {
-			tx.Rollback()
-			http.Error(w, "Database error", http.StatusInternalServerError)
-			return
-		}
-	} else {
-		var creatorWallet models.Wallet
-		if err := tx.Where("user_id = ?", channel.OwnerID).First(&creatorWallet).Error; err != nil {
-			if errors.Is(err, gorm.ErrRecordNotFound) {
-				creatorWallet = models.Wallet{UserID: channel.OwnerID, BalanceUSD: usdEquivalent}
-				if err := tx.Create(&creatorWallet).Error; err != nil {
-					tx.Rollback()
-					http.Error(w, "Database error", http.StatusInternalServerError)
-					return
-				}
-			} else {
+	var creatorWallet models.Wallet
+	if err := tx.Where("user_id = ?", channel.OwnerID).First(&creatorWallet).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			creatorWallet = models.Wallet{UserID: channel.OwnerID, BalanceUSD: usdEquivalent}
+			if err := tx.Create(&creatorWallet).Error; err != nil {
 				tx.Rollback()
 				http.Error(w, "Database error", http.StatusInternalServerError)
 				return
 			}
 		} else {
-			if err := tx.Model(&creatorWallet).UpdateColumn("balance_usd", gorm.Expr("balance_usd + ?", usdEquivalent)).Error; err != nil {
-				tx.Rollback()
-				http.Error(w, "Database error", http.StatusInternalServerError)
-				return
-			}
+			tx.Rollback()
+			http.Error(w, "Database error", http.StatusInternalServerError)
+			return
+		}
+	} else {
+		if err := tx.Model(&creatorWallet).UpdateColumn("balance_usd", gorm.Expr("balance_usd + ?", usdEquivalent)).Error; err != nil {
+			tx.Rollback()
+			http.Error(w, "Database error", http.StatusInternalServerError)
+			return
 		}
 	}
 
@@ -846,7 +975,7 @@ func WithdrawFunds(w http.ResponseWriter, r *http.Request) {
 	tx := database.DB.Begin()
 
 	var wallet models.Wallet
-	if err := tx.Where("user_id = ?", user.ID).First(&wallet).Error; err != nil {
+	if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("user_id = ?", user.ID).First(&wallet).Error; err != nil {
 		tx.Rollback()
 		http.Error(w, "Wallet not found", http.StatusNotFound)
 		return
@@ -855,6 +984,13 @@ func WithdrawFunds(w http.ResponseWriter, r *http.Request) {
 	limit := 100.0
 	if user.Role == "entrepreneur" {
 		limit = 1000.0
+		
+		// Enforce escrow/retention clause (Point 5)
+		if user.SubscriptionEndsAt == nil || time.Now().After(*user.SubscriptionEndsAt) {
+			tx.Rollback()
+			http.Error(w, "Tu suscripción de emprendedor ha expirado. Renueva tu plan para poder retirar tus fondos.", http.StatusPaymentRequired)
+			return
+		}
 	}
 
 	thirtyDaysAgo := time.Now().AddDate(0, 0, -30)

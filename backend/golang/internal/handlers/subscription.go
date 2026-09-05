@@ -65,6 +65,34 @@ func verifyPurchaseToken(r *http.Request, productID, purchaseToken string) error
 	return fmt.Errorf("purchase verification required; enable GOOGLE_PLAY_VERIFICATION_ENABLED or set ALLOW_UNVERIFIED_PURCHASES=true in non-production")
 }
 
+func verifySubscriptionToken(r *http.Request, productID, purchaseToken string) (*time.Time, error) {
+	purchaseToken = strings.TrimSpace(purchaseToken)
+	if purchaseToken == "" {
+		return nil, fmt.Errorf("purchase token is required")
+	}
+
+	if playStoreVerifier != nil && playStoreVerifier.Enabled() {
+		sub, err := playStoreVerifier.VerifySubscriptionPurchase(r.Context(), productID, purchaseToken)
+		if err != nil {
+			return nil, err
+		}
+		if len(sub.LineItems) > 0 {
+			expiryStr := sub.LineItems[0].ExpiryTime
+			t, parseErr := time.Parse(time.RFC3339, expiryStr)
+			if parseErr == nil {
+				return &t, nil
+			}
+		}
+		return nil, nil // Return nil if verification succeeded but we couldn't parse time
+	}
+
+	if isUnverifiedPurchaseAllowed() {
+		return nil, nil
+	}
+
+	return nil, fmt.Errorf("subscription verification required")
+}
+
 func VerifyPurchase(w http.ResponseWriter, r *http.Request) {
 	var req VerifyPurchaseRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -106,7 +134,8 @@ func VerifyPurchase(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := verifyPurchaseToken(r, req.ProductID, purchaseToken); err != nil {
+	var expiryTime *time.Time
+	if expiry, err := verifySubscriptionToken(r, req.ProductID, purchaseToken); err != nil {
 		_ = database.DB.Create(&models.PaymentTransaction{
 			UserID:        user.ID,
 			PlanID:        req.ProductID,
@@ -117,6 +146,8 @@ func VerifyPurchase(w http.ResponseWriter, r *http.Request) {
 		}).Error
 		http.Error(w, err.Error(), http.StatusPaymentRequired)
 		return
+	} else {
+		expiryTime = expiry
 	}
 
 	tx := database.DB.Begin()
@@ -147,12 +178,17 @@ func VerifyPurchase(w http.ResponseWriter, r *http.Request) {
 	}
 
 	now := time.Now()
-	if dbUser.SubscriptionEndsAt != nil && dbUser.SubscriptionEndsAt.After(now) {
-		newEndsAt := dbUser.SubscriptionEndsAt.Add(duration)
-		dbUser.SubscriptionEndsAt = &newEndsAt
+	if expiryTime != nil {
+		dbUser.SubscriptionEndsAt = expiryTime
 	} else {
-		newEndsAt := now.Add(duration)
-		dbUser.SubscriptionEndsAt = &newEndsAt
+		// Fallback for dev mode
+		if dbUser.SubscriptionEndsAt != nil && dbUser.SubscriptionEndsAt.After(now) {
+			newEndsAt := dbUser.SubscriptionEndsAt.Add(duration)
+			dbUser.SubscriptionEndsAt = &newEndsAt
+		} else {
+			newEndsAt := now.Add(duration)
+			dbUser.SubscriptionEndsAt = &newEndsAt
+		}
 	}
 	dbUser.ActivePlan = &planID
 
@@ -165,27 +201,27 @@ func VerifyPurchase(w http.ResponseWriter, r *http.Request) {
 	// Grant Esencias Azules based on the exact product purchased
 	var essenceBonus float64 = 0
 	switch req.ProductID {
-	case "pro_1d":
+	case "sub_pro_1d":
 		essenceBonus = 50.0
-	case "ultra_1d":
+	case "sub_ultra_1d":
 		essenceBonus = 100.0
-	case "plus_1w":
+	case "sub_plus_1w":
 		essenceBonus = 150.0
-	case "pro_1w":
+	case "sub_pro_1w":
 		essenceBonus = 300.0
-	case "ultra_1w":
+	case "sub_ultra_1w":
 		essenceBonus = 600.0
-	case "plus_1m":
+	case "sub_plus_1m":
 		essenceBonus = 600.0
-	case "pro_1m":
+	case "sub_pro_1m":
 		essenceBonus = 1000.0
-	case "ultra_1m":
+	case "sub_ultra_1m":
 		essenceBonus = 2000.0
-	case "plus_1y":
+	case "sub_plus_1y":
 		essenceBonus = 6000.0
-	case "pro_1y":
+	case "sub_pro_1y":
 		essenceBonus = 10000.0
-	case "ultra_1y":
+	case "sub_ultra_1y":
 		essenceBonus = 20000.0
 	}
 

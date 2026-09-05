@@ -72,20 +72,32 @@ func (v *Verifier) VerifyProductPurchase(ctx context.Context, productID, purchas
 	return nil
 }
 
-// VerifySubscriptionPurchase validates an auto-renewing subscription token.
-func (v *Verifier) VerifySubscriptionPurchase(ctx context.Context, purchaseToken string) error {
+// VerifySubscriptionPurchase validates an auto-renewing subscription token and ensures it matches the product ID.
+func (v *Verifier) VerifySubscriptionPurchase(ctx context.Context, productID, purchaseToken string) (*androidpublisher.SubscriptionPurchaseV2, error) {
 	if !v.enabled {
-		return ErrVerificationDisabled
+		return nil, ErrVerificationDisabled
 	}
 
 	sub, err := v.service.Purchases.Subscriptionsv2.Get(v.packageName, purchaseToken).Context(ctx).Do()
 	if err != nil {
-		return fmt.Errorf("google play subscription verification failed: %w", err)
+		return nil, fmt.Errorf("google play subscription verification failed: %w", err)
 	}
 
 	if sub.SubscriptionState != "SUBSCRIPTION_STATE_ACTIVE" && sub.SubscriptionState != "SUBSCRIPTION_STATE_IN_GRACE_PERIOD" {
-		return fmt.Errorf("subscription state is not active (state=%s)", sub.SubscriptionState)
+		return nil, fmt.Errorf("subscription state is not active (state=%s)", sub.SubscriptionState)
 	}
 
-	return nil
+	// Prevent Product Spoofing by verifying the purchase token actually belongs to the requested productID
+	productMatch := false
+	for _, item := range sub.LineItems {
+		if item.ProductId == productID {
+			productMatch = true
+			break
+		}
+	}
+	if !productMatch {
+		return nil, fmt.Errorf("purchase token does not match requested product %s", productID)
+	}
+
+	return sub, nil
 }

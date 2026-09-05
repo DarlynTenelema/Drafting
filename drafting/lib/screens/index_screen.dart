@@ -125,8 +125,8 @@ class _IndexScreenState extends State<IndexScreen> {
             _userPhotoUrl = data['profile_pic'];
             _isPremium = data['is_premium'] == true;
             _userTier = (data['plan_tier'] ?? 'plus').toString().toLowerCase();
-            if (_userTier == 'pro') _visibleFields = 2;
-            if (_userTier == 'ultra') _visibleFields = 1; // Start with 1, can add up to 5
+            if (_userTier.contains('pro')) _visibleFields = 2;
+            if (_userTier.contains('ultra')) _visibleFields = 1; // Start with 1, can add up to 5
           });
         }
 
@@ -448,7 +448,7 @@ class _IndexScreenState extends State<IndexScreen> {
                         },
                       ),
 
-                      if (_isPremium && (_userTier == 'pro' || _userTier == 'ultra')) ...[
+                      if (_isPremium && (_userTier.contains('pro') || _userTier.contains('ultra'))) ...[
                         const SizedBox(height: 16),
                         Text(
                           'Tus Campeones y Roles (IA)',
@@ -467,7 +467,7 @@ class _IndexScreenState extends State<IndexScreen> {
                         const SizedBox(height: 16),
                         ...List.generate(_visibleFields, (index) {
                           List<String> labels = ['Otp', 'Main 1', 'Main 2', 'Linea main 1', 'Linea main 2'];
-                          if (_userTier == 'pro') labels = ['Otp', 'Main'];
+                          if (_userTier.contains('pro')) labels = ['Otp', 'Main'];
                           
                           return Padding(
                             padding: const EdgeInsets.only(bottom: 12.0),
@@ -499,7 +499,7 @@ class _IndexScreenState extends State<IndexScreen> {
                             ),
                           );
                         }),
-                        if (_userTier == 'ultra' && _visibleFields < 5)
+                        if (_userTier.contains('ultra') && _visibleFields < 5)
                           TextButton.icon(
                             onPressed: () {
                               setState(() {

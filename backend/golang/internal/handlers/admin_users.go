@@ -109,8 +109,11 @@ func AddStrike(w http.ResponseWriter, r *http.Request) {
 		"strikes": newStrikes,
 	}
 
-	// Si llega a 3 strikes, entra en estado de baneo pendiente (7 días para apelar)
-	if newStrikes >= 3 {
+	// Si llega a 5 strikes, es ban permanente. Si llega a 3 o 4, es ban temporal (pending ban).
+	if newStrikes >= 5 {
+		updates["banned"] = true
+		updates["is_pending_ban"] = false
+	} else if newStrikes >= 3 {
 		updates["is_pending_ban"] = true
 		banDate := time.Now().Add(7 * 24 * time.Hour)
 		updates["pending_ban_until"] = &banDate

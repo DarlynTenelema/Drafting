@@ -199,7 +199,7 @@ class CaptureService : Service() {
         val btnCaptureInGame = floatingView.findViewById<ImageButton>(R.id.btnCaptureInGame)
         val btnClose = floatingView.findViewById<ImageButton>(R.id.btnClose)
 
-        val hasProOrUltra = planTier == "pro" || planTier == "ultra"
+        val hasProOrUltra = planTier.contains("pro") || planTier.contains("ultra")
 
         if (!hasProOrUltra) {
             btnCaptureOTP.setImageResource(android.R.drawable.ic_secure)

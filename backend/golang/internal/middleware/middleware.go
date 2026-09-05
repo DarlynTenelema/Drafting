@@ -74,7 +74,7 @@ func Auth(next http.Handler) http.Handler {
 		sessionToken := strings.TrimPrefix(authHeader, "Bearer ")
 
 		// Validate JWT and extract sub (userID or googleID)
-		sub, _, err := auth.ValidateJWT(sessionToken)
+		sub, jti, err := auth.ValidateJWT(sessionToken)
 		if err != nil {
 			http.Error(w, "Unauthorized: invalid token", http.StatusUnauthorized)
 			return
@@ -92,6 +92,12 @@ func Auth(next http.Handler) http.Handler {
 				http.Error(w, "Unauthorized or session expired", http.StatusUnauthorized)
 				return
 			}
+		}
+
+		// Security Check: Verify jti matches to prevent revoked tokens from being used
+		if user.SessionToken != jti {
+			http.Error(w, "Session expired or logged in from another device", http.StatusUnauthorized)
+			return
 		}
 
 		ctx := context.WithValue(r.Context(), UserContextKey, &user)
@@ -123,15 +129,7 @@ func SubscriptionCheck(next http.Handler) http.Handler {
 			activePlan = "plus"
 		}
 
-		if !hasActive {
-			// Access denied
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusPaymentRequired) // 402
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "Subscription expired or global free trial has ended. Please purchase a plan.",
-			})
-			return
-		}
+		// Access logic is now handled individually per endpoint (e.g. ChatCoach restricts Freemium, AnalyzeDraft allows 5 lifetime)
 
 		// Attach active plan to context for Cooldown to use
 		ctx := context.WithValue(r.Context(), "active_plan", activePlan)
@@ -158,7 +156,7 @@ func Cooldown(next http.Handler) http.Handler {
 		} else if strings.HasPrefix(plan, "ultra") || strings.HasPrefix(plan, "creator_ultra") {
 			limit = 30
 		} else if strings.HasPrefix(plan, "freemium") {
-			limit = 0 // 0 per hour or day? The user said 3 per day, but currently it's per hour. Let's do 3 per hour for now since we don't have per-day logic yet.
+			limit = 5 // Limit 5 per hour. Lifetime limit handled in handlers.
 		}
 
 		// 1. Check Requests per hour (Cooldown)
@@ -179,16 +177,16 @@ func Cooldown(next http.Handler) http.Handler {
 			var since time.Time
 
 			switch plan {
-			case "ultra_1d", "creator_ultra_1d":
+			case "sub_ultra_1d", "sub_creator_ultra_1d":
 				maxTokens = 250000
 				since = time.Now().Add(-24 * time.Hour)
-			case "ultra_1w", "creator_ultra_1w":
+			case "sub_ultra_1w", "sub_creator_ultra_1w":
 				maxTokens = 300000
 				since = time.Now().Add(-24 * time.Hour) // 300K diarios
-			case "ultra_1m", "creator_ultra_1m":
+			case "sub_ultra_1m", "sub_creator_ultra_1m":
 				maxTokens = 2500000
 				since = time.Now().Add(-7 * 24 * time.Hour) // 2.5M semanales
-			case "ultra_1y", "creator_ultra_1y":
+			case "sub_ultra_1y", "sub_creator_ultra_1y":
 				maxTokens = 12000000
 				since = time.Now().Add(-30 * 24 * time.Hour) // 12M mensuales
 			}
