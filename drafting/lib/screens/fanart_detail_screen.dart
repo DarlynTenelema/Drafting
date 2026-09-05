@@ -6,7 +6,6 @@ import 'package:gal/gal.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:share_plus/share_plus.dart';
-import 'package:screen_protector/screen_protector.dart';
 import 'dart:convert';
 import '../theme/app_theme.dart';
 import '../core/models/fanart_model.dart';
@@ -63,11 +62,11 @@ class _FanartDetailScreenState extends State<FanartDetailScreen> {
   }
 
   Future<void> _secureScreen() async {
-    await ScreenProtector.preventScreenshotOn();
+    // await ScreenProtector.preventScreenshotOn();
   }
 
   Future<void> _unsecureScreen() async {
-    await ScreenProtector.preventScreenshotOff();
+    // await ScreenProtector.preventScreenshotOff();
   }
 
   @override
