@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
-	"os"
 	"regexp"
 	"time"
 
@@ -67,13 +66,12 @@ func AnalyzeDraft(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// --- Rate Limiting & Quota Logic ---
-	globalFreeTrialEndDateStr := os.Getenv("GLOBAL_FREE_TRIAL_END_DATE")
-	if globalFreeTrialEndDateStr == "" {
-		globalFreeTrialEndDateStr = "2026-08-16T23:59:59Z"
+	plan, ok := r.Context().Value("active_plan").(string)
+	if !ok {
+		plan = "freemium"
 	}
-	globalFreeTrialEndDate, _ := time.Parse(time.RFC3339, globalFreeTrialEndDateStr)
 
-	isPremium := user.SubscriptionEndsAt != nil && user.SubscriptionEndsAt.After(time.Now())
+	isPremium := plan != "freemium"
 
 	if !isPremium {
 		// Enforce premium-only queries
@@ -82,14 +80,12 @@ func AnalyzeDraft(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		if time.Now().After(globalFreeTrialEndDate) {
-			var count int64
-			database.DB.Model(&models.ApiUsage{}).Where("user_id = ?", user.ID).Count(&count)
-			
-			if count >= 5 {
-				http.Error(w, "Prueba gratuita agotada. Límite de 5 peticiones alcanzado.", http.StatusForbidden)
-				return
-			}
+		var count int64
+		database.DB.Model(&models.ApiUsage{}).Where("user_id = ?", user.ID).Count(&count)
+		
+		if count >= 5 {
+			http.Error(w, "Prueba gratuita agotada. Límite de 5 peticiones alcanzado.", http.StatusForbidden)
+			return
 		}
 	}
 	// -----------------------------------
