@@ -25,8 +25,8 @@ func SaveChampionData(w http.ResponseWriter, r *http.Request) {
 	}
 
 	user, ok := r.Context().Value(middleware.UserContextKey).(*models.User)
-	if !ok || (user.Role != "entrepreneur" && user.Role != "creator") {
-		http.Error(w, "Unauthorized. Only entrepreneurs and creators can save champion data.", http.StatusUnauthorized)
+	if !ok {
+		http.Error(w, "Unauthorized. User not found in context.", http.StatusUnauthorized)
 		return
 	}
 
