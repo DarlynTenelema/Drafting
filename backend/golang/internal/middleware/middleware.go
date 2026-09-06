@@ -176,19 +176,22 @@ func Cooldown(next http.Handler) http.Handler {
 			var maxTokens int64 = 0
 			var since time.Time
 
-			switch plan {
-			case "sub_ultra_1d", "sub_creator_ultra_1d":
-				maxTokens = 250000
-				since = time.Now().Add(-24 * time.Hour)
-			case "sub_ultra_1w", "sub_creator_ultra_1w":
-				maxTokens = 300000
-				since = time.Now().Add(-24 * time.Hour) // 300K diarios
-			case "sub_ultra_1m", "sub_creator_ultra_1m":
-				maxTokens = 2500000
-				since = time.Now().Add(-7 * 24 * time.Hour) // 2.5M semanales
-			case "sub_ultra_1y", "sub_creator_ultra_1y":
-				maxTokens = 12000000
-				since = time.Now().Add(-30 * 24 * time.Hour) // 12M mensuales
+			var latestTx models.PaymentTransaction
+			if err := database.DB.Where("user_id = ? AND status = 'completed'", user.ID).Order("created_at desc").First(&latestTx).Error; err == nil {
+				switch latestTx.ProductID {
+				case "sub_ultra_1d", "sub_creator_ultra_1d":
+					maxTokens = 250000
+					since = time.Now().Add(-24 * time.Hour)
+				case "sub_ultra_1w", "sub_creator_ultra_1w":
+					maxTokens = 300000
+					since = time.Now().Add(-24 * time.Hour) // 300K diarios
+				case "sub_ultra_1m", "sub_creator_ultra_1m":
+					maxTokens = 2500000
+					since = time.Now().Add(-7 * 24 * time.Hour) // 2.5M semanales
+				case "sub_ultra_1y", "sub_creator_ultra_1y":
+					maxTokens = 12000000
+					since = time.Now().Add(-30 * 24 * time.Hour) // 12M mensuales
+				}
 			}
 
 			if maxTokens > 0 {

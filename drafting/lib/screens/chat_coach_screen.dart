@@ -57,7 +57,8 @@ class _ChatCoachScreenState extends State<ChatCoachScreen> {
         final data = jsonDecode(response.body);
         if (mounted) {
           setState(() {
-            _isUltra = data['plan_tier']?.toString().toLowerCase() == 'ultra';
+            final tier = data['plan_tier']?.toString().toLowerCase() ?? '';
+            _isUltra = tier.contains('ultra');
           });
         }
       }
