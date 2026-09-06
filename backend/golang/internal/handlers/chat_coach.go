@@ -34,35 +34,37 @@ func GetChatCoachMatches(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 24H Cleanup Logic (Lazy Deletion)
+	// 24H Cleanup Logic (Lazy Deletion) - MOVED TO BACKGROUND GOROUTINE
 	cleanupTime := time.Now().Add(-24 * time.Hour)
-	var oldSessions []models.MatchSession
-	if err := database.DB.Preload("Screenshots").Where("created_at < ?", cleanupTime).Find(&oldSessions).Error; err == nil && len(oldSessions) > 0 {
-		supabaseURL := os.Getenv("SUPABASE_URL")
-		supabaseKey := os.Getenv("SUPABASE_SERVICE_ROLE_KEY")
+	go func(cleanup time.Time) {
+		var oldSessions []models.MatchSession
+		if err := database.DB.Preload("Screenshots").Where("created_at < ?", cleanup).Find(&oldSessions).Error; err == nil && len(oldSessions) > 0 {
+			supabaseURL := os.Getenv("SUPABASE_URL")
+			supabaseKey := os.Getenv("SUPABASE_SERVICE_ROLE_KEY")
 
-		for _, oldSess := range oldSessions {
-			// Delete images from Supabase
-			if supabaseURL != "" && supabaseKey != "" {
-				for _, shot := range oldSess.Screenshots {
-					deleteURL := strings.Replace(shot.ImageURL, "/public/", "/", 1)
-					
-					req, err := http.NewRequest("DELETE", deleteURL, nil)
-					if err == nil {
-						req.Header.Set("Authorization", "Bearer "+supabaseKey)
-						client := &http.Client{Timeout: 10 * time.Second}
-						resp, err := client.Do(req)
-						if err == nil && resp != nil {
-							resp.Body.Close()
+			for _, oldSess := range oldSessions {
+				// Delete images from Supabase
+				if supabaseURL != "" && supabaseKey != "" {
+					for _, shot := range oldSess.Screenshots {
+						deleteURL := strings.Replace(shot.ImageURL, "/public/", "/", 1)
+						
+						req, err := http.NewRequest("DELETE", deleteURL, nil)
+						if err == nil {
+							req.Header.Set("Authorization", "Bearer "+supabaseKey)
+							client := &http.Client{Timeout: 10 * time.Second}
+							resp, err := client.Do(req)
+							if err == nil && resp != nil {
+								resp.Body.Close()
+							}
 						}
 					}
 				}
+				
+				// Cascade delete from DB
+				database.DB.Delete(&oldSess)
 			}
-			
-			// Cascade delete from DB
-			database.DB.Delete(&oldSess)
 		}
-	}
+	}(cleanupTime)
 
 	var sessions []models.MatchSession
 	// Preload the screenshots and threads

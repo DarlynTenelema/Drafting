@@ -49,18 +49,18 @@ func GetUserDetail(w http.ResponseWriter, r *http.Request) {
 	var fanarts []models.Fanart
 	
 	// Fetching channels where user is owner to get videos
-	var channel models.Channel
-	db.Where("owner_id = ?", userID).First(&channel)
-	
-	if channel.ID.String() != "00000000-0000-0000-0000-000000000000" {
-		db.Where("channel_id = ?", channel.ID).Find(&videos)
+	var channel *models.Channel
+	var tempChannel models.Channel
+	if err := db.Where("owner_id = ?", userID).First(&tempChannel).Error; err == nil {
+		channel = &tempChannel
+		db.Where("channel_id = ?", tempChannel.ID).Find(&videos)
 	}
 
 	db.Where("creator_id = ?", userID).Find(&fanarts)
 
 	response := map[string]interface{}{
 		"user":    user,
-		"channel": channel,
+		"channel": channel, // Will be nil if no channel exists
 		"videos":  videos,
 		"fanarts": fanarts,
 	}

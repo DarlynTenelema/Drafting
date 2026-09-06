@@ -61,6 +61,11 @@ func PostComment(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	if len(req.Content) > 2000 {
+		http.Error(w, "El comentario no puede exceder los 2000 caracteres.", http.StatusBadRequest)
+		return
+	}
+
 	// 1. Phishing / Scam check
 	if strings.Contains(req.Content, "http://") || strings.Contains(req.Content, "https://") {
 		isPhishing, reason, err := gemini.AnalyzePhishing(r.Context(), req.Content)
@@ -186,6 +191,52 @@ func UpdateComment(w http.ResponseWriter, r *http.Request) {
 
 	if comment.UserID != user.ID {
 		http.Error(w, "Forbidden", http.StatusForbidden)
+		return
+	}
+
+	if len(req.Content) > 2000 {
+		http.Error(w, "El comentario no puede exceder los 2000 caracteres.", http.StatusBadRequest)
+		return
+	}
+
+	// 1. Phishing / Scam check
+	if strings.Contains(req.Content, "http://") || strings.Contains(req.Content, "https://") {
+		isPhishing, reason, err := gemini.AnalyzePhishing(r.Context(), req.Content)
+		if err == nil && isPhishing {
+			log.Printf("Phishing detected from user %s on update. Reason: %s", user.ID, reason)
+			newStrikes := user.Strikes + 1
+			updates := map[string]interface{}{"strikes": newStrikes}
+			if newStrikes >= 3 {
+				updates["is_pending_ban"] = true
+				banDate := time.Now().Add(7 * 24 * time.Hour)
+				updates["pending_ban_until"] = &banDate
+			}
+			database.DB.Model(&user).Updates(updates)
+			http.Error(w, "Enlace malicioso o de estafa bloqueado. Se te ha aplicado un strike.", http.StatusBadRequest)
+			return
+		}
+	}
+
+	// 2. Toxicity check
+	action, reason, err := gemini.AnalyzeToxicity(r.Context(), req.Content)
+	if err != nil {
+		action = "CLEAN"
+	}
+
+	if action == "STRIKE" {
+		log.Printf("AI Strike for user %s on update. Reason: %s", user.ID, reason)
+		newStrikes := user.Strikes + 1
+		updates := map[string]interface{}{
+			"strikes": newStrikes,
+		}
+		if newStrikes >= 3 {
+			updates["is_pending_ban"] = true
+			banDate := time.Now().Add(7 * 24 * time.Hour)
+			updates["pending_ban_until"] = &banDate
+		}
+		database.DB.Model(&user).Updates(updates)
+
+		http.Error(w, "Tu comentario viola las reglas de la comunidad y se te ha aplicado un strike.", http.StatusBadRequest)
 		return
 	}
 

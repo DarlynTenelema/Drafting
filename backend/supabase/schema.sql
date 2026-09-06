@@ -4,10 +4,27 @@ CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
 CREATE TABLE public.users (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    google_id VARCHAR(255) UNIQUE NOT NULL,
+    google_id VARCHAR(255) UNIQUE,
     email VARCHAR(255) NOT NULL,
+    username VARCHAR(255),
+    profile_pic VARCHAR(255),
+    password_hash VARCHAR(255),
+    device_id VARCHAR(255),
     session_token VARCHAR(255),
-    last_draft_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    stripe_account_id VARCHAR(255),
+    stripe_customer_id VARCHAR(255),
+    role VARCHAR(50) DEFAULT 'consumer' CHECK (role IN ('consumer', 'entrepreneur', 'admin')),
+    strikes INT DEFAULT 0,
+    banned BOOLEAN DEFAULT false,
+    is_pending_ban BOOLEAN DEFAULT false,
+    pending_ban_until TIMESTAMP WITH TIME ZONE,
+    has_used_creator_trial BOOLEAN DEFAULT false,
+    active_group_id UUID,
+    current_goal VARCHAR(255),
+    active_plan VARCHAR(50) DEFAULT 'freemium',
+    tokens_used_in_cycle INT DEFAULT 0,
+    last_token_reset_date TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    last_draft_at TIMESTAMP WITH TIME ZONE,
     subscription_ends_at TIMESTAMP WITH TIME ZONE DEFAULT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
@@ -72,11 +89,11 @@ INSERT INTO public.subscription_plans (id, price, duration_hours) VALUES
 -- Tabla de Transacciones de Pago (Payment Transactions)
 CREATE TABLE public.payment_transactions (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE RESTRICT,
     plan_id VARCHAR(50) NOT NULL REFERENCES public.subscription_plans(id),
     product_id VARCHAR(100) NOT NULL,
     purchase_token VARCHAR(512) NOT NULL UNIQUE,
-    amount DECIMAL(10, 2) NOT NULL,
+    amount DECIMAL(10, 2) NOT NULL CHECK (amount >= 0),
     status VARCHAR(50) NOT NULL DEFAULT 'pending',
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
@@ -116,7 +133,4 @@ INSERT INTO public.plan_token_limits (plan_id, token_limit, reset_period) VALUES
 -- (Plus y Pro no incluyen tokens para chat coach explícitos en el documento, 
 -- pero se pueden configurar aquí si se desea habilitar con un límite menor)
 
--- Modificar la tabla 'users' para llevar el conteo de consumo de tokens según el ciclo del plan
-ALTER TABLE public.users
-ADD COLUMN tokens_used_in_cycle INT DEFAULT 0,
-ADD COLUMN last_token_reset_date TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;
+-- Los tokens_used_in_cycle y last_token_reset_date ahora están en el CREATE TABLE principal.

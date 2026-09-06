@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_sign_in/google_sign_in.dart';
-import 'package:flutter/foundation.dart' show kIsWeb, PlatformDispatcher, FlutterError, FlutterErrorDetails;
+import 'package:flutter/foundation.dart' show kIsWeb, kReleaseMode, PlatformDispatcher, FlutterError, FlutterErrorDetails;
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'theme/app_theme.dart';
 import 'screens/splash_screen.dart';
@@ -9,6 +9,10 @@ import 'core/state/active_product_state.dart';
 import 'core/config/app_config.dart';
 
 void main() async {
+  if (kReleaseMode) {
+    debugPrint = (String? message, {int? wrapWidth}) {};
+  }
+
   runZonedGuarded(() async {
     WidgetsFlutterBinding.ensureInitialized();
 

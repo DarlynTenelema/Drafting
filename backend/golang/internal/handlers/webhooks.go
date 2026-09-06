@@ -121,6 +121,15 @@ func PlayStoreWebhook(w http.ResponseWriter, r *http.Request) {
 							log.Printf("[RTDN] Error updating User subscription_ends_at: %v", err)
 						} else {
 							log.Printf("[RTDN] Successfully updated expiry for user %s to %s", tx.UserID, t.String())
+							
+							// Process Renewal Payout to Entrepreneur (only on RENEWED = 2)
+							if notif.NotificationType == 2 {
+								if err := ProcessSubscriptionRenewal(notif.SubscriptionID, notif.PurchaseToken); err != nil {
+									log.Printf("[RTDN] Error processing renewal payout: %v", err)
+								} else {
+									log.Printf("[RTDN] Successfully processed renewal payout for token %s", notif.PurchaseToken)
+								}
+							}
 						}
 					} else {
 						log.Printf("[RTDN] Could not find PaymentTransaction for token %s", notif.PurchaseToken)

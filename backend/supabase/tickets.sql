@@ -6,9 +6,9 @@ CREATE TABLE IF NOT EXISTS public.tickets (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
     subject VARCHAR(255) NOT NULL,
-    ticket_type VARCHAR(50) NOT NULL, -- 'bug', 'fraud', 'support', 'other'
-    status VARCHAR(50) NOT NULL DEFAULT 'open', -- 'open', 'in_progress', 'resolved', 'closed'
-    priority VARCHAR(50) NOT NULL DEFAULT 'medium', -- 'low', 'medium', 'high', 'urgent'
+    ticket_type VARCHAR(50) NOT NULL CHECK (ticket_type IN ('bug', 'fraud', 'support', 'other')),
+    status VARCHAR(50) NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'in_progress', 'resolved', 'closed')),
+    priority VARCHAR(50) NOT NULL DEFAULT 'medium' CHECK (priority IN ('low', 'medium', 'high', 'urgent')),
     assigned_admin_id UUID REFERENCES public.users(id) ON DELETE SET NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
@@ -32,6 +32,7 @@ CREATE TABLE IF NOT EXISTS public.ticket_messages (
     ticket_id UUID NOT NULL REFERENCES public.tickets(id) ON DELETE CASCADE,
     sender_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
     message TEXT NOT NULL,
+    evidence_url VARCHAR(512),
     is_internal_note BOOLEAN DEFAULT false, -- Para que los admins dejen notas privadas
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );

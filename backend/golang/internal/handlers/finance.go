@@ -215,10 +215,10 @@ func SubscribeToGroup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Verify the product purchase
+	// Verify the subscription purchase
 	if playStoreVerifier != nil && playStoreVerifier.Enabled() {
-		if err := playStoreVerifier.VerifyProductPurchase(r.Context(), req.SubscriptionID, req.PurchaseToken); err != nil {
-			http.Error(w, "Product verification failed: "+err.Error(), http.StatusPaymentRequired)
+		if _, err := playStoreVerifier.VerifySubscriptionPurchase(r.Context(), req.SubscriptionID, req.PurchaseToken); err != nil {
+			http.Error(w, "Subscription verification failed: "+err.Error(), http.StatusPaymentRequired)
 			return
 		}
 	}
@@ -461,10 +461,10 @@ func SubscribeToCreator(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Verify the product purchase (since they are consumables/in-app products)
+	// Verify the subscription purchase
 	if playStoreVerifier != nil && playStoreVerifier.Enabled() {
-		if err := playStoreVerifier.VerifyProductPurchase(r.Context(), req.SubscriptionID, req.PurchaseToken); err != nil {
-			http.Error(w, "Product verification failed: "+err.Error(), http.StatusPaymentRequired)
+		if _, err := playStoreVerifier.VerifySubscriptionPurchase(r.Context(), req.SubscriptionID, req.PurchaseToken); err != nil {
+			http.Error(w, "Subscription verification failed: "+err.Error(), http.StatusPaymentRequired)
 			return
 		}
 	}
@@ -623,6 +623,133 @@ func SubscribeToCreator(w http.ResponseWriter, r *http.Request) {
 		"message":    "Subscribed to creator successfully.",
 		"creator_id": profileID,
 	})
+}
+
+// ProcessSubscriptionRenewal is called by the RTDN webhook when a consumer's subscription renews.
+// It calculates and distributes the revenue share to the appropriate entrepreneur.
+func ProcessSubscriptionRenewal(productID string, purchaseToken string) error {
+	hash := sha256.Sum256([]byte(purchaseToken))
+	tokenHash := hex.EncodeToString(hash[:])
+
+	// Find the original consumer purchase transaction to determine the RelatedEntityID
+	var buyerTx models.Transaction
+	if err := database.DB.Where("purchase_token = ? AND type = 'purchase_ai_package'", tokenHash).First(&buyerTx).Error; err != nil {
+		return err // Cannot find who this subscription belongs to
+	}
+
+	if buyerTx.RelatedEntityID == nil {
+		return errors.New("transaction has no related entity")
+	}
+	entityID := *buyerTx.RelatedEntityID
+
+	// Determine if it's a Group or OTP
+	var group models.Group
+	isGroup := database.DB.Where("id = ?", entityID).First(&group).Error == nil
+
+	var otp models.OTPProfile
+	isOTP := false
+	if !isGroup {
+		isOTP = database.DB.Where("id = ?", entityID).First(&otp).Error == nil
+	}
+
+	if !isGroup && !isOTP {
+		return errors.New("related entity not found in group or otp")
+	}
+
+	gross := getPriceForProduct(productID)
+	if gross <= 0 {
+		gross = 9.99
+	}
+	netFromGoogle := gross * 0.85
+	
+	tx := database.DB.Begin()
+
+	if isGroup {
+		entSplit := getPlanSplitPercentage(group.SubscriptionPlan)
+		entrepreneurShare := netFromGoogle * entSplit
+		
+		planPrice := 0.0
+		if parsed, err := strconv.ParseFloat(group.SubscriptionPlan, 64); err == nil {
+			planPrice = parsed
+		}
+		geminiPercentage := 0.05 + (planPrice * 0.0005)
+		apiCost := gross * geminiPercentage
+		finalEntrepreneurPayout := entrepreneurShare - apiCost
+
+		// Find members
+		var invitations []models.GroupInvitation
+		tx.Where("group_id = ? AND status = ?", group.ID, "accepted").Find(&invitations)
+		memberIDs := []uuid.UUID{group.OwnerID}
+		for _, inv := range invitations {
+			var member models.User
+			if err := tx.Where("email = ?", inv.Email).First(&member).Error; err == nil {
+				memberIDs = append(memberIDs, member.ID)
+			}
+		}
+
+		splitAmount := finalEntrepreneurPayout / float64(len(memberIDs))
+
+		for _, mID := range memberIDs {
+			var wallet models.Wallet
+			if err := tx.Where("user_id = ?", mID).First(&wallet).Error; err != nil {
+				wallet = models.Wallet{UserID: mID}
+				tx.Create(&wallet)
+			}
+			tx.Model(&wallet).UpdateColumn("balance_usd", gorm.Expr("balance_usd + ?", splitAmount))
+
+			transaction := models.Transaction{
+				UserID:    mID,
+				Type:      "subscription_renewal_payout",
+				AmountUSD: splitAmount,
+				Status:    "completed",
+			}
+			tx.Create(&transaction)
+		}
+	} else if isOTP {
+		entSplit := getPlanSplitPercentage(otp.SubscriptionPlan)
+		entrepreneurShare := netFromGoogle * entSplit
+		
+		planPrice := 0.0
+		if parsed, err := strconv.ParseFloat(otp.SubscriptionPlan, 64); err == nil {
+			planPrice = parsed
+		}
+		geminiPercentage := 0.05
+		if strings.Contains(strings.ToLower(otp.SubscriptionPlan), "grupo") {
+			geminiPercentage += (planPrice * 0.0005)
+		} else {
+			geminiPercentage += (planPrice * 0.005)
+		}
+		apiCost := gross * geminiPercentage
+		finalEntrepreneurPayout := entrepreneurShare - apiCost
+
+		var entWallet models.Wallet
+		if err := tx.Where("user_id = ?", otp.OwnerID).First(&entWallet).Error; err != nil {
+			entWallet = models.Wallet{UserID: otp.OwnerID}
+			tx.Create(&entWallet)
+		}
+		tx.Model(&entWallet).UpdateColumn("balance_usd", gorm.Expr("balance_usd + ?", finalEntrepreneurPayout))
+
+		transaction := models.Transaction{
+			UserID:    otp.OwnerID,
+			Type:      "subscription_renewal_payout",
+			AmountUSD: finalEntrepreneurPayout,
+			Status:    "completed",
+		}
+		tx.Create(&transaction)
+	}
+
+	// Create Renewal PaymentTransaction for record keeping
+	paymentTx := models.PaymentTransaction{
+		UserID:        buyerTx.UserID,
+		PlanID:        productID,
+		ProductID:     productID,
+		PurchaseToken: purchaseToken,
+		Amount:        gross,
+		Status:        "renewed",
+	}
+	tx.Create(&paymentTx)
+
+	return tx.Commit().Error
 }
 
 type PurchaseFanartRequest struct {

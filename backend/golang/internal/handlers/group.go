@@ -2,10 +2,11 @@ package handlers
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 
-
 	"backend/internal/database"
+	"backend/internal/gemini"
 	"backend/internal/middleware"
 	"backend/internal/models"
 )
@@ -26,6 +27,46 @@ func SaveChampionData(w http.ResponseWriter, r *http.Request) {
 	user, ok := r.Context().Value(middleware.UserContextKey).(*models.User)
 	if !ok || (user.Role != "entrepreneur" && user.Role != "creator") {
 		http.Error(w, "Unauthorized. Only entrepreneurs and creators can save champion data.", http.StatusUnauthorized)
+		return
+	}
+
+	if user.Banned {
+		http.Error(w, "Cuenta suspendida permanentemente por múltiples infracciones", http.StatusForbidden)
+		return
+	}
+
+	if len(req.Rules) > 5000 {
+		http.Error(w, "Las reglas exceden el límite permitido de 5000 caracteres.", http.StatusBadRequest)
+		return
+	}
+
+	// Moderate Text using Gemini
+	approved, reason, err := gemini.ModerateText(r.Context(), req.Rules)
+	if err != nil {
+		http.Error(w, "Error al moderar el contenido", http.StatusInternalServerError)
+		return
+	}
+
+	if !approved {
+		user.Strikes++
+		if user.Strikes >= 5 {
+			user.Banned = true
+		}
+		database.DB.Save(user)
+
+		msg := fmt.Sprintf("Contenido rechazado. Razón: %s. Strike %d/5.", reason, user.Strikes)
+		if user.Banned {
+			msg = "Cuenta suspendida permanentemente por acumular 5 strikes."
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"error":   true,
+			"message": msg,
+			"strikes": user.Strikes,
+			"banned":  user.Banned,
+		})
 		return
 	}
 

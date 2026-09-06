@@ -136,6 +136,11 @@ func UpdateGroupInfo(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if len(req.Name) > 50 {
+		http.Error(w, "El nombre no puede exceder los 50 caracteres.", http.StatusBadRequest)
+		return
+	}
+
 	user, ok := r.Context().Value(middleware.UserContextKey).(*models.User)
 	if !ok {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)

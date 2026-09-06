@@ -27,7 +27,7 @@ with check ( bucket_id = 'fanarts' );
 -- 5. Permitir a los usuarios editar/eliminar sus propios archivos
 create policy "Users can update their own fanarts"
 on storage.objects for update
-with check ( bucket_id = 'fanarts' );
+using ( bucket_id = 'fanarts' AND auth.uid() = owner );
 create policy "Users can delete their own fanarts"
 on storage.objects for delete
-with check ( bucket_id = 'fanarts' );
+using ( bucket_id = 'fanarts' AND auth.uid() = owner );

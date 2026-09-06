@@ -3,9 +3,9 @@
 
 CREATE TABLE IF NOT EXISTS public.suspicious_transactions (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE RESTRICT,
     transaction_id VARCHAR(255), -- Referencia opcional a un ID de pago o retiro en Stripe/PlayStore
-    amount DECIMAL(10, 2) NOT NULL,
+    amount DECIMAL(10, 2) NOT NULL CHECK (amount >= 0),
     transaction_type VARCHAR(50) NOT NULL, -- 'chargeback', 'mass_withdrawal', 'suspicious_payment'
     status VARCHAR(50) NOT NULL DEFAULT 'pending', -- 'pending', 'resolved_refunded', 'resolved_banned', 'ignored'
     reason TEXT NOT NULL, -- Detalle del por qué se marcó como sospechoso

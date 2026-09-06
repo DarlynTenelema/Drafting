@@ -65,9 +65,8 @@ func GroupSuggestionsWithAI(w http.ResponseWriter, r *http.Request) {
 	db := database.GetDB()
 	var suggestions []models.Suggestion
 
-	// Only group "pending" suggestions, for example status 'new' or 'open'
-	// Since we don't know the exact schema, let's just fetch all or where status='open'
-	if err := db.Find(&suggestions).Error; err != nil {
+	// Only group "pending" suggestions, limit to 100 to prevent API token limits and memory issues
+	if err := db.Where("status = ?", "pending").Limit(100).Find(&suggestions).Error; err != nil {
 		http.Error(w, "Failed to fetch suggestions", http.StatusInternalServerError)
 		return
 	}

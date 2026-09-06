@@ -3,14 +3,14 @@
 
 CREATE TABLE IF NOT EXISTS public.content_reports (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    video_id UUID NOT NULL REFERENCES public.video_embeds(id) ON DELETE CASCADE,
     reporter_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
-    content_id UUID NOT NULL, -- UUID del VideoEmbed o Fanart
-    content_type VARCHAR(50) NOT NULL, -- 'video', 'fanart', 'channel'
-    reason VARCHAR(50) NOT NULL, -- 'nsfw', 'copyright', 'spam', 'harassment', 'other'
-    details TEXT,
-    status VARCHAR(50) NOT NULL DEFAULT 'pending', -- 'pending', 'resolved_deleted', 'resolved_kept'
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    reason VARCHAR(255) NOT NULL,
+    proof_url VARCHAR(512),
+    status VARCHAR(50) NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'resolved', 'rejected')),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX IF NOT EXISTS idx_content_reports_content_id ON public.content_reports(content_id);
-CREATE INDEX IF NOT EXISTS idx_content_reports_status ON public.content_reports(status);
+CREATE INDEX IF NOT EXISTS idx_content_reports_video_id ON public.content_reports(video_id);
+CREATE INDEX IF NOT EXISTS idx_content_reports_reporter_id ON public.content_reports(reporter_id);

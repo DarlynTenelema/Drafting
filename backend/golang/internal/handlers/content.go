@@ -38,11 +38,16 @@ func CreateChannel(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if len(req.Name) > 200 {
+		http.Error(w, "El nombre no puede exceder los 200 caracteres.", http.StatusBadRequest)
+		return
+	}
+
 	channel := models.Channel{
 		OwnerID: user.ID,
 		Name:    req.Name,
 		LogoURL: req.LogoURL,
-		Status:  "approved",
+		Status:  "pending",
 	}
 
 	if err := database.DB.Create(&channel).Error; err != nil {
@@ -180,6 +185,15 @@ func SubmitVideo(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if len(req.Description) > 5000 {
+		http.Error(w, "La descripción excede el límite de 5000 caracteres.", http.StatusBadRequest)
+		return
+	}
+	if len(req.Title) > 200 {
+		http.Error(w, "El título excede el límite de 200 caracteres.", http.StatusBadRequest)
+		return
+	}
+
 	title := req.Title
 	description := req.Description
 	tags := req.Tags
@@ -264,6 +278,36 @@ func SubmitVideo(w http.ResponseWriter, r *http.Request) {
 					})
 					return
 				}
+	} else {
+		// Moderar videos externos que no sean de YouTube usando solo texto
+		approved, reason, err := gemini.ModerateText(r.Context(), title + "\n" + description + "\n" + tags)
+		if err != nil {
+			http.Error(w, "El servicio de moderación de IA no está disponible.", http.StatusServiceUnavailable)
+			return
+		}
+
+		if !approved {
+			user.Strikes++
+			if user.Strikes >= 5 {
+				user.Banned = true
+			}
+			database.DB.Save(user)
+
+			msg := fmt.Sprintf("Video externo rechazado. Razón: %s. Strike %d/5.", reason, user.Strikes)
+			if user.Banned {
+				msg = "Cuenta suspendida permanentemente por acumular 5 strikes."
+			}
+
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"error":   true,
+				"message": msg,
+				"strikes": user.Strikes,
+				"banned":  user.Banned,
+			})
+			return
+		}
 	}
 
 	video := models.VideoEmbed{
@@ -539,6 +583,15 @@ func UpdateChannel(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if len(req.Name) > 200 {
+		http.Error(w, "El nombre no puede exceder los 200 caracteres.", http.StatusBadRequest)
+		return
+	}
+	if len(req.Description) > 1000 {
+		http.Error(w, "La descripción no puede exceder los 1000 caracteres.", http.StatusBadRequest)
+		return
+	}
+
 	user, ok := r.Context().Value(middleware.UserContextKey).(*models.User)
 	if !ok {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
@@ -640,6 +693,45 @@ func UpdateVideo(w http.ResponseWriter, r *http.Request) {
 	var video models.VideoEmbed
 	if err := database.DB.Where("id = ?", req.VideoID).First(&video).Error; err != nil {
 		http.Error(w, "Video not found", http.StatusNotFound)
+		return
+	}
+
+	if len(req.Description) > 5000 {
+		http.Error(w, "La descripción excede el límite de 5000 caracteres.", http.StatusBadRequest)
+		return
+	}
+	if len(req.Title) > 200 {
+		http.Error(w, "El título excede el límite de 200 caracteres.", http.StatusBadRequest)
+		return
+	}
+
+	// Moderación al editar
+	approved, reason, err := gemini.ModerateText(r.Context(), req.Title + "\n" + req.Description + "\n" + req.Tags)
+	if err != nil {
+		http.Error(w, "El servicio de moderación de IA no está disponible.", http.StatusServiceUnavailable)
+		return
+	}
+
+	if !approved {
+		user.Strikes++
+		if user.Strikes >= 5 {
+			user.Banned = true
+		}
+		database.DB.Save(user)
+
+		msg := fmt.Sprintf("Edición de video rechazada. Razón: %s. Strike %d/5.", reason, user.Strikes)
+		if user.Banned {
+			msg = "Cuenta suspendida permanentemente por acumular 5 strikes."
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"error":   true,
+			"message": msg,
+			"strikes": user.Strikes,
+			"banned":  user.Banned,
+		})
 		return
 	}
 
