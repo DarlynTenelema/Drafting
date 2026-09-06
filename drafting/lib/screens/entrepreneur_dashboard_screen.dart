@@ -56,7 +56,29 @@ class _EntrepreneurDashboardScreenState extends State<EntrepreneurDashboardScree
       setState(() {
         _savedModels = models;
         _isLoadingModels = false;
+        if (_selectedChampion != null) {
+          _loadModelIntoForm(_selectedChampion!);
+        }
       });
+    }
+  }
+
+  void _loadModelIntoForm(String champion) {
+    final model = _savedModels.firstWhere(
+      (m) => m['champion_name'] == champion,
+      orElse: () => <String, dynamic>{},
+    );
+    if (model.isNotEmpty) {
+      _earlyGameCtrl.text = model['early_game_strategy'] ?? '';
+      _lateGameCtrl.text = model['late_game_strategy'] ?? '';
+      _combosCtrl.text = model['combos'] ?? '';
+      _synergiesCtrl.text = model['synergies'] ?? '';
+      _countersCtrl.text = model['counters'] ?? '';
+      _coreBuildCtrl.text = model['core_build'] ?? '';
+      _runesCtrl.text = model['spells_and_runes'] ?? '';
+      _situationalCtrl.text = model['situational_items'] ?? '';
+    } else {
+      _clearForm();
     }
   }
 
@@ -71,6 +93,10 @@ class _EntrepreneurDashboardScreenState extends State<EntrepreneurDashboardScree
         }
         _selectedChampion = _champions.first;
         _isLoadingChampions = false;
+        
+        if (!_isLoadingModels) {
+          _loadModelIntoForm(_selectedChampion!);
+        }
       });
     }
   }
@@ -395,8 +421,7 @@ class _EntrepreneurDashboardScreenState extends State<EntrepreneurDashboardScree
                       onChanged: (String? newValue) {
                         setState(() {
                           _selectedChampion = newValue!;
-                          // Here we could load existing data for the selected champion if we had it cached
-                          _clearForm();
+                          _loadModelIntoForm(newValue);
                         });
                       },
                     ),

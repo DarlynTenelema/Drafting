@@ -111,3 +111,54 @@ func SaveAIModel(w http.ResponseWriter, r *http.Request) {
 		"message": "Modelo IA guardado y entrenado exitosamente",
 	})
 }
+
+// GetAllAIModels returns all models created by this user
+func GetAllAIModels(w http.ResponseWriter, r *http.Request) {
+	user, ok := r.Context().Value(middleware.UserContextKey).(*models.User)
+	if !ok {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	var aiModels []models.AIModel
+	if err := database.DB.Where("creator_id = ?", user.ID).Find(&aiModels).Error; err != nil {
+		http.Error(w, "Error fetching models", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(aiModels)
+}
+
+// UpdateAIModel updates an existing AI model
+func UpdateAIModel(w http.ResponseWriter, r *http.Request) {
+	// Re-uses SaveAIModel logic for now since it does an Upsert
+	SaveAIModel(w, r)
+}
+
+// DeleteAIModel deletes an AI model for the user
+func DeleteAIModel(w http.ResponseWriter, r *http.Request) {
+	user, ok := r.Context().Value(middleware.UserContextKey).(*models.User)
+	if !ok {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	var req struct {
+		ChampionName string `json:"champion_name"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	if err := database.DB.Where("creator_id = ? AND champion_name = ?", user.ID, req.ChampionName).Delete(&models.AIModel{}).Error; err != nil {
+		http.Error(w, "Error deleting model", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"success": true,
+	})
+}
