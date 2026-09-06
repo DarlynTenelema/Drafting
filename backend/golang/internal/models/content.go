@@ -31,10 +31,10 @@ func (c *Channel) BeforeCreate(tx *gorm.DB) (err error) {
 type VideoEmbed struct {
 	ID          uuid.UUID `gorm:"type:uuid;primary_key;default:gen_random_uuid()"`
 	ChannelID   uuid.UUID `gorm:"type:uuid;not null;index"`
-	Title       string    `gorm:"type:varchar(255);not null"`
+	Title       string    `gorm:"type:text;not null"`
 	Description string    `gorm:"type:text"`
 	VideoURL    string    `gorm:"type:varchar(512);not null;unique"` // YouTube or Twitch URL. Unique to prevent re-uploads
-	Tags        string    `gorm:"type:varchar(255)"` // Comma separated
+	Tags        string    `gorm:"type:text"` // Comma separated
 	Views       int       `gorm:"default:0"`
 	Status      string    `gorm:"type:varchar(50);default:'pending'"` // pending, approved, rejected
 	CreatedAt   time.Time
@@ -55,7 +55,7 @@ type Fanart struct {
 	ImageURL  string    `gorm:"type:varchar(512);not null" json:"image_url"`
 	PriceEssence float64   `gorm:"type:decimal(10,2);not null" json:"price_essence"` // Price in Blue Essences
 	Status    string    `gorm:"type:varchar(50);default:'pending';index" json:"status"` // pending, approved, rejected
-	Tags      string    `gorm:"type:varchar(255)" json:"tags"` // Comma separated
+	Tags      string    `gorm:"type:text" json:"tags"` // Comma separated
 	Likes     int       `gorm:"default:0" json:"likes"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`

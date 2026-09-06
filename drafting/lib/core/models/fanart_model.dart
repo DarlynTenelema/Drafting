@@ -42,7 +42,7 @@ class FanartModel {
       creatorId: json['creator_id'] ?? json['CreatorID'] ?? '',
       title: json['title'] ?? json['Title'] ?? 'Sin Título',
       imageUrl: json['image_url'] ?? json['ImageURL'] ?? '',
-      priceCoin: (json['price_coin'] ?? json['PriceCoin'] as num?)?.toDouble() ?? 0.0,
+      priceCoin: (json['price_essence'] ?? json['PriceEssence'] ?? json['price_coin'] ?? json['PriceCoin'] as num?)?.toDouble() ?? 0.0,
       status: json['status'] ?? json['Status'] ?? 'approved',
       createdAt: (json['created_at'] ?? json['CreatedAt']) != null 
           ? DateTime.tryParse(json['created_at'] ?? json['CreatedAt']) ?? DateTime.now() 
