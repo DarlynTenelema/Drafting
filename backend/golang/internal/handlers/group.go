@@ -242,12 +242,22 @@ func CreateGroup(w http.ResponseWriter, r *http.Request) {
 	// 2. Validate Payment
 	isEligible := checkUserEligibility(user)
 	
-	if req.PurchaseToken == "" || req.ProductID == "" {
-		http.Error(w, "Payment required and Product ID must be provided.", http.StatusPaymentRequired)
+	if req.PurchaseToken == "" && !isEligible {
+		http.Error(w, "Payment required. You are not eligible for a free trial.", http.StatusPaymentRequired)
 		return
 	}
 	
-	if playStoreVerifier != nil && playStoreVerifier.Enabled() {
+	if req.ProductID == "" {
+		http.Error(w, "Product ID must be provided.", http.StatusBadRequest)
+		return
+	}
+
+	purchaseToken := req.PurchaseToken
+	if purchaseToken == "" {
+		purchaseToken = "trial_grp_" + user.ID.String() + "_" + time.Now().Format("20060102150405")
+	}
+	
+	if playStoreVerifier != nil && playStoreVerifier.Enabled() && req.PurchaseToken != "" {
 		// Enforces that the purchase token belongs to the given product ID
 		if _, err := playStoreVerifier.VerifySubscriptionPurchase(r.Context(), req.ProductID, req.PurchaseToken); err != nil {
 			http.Error(w, "Payment verification failed: "+err.Error(), http.StatusPaymentRequired)
@@ -257,7 +267,7 @@ func CreateGroup(w http.ResponseWriter, r *http.Request) {
 
 	// Security Check: Prevent PurchaseToken reuse (Replay Attack)
 	var existingTx models.PaymentTransaction
-	if err := database.DB.Where("purchase_token = ?", req.PurchaseToken).First(&existingTx).Error; err == nil {
+	if err := database.DB.Where("purchase_token = ?", purchaseToken).First(&existingTx).Error; err == nil {
 		http.Error(w, "Este recibo de compra ya ha sido procesado anteriormente. No puedes reusarlo.", http.StatusConflict)
 		return
 	}
@@ -359,12 +369,17 @@ func CreateOTPProfile(w http.ResponseWriter, r *http.Request) {
 	// Validate Payment
 	isEligible := checkUserEligibility(user)
 	
-	if req.PurchaseToken == "" || req.ProductID == "" {
-		http.Error(w, "Payment required and Product ID must be provided.", http.StatusPaymentRequired)
+	if req.PurchaseToken == "" && !isEligible {
+		http.Error(w, "Payment required. You are not eligible for a free trial.", http.StatusPaymentRequired)
 		return
 	}
 	
-	if playStoreVerifier != nil && playStoreVerifier.Enabled() {
+	if req.ProductID == "" {
+		http.Error(w, "Product ID must be provided.", http.StatusBadRequest)
+		return
+	}
+	
+	if playStoreVerifier != nil && playStoreVerifier.Enabled() && req.PurchaseToken != "" {
 		// Enforces that the purchase token belongs to the given product ID
 		if _, err := playStoreVerifier.VerifySubscriptionPurchase(r.Context(), req.ProductID, req.PurchaseToken); err != nil {
 			http.Error(w, "Payment verification failed: "+err.Error(), http.StatusPaymentRequired)
@@ -372,9 +387,14 @@ func CreateOTPProfile(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	purchaseToken := req.PurchaseToken
+	if purchaseToken == "" {
+		purchaseToken = "trial_otp_" + user.ID.String() + "_" + time.Now().Format("20060102150405")
+	}
+
 	// Security Check: Prevent PurchaseToken reuse (Replay Attack)
 	var existingTx models.PaymentTransaction
-	if err := database.DB.Where("purchase_token = ?", req.PurchaseToken).First(&existingTx).Error; err == nil {
+	if err := database.DB.Where("purchase_token = ?", purchaseToken).First(&existingTx).Error; err == nil {
 		http.Error(w, "Este recibo de compra ya ha sido procesado anteriormente. No puedes reusarlo.", http.StatusConflict)
 		return
 	}
@@ -400,7 +420,7 @@ func CreateOTPProfile(w http.ResponseWriter, r *http.Request) {
 		ProductImage:     req.ProductImage,
 		PrivateJSONData:  "{}",
 		IsActive:         true, // Active immediately for Free Month
-		PurchaseToken:    req.PurchaseToken,
+		PurchaseToken:    purchaseToken,
 	}
 
 	if err := database.DB.Create(&otp).Error; err != nil {
@@ -413,7 +433,7 @@ func CreateOTPProfile(w http.ResponseWriter, r *http.Request) {
 		UserID:        user.ID,
 		PlanID:        req.ProductID,
 		ProductID:     req.ProductID,
-		PurchaseToken: req.PurchaseToken,
+		PurchaseToken: purchaseToken,
 		Amount:        getPriceForProduct(req.ProductID),
 		Status:        "completed",
 	}
