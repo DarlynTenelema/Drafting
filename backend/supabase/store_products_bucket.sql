@@ -24,10 +24,10 @@ on storage.objects for select
 to anon
 using ( bucket_id = 'store_products' );
 
--- 4. Permitir subir imágenes solo a usuarios autenticados
-create policy "Authenticated users can upload store_products"
+-- 4. Permitir subir imágenes a usuarios (anonimos porque la app usa Go para Auth, no Supabase directamente)
+create policy "Anon users can upload store_products"
 on storage.objects for insert
-to authenticated
+to anon
 with check ( bucket_id = 'store_products' );
 
 -- 5. Permitir a los usuarios editar/eliminar sus propios archivos (basado en el token JWT / user id)
