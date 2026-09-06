@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../theme/app_theme.dart';
+import '../core/constants/app_constants.dart';
 import '../core/services/finance_service.dart';
 import '../core/services/entrepreneur_service.dart';
 import 'withdraw_screen.dart';
@@ -494,13 +495,17 @@ class _EntrepreneurDashboardScreenState extends State<EntrepreneurDashboardScree
               title: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(
-                    championName,
-                    style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18),
+                  Expanded(
+                    child: Text(
+                      championName,
+                      style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18),
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
+                  const SizedBox(width: 8),
                   Text(
-                    date.toString().split(' ').first,
-                    style: GoogleFonts.inter(color: AppTheme.textMuted, fontSize: 14),
+                    date.toString().length > 10 ? date.toString().substring(0, 10) : date.toString(),
+                    style: GoogleFonts.inter(color: Colors.white54, fontSize: 12),
                   ),
                 ],
               ),
@@ -905,16 +910,67 @@ class _EntrepreneurDashboardScreenState extends State<EntrepreneurDashboardScree
         return AlertDialog(
           backgroundColor: AppTheme.surface,
           title: Text('Añadir Nuevo Campeón', style: GoogleFonts.outfit(color: Colors.white)),
-          content: TextField(
-            style: const TextStyle(color: Colors.white),
-            decoration: InputDecoration(
-              hintText: 'Nombre del campeón (Ej. Yasuo)',
-              hintStyle: const TextStyle(color: Colors.white30),
-              filled: true,
-              fillColor: AppTheme.background,
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: Autocomplete<String>(
+              optionsBuilder: (TextEditingValue textEditingValue) {
+                if (textEditingValue.text == '') {
+                  return AppConstants.wildRiftChampions;
+                }
+                return AppConstants.wildRiftChampions.where((String option) {
+                  return option.toLowerCase().contains(textEditingValue.text.toLowerCase());
+                });
+              },
+              onSelected: (String selection) {
+                newChampion = selection;
+              },
+              fieldViewBuilder: (context, textEditingController, focusNode, onFieldSubmitted) {
+                return TextField(
+                  controller: textEditingController,
+                  focusNode: focusNode,
+                  style: const TextStyle(color: Colors.white),
+                  decoration: InputDecoration(
+                    hintText: 'Buscar campeón...',
+                    hintStyle: const TextStyle(color: Colors.white30),
+                    filled: true,
+                    fillColor: AppTheme.background,
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                    icon: const Icon(Icons.search, color: Colors.white30),
+                  ),
+                  onChanged: (val) => newChampion = val,
+                );
+              },
+              optionsViewBuilder: (context, onSelected, options) {
+                return Align(
+                  alignment: Alignment.topLeft,
+                  child: Material(
+                    color: AppTheme.surface,
+                    elevation: 4.0,
+                    borderRadius: BorderRadius.circular(12),
+                    child: SizedBox(
+                      width: 250,
+                      child: ListView.builder(
+                        padding: const EdgeInsets.all(8.0),
+                        shrinkWrap: true,
+                        itemCount: options.length,
+                        itemBuilder: (BuildContext context, int index) {
+                          final String option = options.elementAt(index);
+                          return GestureDetector(
+                            onTap: () {
+                              onSelected(option);
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.all(16.0),
+                              child: Text(option, style: const TextStyle(color: Colors.white)),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ),
+                );
+              },
             ),
-            onChanged: (val) => newChampion = val,
           ),
           actions: [
             TextButton(

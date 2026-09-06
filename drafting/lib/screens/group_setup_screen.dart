@@ -39,7 +39,7 @@ class _GroupSetupScreenState extends State<GroupSetupScreen> {
 
   // State
   final List<InvitedMember> _invitedMembers = [];
-  final Map<String, String> _configuredChampions = {};
+  final Map<String, Map<String, dynamic>> _configuredChampions = {};
   
   final TextEditingController _emailController = TextEditingController();
   String _selectedChampion = 'Ahri';
@@ -229,38 +229,42 @@ class _GroupSetupScreenState extends State<GroupSetupScreen> {
       return;
     }
 
-    final rules = """
-Early Game: ${_earlyGameCtrl.text}
-Late Game: ${_lateGameCtrl.text}
-Synergies: ${_synergiesCtrl.text}
-Counters: ${_countersCtrl.text}
-Build: ${_buildCtrl.text}
-Runes/Spells: ${_runesCtrl.text}
-Situational: ${_situationalCtrl.text}
-""";
+    final Map<String, dynamic> championData = {
+      'champion_name': _selectedChampion,
+      'early_game_strategy': _earlyGameCtrl.text,
+      'late_game_strategy': _lateGameCtrl.text,
+      'synergies': _synergiesCtrl.text,
+      'counters': _countersCtrl.text,
+      'core_build': _buildCtrl.text,
+      'spells_and_runes': _runesCtrl.text,
+      'situational_items': _situationalCtrl.text,
+    };
 
     // Muestra que está analizando
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Analizando textos con IA de Moderación...')),
     );
 
-    // Call backend endpoint which acts as Gemini 2.5 filter
-    final result = await EntrepreneurService().saveChampionData(_selectedChampion, rules);
+    // We can simulate passing the concatenated text to the moderation backend, or just send the Map.
+    // For now, EntrepreneurService().saveAIModel performs the same moderation in the backend!
+    final result = await EntrepreneurService().saveAIModel(championData);
     if (!mounted) return;
 
-    if (result['success']) {
+    if (result['success'] == true) {
       setState(() {
-        _configuredChampions[_selectedChampion] = rules;
-        _earlyGameCtrl.clear();
-        _lateGameCtrl.clear();
-        _situationalCtrl.clear();
-        _synergiesCtrl.clear();
-        _countersCtrl.clear();
-        _buildCtrl.clear();
-        _runesCtrl.clear();
+        _configuredChampions[_selectedChampion] = championData;
       });
+      
+      _earlyGameCtrl.clear();
+      _lateGameCtrl.clear();
+      _synergiesCtrl.clear();
+      _countersCtrl.clear();
+      _buildCtrl.clear();
+      _runesCtrl.clear();
+      _situationalCtrl.clear();
+
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('¡$_selectedChampion validado y guardado exitosamente!')),
+        SnackBar(content: Text('¡Conocimiento de $_selectedChampion guardado y aprobado!')),
       );
     } else {
       bool isBanned = result['banned'] == true;
@@ -846,18 +850,11 @@ Situational: ${_situationalCtrl.text}
 
       if (result['success'] == true) {
         if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Paso 3: Guardando configuraciones...')));
-        // Save all champions concurrently to prevent 15-minute loading times
-        final futures = _configuredChampions.entries.map((entry) {
-          return EntrepreneurService().saveChampionData(entry.key, entry.value);
-        });
-        final results = await Future.wait(futures);
         
-        if (mounted && results.contains(false)) {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-            content: Text('El perfil se creó, pero algunos campeones no se guardaron correctamente debido a la red. Podrás agregarlos desde tu panel.'),
-            duration: Duration(seconds: 5),
-          ));
-        }
+        // AI models were already saved incrementally via _saveChampion.
+        // If we want to link them or do something else, we can do it here.
+        // For now, they are safely stored in the AIModel table.
+        
         if (mounted) {
           if (_loadingContext != null) {
             Navigator.pop(_loadingContext!);
