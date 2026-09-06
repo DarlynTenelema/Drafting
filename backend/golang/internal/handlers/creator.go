@@ -20,6 +20,7 @@ type SaveAIModelRequest struct {
 	Counters          string `json:"counters"`
 	CoreBuild         string `json:"core_build"`
 	SpellsAndRunes    string `json:"spells_and_runes"`
+	SituationalItems  string `json:"situational_items"`
 }
 
 func SaveAIModel(w http.ResponseWriter, r *http.Request) {
@@ -85,6 +86,7 @@ func SaveAIModel(w http.ResponseWriter, r *http.Request) {
 		Counters:          req.Counters,
 		CoreBuild:         req.CoreBuild,
 		SpellsAndRunes:    req.SpellsAndRunes,
+		SituationalItems:  req.SituationalItems,
 	}
 
 	// Upsert based on CreatorID and ChampionName if you want one per champ, 
@@ -99,6 +101,7 @@ func SaveAIModel(w http.ResponseWriter, r *http.Request) {
 		existing.Counters = req.Counters
 		existing.CoreBuild = req.CoreBuild
 		existing.SpellsAndRunes = req.SpellsAndRunes
+		existing.SituationalItems = req.SituationalItems
 		database.DB.Save(&existing)
 	} else {
 		// Create new
