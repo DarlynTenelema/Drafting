@@ -22,6 +22,10 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   void initState() {
     super.initState();
+    // En google_sign_in 7.2.0, el ID se pasa al inicializar la instancia
+    _googleSignIn.initialize(
+      serverClientId: '373092520666-e4ltfq0ed1b3scgcc2v3hj7aqno7rkut.apps.googleusercontent.com',
+    );
   }
 
   Future<void> _handleGoogleSignIn() async {
@@ -74,9 +78,12 @@ class _LoginScreenState extends State<LoginScreen> {
         _showError('Fallo en Google SignIn: código ${e.code}, mensaje: ${e.message}');
       }
       debugPrint('PlatformException: ${e.toString()}');
+    } on ApiException catch (e) {
+      _showError(e.message);
+      debugPrint('ApiException: ${e.message}');
     } catch (error) {
       if (!error.toString().contains('canceled')) {
-        _showError('Excepción inesperada. Por favor, intenta más tarde.');
+        _showError('Excepción inesperada: $error');
       }
       debugPrint('Unexpected error: ${error.toString()}');
     } finally {
