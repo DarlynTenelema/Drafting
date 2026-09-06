@@ -207,6 +207,15 @@ func SubscribeToGroup(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	var existingPayment models.PaymentTransaction
+	if err := database.DB.Where("purchase_token = ?", purchaseToken).First(&existingPayment).Error; err == nil {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": true,
+			"message": "Already subscribed (PaymentTransaction).",
+		})
+		return
+	}
 
 	// Fetch Group to calculate splits
 	var group models.Group
@@ -453,6 +462,15 @@ func SubscribeToCreator(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	var existingPayment models.PaymentTransaction
+	if err := database.DB.Where("purchase_token = ?", purchaseToken).First(&existingPayment).Error; err == nil {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": true,
+			"message": "Already subscribed (PaymentTransaction).",
+		})
+		return
+	}
 
 	// Fetch OTPProfile to find owner
 	var profile models.OTPProfile
@@ -543,7 +561,8 @@ func SubscribeToCreator(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := tx.Create(&paymentTx).Error; err != nil {
 		tx.Rollback()
-		http.Error(w, "Payment transaction record failed.", http.StatusInternalServerError)
+		fmt.Printf("Error creating PaymentTransaction: %v\n", err)
+		http.Error(w, "Payment transaction record failed: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 
