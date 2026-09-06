@@ -95,7 +95,7 @@ class FanartService {
         if (response.statusCode == 200 || response.statusCode == 201) {
           return {'success': true};
         }
-        return {'success': false, 'message': 'Error from server: ${response.statusCode}'};
+        return {'success': false, 'message': response.body.isNotEmpty ? response.body : 'Error from server: ${response.statusCode}'};
       }
     } catch (e) {
       return {'success': false, 'message': e.toString()};

@@ -70,8 +70,8 @@ type SubmitVideoRequest struct {
 
 func extractYouTubeID(videoURL string) string {
 	// e.g. https://www.youtube.com/watch?v=dQw4w9WgXcQ -> dQw4w9WgXcQ
-	// e.g. https://youtu.be/dQw4w9WgXcQ -> dQw4w9WgXcQ
-	re := regexp.MustCompile(`(?:v=|youtu\.be/)([^&]+)`)
+	// e.g. https://youtu.be/dQw4w9WgXcQ?si=... -> dQw4w9WgXcQ
+	re := regexp.MustCompile(`(?:v=|youtu\.be/)([a-zA-Z0-9_-]{11})`)
 	matches := re.FindStringSubmatch(videoURL)
 	if len(matches) > 1 {
 		return matches[1]
@@ -349,7 +349,9 @@ type UploadFanartRequest struct {
 func UploadFanart(w http.ResponseWriter, r *http.Request) {
 	err := r.ParseMultipartForm(10 << 20) // 10 MB limit
 	if err != nil {
-		http.Error(w, "Invalid multipart form", http.StatusBadRequest)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]interface{}{"success": false, "message": "Invalid multipart form"})
 		return
 	}
 
@@ -382,17 +384,14 @@ func UploadFanart(w http.ResponseWriter, r *http.Request) {
 
 	file, header, err := r.FormFile("image")
 	if err != nil {
-		http.Error(w, "Missing image file", http.StatusBadRequest)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]interface{}{"success": false, "message": "Missing image file"})
 		return
 	}
 	defer file.Close()
 
 	contentType := header.Header.Get("Content-Type")
-	if contentType != "image/jpeg" && contentType != "image/png" && contentType != "image/webp" {
-		http.Error(w, "Formato de archivo no permitido. Solo JPG, PNG y WEBP.", http.StatusBadRequest)
-		return
-	}
-	
 	ext := ".jpg"
 	if contentType == "image/png" {
 		ext = ".png"
