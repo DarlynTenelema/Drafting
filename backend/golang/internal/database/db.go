@@ -40,6 +40,13 @@ func Connect() {
 
 	log.Println("Connected to the database successfully.")
 
+	// Temporary manual migration for column types that GORM AutoMigrate skips in production
+	db.Exec(`ALTER TABLE video_embeds ALTER COLUMN title TYPE text`)
+	db.Exec(`ALTER TABLE video_embeds ALTER COLUMN description TYPE text`)
+	db.Exec(`ALTER TABLE video_embeds ALTER COLUMN tags TYPE text`)
+	db.Exec(`ALTER TABLE fanarts ALTER COLUMN tags TYPE text`)
+	db.Exec(`ALTER TABLE payment_transactions ALTER COLUMN purchase_token TYPE text`)
+
 	// Auto Migrate the schema conditionally for production safety
 	if config.GetEnv("DB_AUTO_MIGRATE", "false") == "true" || config.GetEnv("ENV", "development") != "production" {
 		err = db.AutoMigrate(
