@@ -46,6 +46,11 @@ func Connect() {
 	db.Exec(`ALTER TABLE video_embeds ALTER COLUMN tags TYPE text`)
 	db.Exec(`ALTER TABLE fanarts ALTER COLUMN tags TYPE text`)
 	db.Exec(`ALTER TABLE payment_transactions ALTER COLUMN purchase_token TYPE text`)
+	
+	// Drop strict foreign key constraints for dynamic Google Play product IDs
+	db.Exec(`ALTER TABLE payment_transactions DROP CONSTRAINT IF EXISTS payment_transactions_plan_id_fkey`)
+	db.Exec(`ALTER TABLE payment_transactions DROP CONSTRAINT IF EXISTS fk_payment_transactions_plan`)
+	db.Exec(`ALTER TABLE payment_transactions DROP CONSTRAINT IF EXISTS payment_transactions_product_id_fkey`)
 
 	// Auto Migrate the schema conditionally for production safety
 	if config.GetEnv("DB_AUTO_MIGRATE", "false") == "true" || config.GetEnv("ENV", "development") != "production" {
