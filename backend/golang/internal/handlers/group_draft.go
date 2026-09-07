@@ -237,7 +237,7 @@ func PublishGroupDraft(w http.ResponseWriter, r *http.Request) {
 	// Publish the group!
 	group.Status = "active"
 	group.IsActive = true
-	group.PurchaseToken = purchaseToken
+	group.PurchaseToken = &purchaseToken
 	database.DB.Save(&group)
 
 	// Save transaction, etc. (Copied from CreateGroup)

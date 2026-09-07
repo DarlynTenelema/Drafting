@@ -20,7 +20,7 @@ type Group struct {
 	PrivateJSONData string    `gorm:"type:jsonb"` // Store champion data/rules here
 	IsActive        bool      `gorm:"default:true"`
 	Status          string    `gorm:"type:varchar(50);default:'draft'"` // draft, active, suspended
-	PurchaseToken   string    `gorm:"type:varchar(512);uniqueIndex"` // Used to track Google Play subscription
+	PurchaseToken   *string   `gorm:"type:varchar(512);uniqueIndex"` // Used to track Google Play subscription
 	DeletionScheduledFor *time.Time `gorm:"type:timestamp with time zone;default:null"`
 	CreatedAt       time.Time
 	UpdatedAt       time.Time
@@ -49,7 +49,7 @@ type OTPProfile struct {
 	PrivateJSONData string    `gorm:"type:jsonb"` // Store OTP specific rules here
 	IsActive        bool      `gorm:"default:true"`
 	Status          string    `gorm:"type:varchar(50);default:'draft'"` // draft, active, suspended
-	PurchaseToken   string    `gorm:"type:varchar(512);uniqueIndex"` // Used to track Google Play subscription
+	PurchaseToken   *string   `gorm:"type:varchar(512);uniqueIndex"` // Used to track Google Play subscription
 	DeletionScheduledFor *time.Time `gorm:"type:timestamp with time zone;default:null"`
 	CreatedAt       time.Time
 	UpdatedAt       time.Time

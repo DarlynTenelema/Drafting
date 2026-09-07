@@ -288,6 +288,8 @@ func CreateGroup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Create Group
+
 	group := models.Group{
 		OwnerID:          user.ID,
 		Name:             req.Name,
@@ -297,7 +299,7 @@ func CreateGroup(w http.ResponseWriter, r *http.Request) {
 		ProductImage:     req.ProductImage,
 		PrivateJSONData:  "{}",
 		IsActive:         true, // Active immediately for Free Month
-		PurchaseToken:    req.PurchaseToken,
+		PurchaseToken:    &purchaseToken,
 	}
 
 	if err := database.DB.Create(&group).Error; err != nil {
@@ -424,7 +426,7 @@ func CreateOTPProfile(w http.ResponseWriter, r *http.Request) {
 		ProductImage:     req.ProductImage,
 		PrivateJSONData:  "{}",
 		IsActive:         true, // Active immediately for Free Month
-		PurchaseToken:    purchaseToken,
+		PurchaseToken:    &purchaseToken,
 	}
 
 	if err := database.DB.Create(&otp).Error; err != nil {

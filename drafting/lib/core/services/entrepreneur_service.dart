@@ -410,7 +410,7 @@ class EntrepreneurService {
       if (response.statusCode == 200 || response.statusCode == 201) {
         return {'success': true, 'data': json.decode(response.body)};
       }
-      return {'success': false, 'error': 'Failed to create draft'};
+      return {'success': false, 'error': response.body};
     } catch (e) {
       return {'success': false, 'error': e.toString()};
     }
