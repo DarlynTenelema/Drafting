@@ -8,7 +8,7 @@ import '../core/services/fanart_service.dart';
 import '../core/services/creator_service.dart';
 import '../theme/app_theme.dart';
 import 'edit_channel_screen.dart';
-import 'create_channel_screen.dart';
+import 'creator_setup_screen.dart';
 import 'video_player_screen.dart';
 import 'finance_dashboard_screen.dart';
 import 'edit_video_screen.dart';
@@ -73,7 +73,7 @@ class _CreatorDashboardScreenState extends State<CreatorDashboardScreen> {
               ElevatedButton(
                 style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primary),
                 onPressed: () async {
-                  await Navigator.push(context, MaterialPageRoute(builder: (_) => const CreateChannelScreen()));
+                  await Navigator.push(context, MaterialPageRoute(builder: (_) => const CreatorSetupScreen(isForVideo: true)));
                   _loadData();
                 },
                 child: Text('Crear Canal', style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold)),

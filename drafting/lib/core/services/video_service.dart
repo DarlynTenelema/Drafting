@@ -18,54 +18,7 @@ class VideoService extends ChangeNotifier {
 
   List<VideoModel> get videos => _videos;
 
-  Future<String?> createChannel(String name, String avatarPath) async {
-    isLoading = true;
-    notifyListeners();
-    try {
-      String finalAvatarUrl = avatarPath;
-      
-      if (!avatarPath.startsWith('http')) {
-        final file = File(avatarPath);
-        final fileName = '${DateTime.now().millisecondsSinceEpoch}_avatar.jpg';
-        await Supabase.instance.client.storage.from('avatars').upload(fileName, file);
-        finalAvatarUrl = Supabase.instance.client.storage.from('avatars').getPublicUrl(fileName);
-      }
 
-      final response = await ApiClient.post(
-        '/content/channel', 
-        authenticated: true,
-        body: {
-          'name': name,
-          'logo_url': finalAvatarUrl,
-        }
-      );
-
-      // 1. Update Global Profile (Username and Pic)
-      await ApiClient.put(
-        '/api/v1/auth/me',
-        authenticated: true,
-        body: {
-          'username': name,
-          'profile_pic': finalAvatarUrl,
-        },
-      );
-
-      if (response.statusCode == 201) {
-        final data = jsonDecode(response.body);
-        currentUserChannel = ChannelModel.fromJson(data);
-        return null; // Success
-      } else {
-        debugPrint('Error creating channel: ${response.statusCode} - ${response.body}');
-        return 'Error ${response.statusCode}: ${response.body}';
-      }
-    } catch (e) {
-      debugPrint('Exception creating channel: $e');
-      return 'Exception: $e';
-    } finally {
-      isLoading = false;
-      notifyListeners();
-    }
-  }
 
   Future<void> fetchVideos() async {
     isLoading = true;

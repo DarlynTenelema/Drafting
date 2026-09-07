@@ -75,6 +75,18 @@ func CreateCreatorProfile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Auto-create Channel to unify Creator Identity
+	var existingChannel models.Channel
+	if err := database.DB.Where("owner_id = ?", user.ID).First(&existingChannel).Error; err != nil {
+		channel := models.Channel{
+			OwnerID: user.ID,
+			Name:    req.ArtistName,
+			LogoURL: user.ProfilePic,
+			Status:  "approved", // Auto approve since it's linked
+		}
+		database.DB.Create(&channel)
+	}
+
 	// Optionally update user role to 'creator' if they were just a 'consumer'
 	if user.Role == "consumer" {
 		user.Role = "creator"

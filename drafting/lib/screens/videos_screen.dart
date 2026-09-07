@@ -9,7 +9,7 @@ import '../core/services/video_service.dart';
 import '../theme/app_theme.dart';
 import 'video_player_screen.dart';
 import 'upload_video_screen.dart';
-import 'create_channel_screen.dart';
+import 'creator_setup_screen.dart';
 import 'search_screen.dart';
 import 'creator_dashboard_screen.dart';
 import '../widgets/app_drawer.dart';
@@ -33,10 +33,19 @@ class _VideosScreenState extends State<VideosScreen> {
     });
   }
 
-  void _onAddVideoPressed() {
+  void _onAddVideoPressed() async {
     if (VideoService().currentUserChannel == null) {
-      Navigator.push(context, MaterialPageRoute(builder: (_) => const CreateChannelScreen()));
-    } else {
+      await VideoService().fetchMyChannel();
+    }
+    
+    if (VideoService().currentUserChannel == null) {
+      if (!mounted) return;
+      await Navigator.push(context, MaterialPageRoute(builder: (_) => const CreatorSetupScreen(isForVideo: true)));
+      await VideoService().fetchMyChannel();
+    } 
+
+    if (VideoService().currentUserChannel != null) {
+      if (!mounted) return;
       Navigator.push(context, MaterialPageRoute(builder: (_) => const UploadVideoScreen()));
     }
   }

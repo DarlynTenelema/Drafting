@@ -19,46 +19,7 @@ import (
 	"backend/internal/models"
 )
 
-type CreateChannelRequest struct {
-	Name    string `json:"name"`
-	LogoURL string `json:"logo_url"`
-}
 
-// CreateChannel creates a new channel for the user, pending admin approval
-func CreateChannel(w http.ResponseWriter, r *http.Request) {
-	var req CreateChannelRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "Invalid request body", http.StatusBadRequest)
-		return
-	}
-
-	user, ok := r.Context().Value(middleware.UserContextKey).(*models.User)
-	if !ok {
-		http.Error(w, "Unauthorized", http.StatusUnauthorized)
-		return
-	}
-
-	if len(req.Name) > 200 {
-		http.Error(w, "El nombre no puede exceder los 200 caracteres.", http.StatusBadRequest)
-		return
-	}
-
-	channel := models.Channel{
-		OwnerID: user.ID,
-		Name:    req.Name,
-		LogoURL: req.LogoURL,
-		Status:  "pending",
-	}
-
-	if err := database.DB.Create(&channel).Error; err != nil {
-		http.Error(w, "Failed to create channel: "+err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(channel)
-}
 
 type SubmitVideoRequest struct {
 	ChannelID   string `json:"channel_id"`

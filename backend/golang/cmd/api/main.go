@@ -154,7 +154,7 @@ func main() {
 			r.Post("/user/active-product", handlers.SetActiveProduct)
 
 			// Content & Moderation (Version 2)
-			r.Post("/content/channel", handlers.CreateChannel)
+
 			r.Get("/content/channel/me", handlers.GetMyChannel)
 			r.Put("/content/channel", handlers.UpdateChannel)
 			r.Post("/content/video", handlers.SubmitVideo)

@@ -10,7 +10,8 @@ import '../core/services/api_client.dart';
 import 'upload_fanart_screen.dart';
 
 class CreatorSetupScreen extends StatefulWidget {
-  const CreatorSetupScreen({super.key});
+  final bool isForVideo;
+  const CreatorSetupScreen({super.key, this.isForVideo = false});
 
   @override
   State<CreatorSetupScreen> createState() => _CreatorSetupScreenState();
@@ -90,11 +91,14 @@ class _CreatorSetupScreenState extends State<CreatorSetupScreen> {
       });
 
       if (result['success']) {
-        // Redirigir a UploadFanartScreen reemplazando esta pantalla
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => const UploadFanartScreen()),
-        );
+        if (widget.isForVideo) {
+          Navigator.pop(context, true);
+        } else {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (context) => const UploadFanartScreen()),
+          );
+        }
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(result['message'] ?? 'Error desconocido'), backgroundColor: Colors.red),
