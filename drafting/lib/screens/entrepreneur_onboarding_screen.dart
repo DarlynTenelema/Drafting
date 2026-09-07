@@ -17,7 +17,23 @@ class EntrepreneurOnboardingScreen extends StatefulWidget {
 }
 
 class _EntrepreneurOnboardingScreenState extends State<EntrepreneurOnboardingScreen> {
-  
+  bool _showDashboard = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkDashboardVisibility();
+  }
+
+  void _checkDashboardVisibility() async {
+    final isEligible = await EntrepreneurService().checkFirstTimeEligibility();
+    if (mounted) {
+      setState(() {
+        _showDashboard = !isEligible;
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -35,16 +51,18 @@ class _EntrepreneurOnboardingScreenState extends State<EntrepreneurOnboardingScr
         mainAxisAlignment: MainAxisAlignment.end,
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          FloatingActionButton.extended(
-            heroTag: 'dashboard',
-            onPressed: () {
-              Navigator.of(context).push(MaterialPageRoute(builder: (_) => const EntrepreneurDashboardScreen()));
-            },
-            backgroundColor: Colors.cyan,
-            icon: const Icon(Icons.dashboard, color: Colors.white),
-            label: const Text('Mi Panel', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-          ),
-          const SizedBox(height: 16),
+          if (_showDashboard) ...[
+            FloatingActionButton.extended(
+              heroTag: 'dashboard',
+              onPressed: () {
+                Navigator.of(context).push(MaterialPageRoute(builder: (_) => const EntrepreneurDashboardScreen()));
+              },
+              backgroundColor: Colors.cyan,
+              icon: const Icon(Icons.dashboard, color: Colors.white),
+              label: const Text('Mi Panel', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+            ),
+            const SizedBox(height: 16),
+          ],
           FloatingActionButton(
             heroTag: 'leaderboard',
             onPressed: () {
