@@ -5,6 +5,8 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:in_app_purchase/in_app_purchase.dart';
 
 import '../core/services/api_client.dart';
+import '../core/models/subscription_status.dart';
+import '../core/utils/event_bus.dart';
 import '../core/services/subscription_service.dart';
 import '../theme/app_theme.dart';
 
@@ -206,6 +208,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
           );
         }
         _processedPurchaseKeys.add(key);
+        EventBus().fire('subscription_updated');
 
         if (mounted) {
           setState(() {
@@ -224,6 +227,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
         );
 
         _processedPurchaseKeys.add(key);
+        EventBus().fire('subscription_updated');
 
         if (mounted) {
           setState(() {

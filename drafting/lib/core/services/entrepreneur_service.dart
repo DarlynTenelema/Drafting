@@ -9,6 +9,21 @@ class EntrepreneurService {
   factory EntrepreneurService() => _instance;
   EntrepreneurService._internal();
 
+  /// Check if current user is admin
+  Future<bool> checkIsAdmin() async {
+    try {
+      final response = await ApiClient.get('/api/v1/auth/me', authenticated: true);
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return data['email'] == 'darlyndavid100@gmail.com';
+      }
+      return false;
+    } catch (e) {
+      debugPrint("Error checking admin status: $e");
+      return false;
+    }
+  }
+
   /// Create a Group Plan
   Future<Map<String, dynamic>> createGroup(String name, String plan, String productId, List<String> invites, String productName, String productImage, String purchaseToken) async {
     try {

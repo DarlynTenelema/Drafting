@@ -22,18 +22,29 @@ import '../core/services/api_client.dart';
 import '../core/state/active_product_state.dart';
 
 
+import '../core/utils/event_bus.dart';
+import 'dart:async';
+
 class IndexScreen extends StatefulWidget {
-  final String? sessionToken;
+  final String sessionToken;
   final String? groupName; // Optional group name banner
   final Widget? bottomNavBar;
-  const IndexScreen({super.key, this.sessionToken, this.groupName, this.bottomNavBar});
+  const IndexScreen({
+    super.key, 
+    required this.sessionToken, 
+    this.groupName, 
+    this.bottomNavBar
+  });
 
   @override
   State<IndexScreen> createState() => _IndexScreenState();
 }
 
-class _IndexScreenState extends State<IndexScreen> {
+class _IndexScreenState extends State<IndexScreen> with SingleTickerProviderStateMixin {
   StreamSubscription? _eventSubscription;
+  late AnimationController _pulseController;
+  late Animation<double> _pulseAnimation;
+  StreamSubscription? _eventSub;
   
   late String _sessionToken;
   bool _isActive = false;
@@ -48,8 +59,20 @@ class _IndexScreenState extends State<IndexScreen> {
   @override
   void initState() {
     super.initState();
-    _sessionToken = widget.sessionToken ?? '';
+    _sessionToken = widget.sessionToken;
     _loadSession();
+
+    _eventSub = EventBus().stream.listen((event) {
+      if (event == 'subscription_updated' && mounted) {
+        _fetchUserData();
+      }
+    });
+
+    _pulseController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 2),
+    )..repeat(reverse: true);
+    
     _initOtpFields();
     if (_sessionToken.isNotEmpty) {
       _fetchUserData();
@@ -83,6 +106,17 @@ class _IndexScreenState extends State<IndexScreen> {
         );
       }
     });
+  }
+
+  @override
+  void dispose() {
+    _eventSubscription?.cancel();
+    _eventSub?.cancel();
+    _pulseController.dispose();
+    for (var controller in _otpControllers) {
+      controller.dispose();
+    }
+    super.dispose();
   }
 
   Future<void> _initOtpFields() async {
@@ -529,12 +563,4 @@ class _IndexScreenState extends State<IndexScreen> {
     );
   }
 
-  @override
-  void dispose() {
-    _eventSubscription?.cancel();
-    for (var controller in _otpControllers) {
-      controller.dispose();
-    }
-    super.dispose();
-  }
 }

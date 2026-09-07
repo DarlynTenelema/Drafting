@@ -15,6 +15,9 @@ import '../core/services/chat_coach_service.dart';
 import '../core/services/api_client.dart';
 import 'chat_coach_prompts_screen.dart';
 
+import '../core/utils/event_bus.dart';
+import 'dart:async';
+
 class ChatCoachScreen extends StatefulWidget {
   final Widget? bottomNavBar;
 
@@ -27,6 +30,7 @@ class ChatCoachScreen extends StatefulWidget {
 class _ChatCoachScreenState extends State<ChatCoachScreen> {
   final TextEditingController _messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
+  StreamSubscription? _eventSub;
 
   bool _isLoading = true;
   bool _isSending = false;
@@ -48,6 +52,12 @@ class _ChatCoachScreenState extends State<ChatCoachScreen> {
     _loadInitialData();
     _fetchUserTier();
     _loadMatches();
+    
+    _eventSub = EventBus().stream.listen((event) {
+      if (event == 'subscription_updated' && mounted) {
+        _fetchUserTier();
+      }
+    });
   }
 
   Future<void> _fetchUserTier() async {
@@ -65,6 +75,14 @@ class _ChatCoachScreenState extends State<ChatCoachScreen> {
     } catch (e) {
       debugPrint('Error fetching user tier: $e');
     }
+  }
+
+  @override
+  void dispose() {
+    _eventSub?.cancel();
+    _messageController.dispose();
+    _scrollController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadInitialData() async {

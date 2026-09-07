@@ -63,6 +63,7 @@ class _GroupSetupScreenState extends State<GroupSetupScreen> {
   bool _hasReadTerms = false;
   bool _acceptedTerms = false;
   bool _isEligible = false; // By default false, will check backend
+  bool _isAdmin = false;
 
   // IAP
   final InAppPurchase _inAppPurchase = InAppPurchase.instance;
@@ -107,9 +108,11 @@ class _GroupSetupScreenState extends State<GroupSetupScreen> {
 
   void _checkEligibility() async {
     final eligible = await EntrepreneurService().checkFirstTimeEligibility();
+    final isAdmin = await EntrepreneurService().checkIsAdmin();
     if (mounted) {
       setState(() {
         _isEligible = eligible;
+        _isAdmin = isAdmin;
       });
     }
   }
@@ -180,7 +183,7 @@ class _GroupSetupScreenState extends State<GroupSetupScreen> {
   bool get _isMembersGoalMet => _invitedMembers.length >= _targetMembers;
   bool get _isChampionsGoalMet => _configuredChampions.length >= _targetChampions;
   bool get _isProductConfigured => _productNameCtrl.text.isNotEmpty && _productImageFile != null;
-  bool get _canProceed => _isMembersGoalMet && _isChampionsGoalMet && _isProductConfigured;
+  bool get _canProceed => (_isAdmin || (_isMembersGoalMet && _isChampionsGoalMet)) && _isProductConfigured;
 
   void _inviteMember() async {
     final email = _emailController.text.trim();
