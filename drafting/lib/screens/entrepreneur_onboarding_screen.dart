@@ -9,6 +9,7 @@ import 'group_setup_screen.dart';
 import 'leaderboard_screen.dart';
 import 'invitations_screen.dart';
 import '../core/services/entrepreneur_service.dart';
+import 'group_member_dashboard_screen.dart';
 
 class EntrepreneurOnboardingScreen extends StatefulWidget {
   const EntrepreneurOnboardingScreen({super.key});
@@ -81,6 +82,15 @@ class _EntrepreneurOnboardingScreenState extends State<EntrepreneurOnboardingScr
             ),
             const SizedBox(height: 16),
           ],
+          FloatingActionButton(
+            heroTag: 'my_group',
+            onPressed: () {
+              Navigator.of(context).push(MaterialPageRoute(builder: (_) => const GroupMemberDashboardScreen()));
+            },
+            backgroundColor: Colors.purple,
+            child: const Icon(Icons.group, color: Colors.white),
+          ),
+          const SizedBox(height: 16),
           FloatingActionButton(
             heroTag: 'invitations',
             onPressed: () {

@@ -221,17 +221,9 @@ class _GroupSetupScreenState extends State<GroupSetupScreen> {
         if (purchaseDetails.status == PurchaseStatus.purchased || purchaseDetails.status == PurchaseStatus.restored) {
           _purchaseToken = purchaseDetails.verificationData.serverVerificationData;
           
-          if (purchaseDetails.pendingCompletePurchase) {
-            try {
-              await _inAppPurchase.completePurchase(purchaseDetails).timeout(const Duration(seconds: 15));
-            } catch (e) {
-              debugPrint("Error completando la compra nativa: $e");
-            }
-          }
-          
           // Proceder con la creación solo si el usuario inició explícitamente el flujo
           if (_isPurchasing) {
-            await _executeCreationFlow();
+            await _executeCreationFlow(purchaseDetails);
           } else if (purchaseDetails.status == PurchaseStatus.restored) {
             if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Suscripción previa restaurada. Ya puedes crear el plan.')));
           }
@@ -934,7 +926,7 @@ class _GroupSetupScreenState extends State<GroupSetupScreen> {
     );
   }
 
-  Future<void> _executeCreationFlow() async {
+  Future<void> _executeCreationFlow(PurchaseDetails purchaseDetails) async {
     try {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Paso 1: Subiendo imagen a Supabase...')));
       
@@ -985,6 +977,14 @@ class _GroupSetupScreenState extends State<GroupSetupScreen> {
         // If we want to link them or do something else, we can do it here.
         // For now, they are safely stored in the AIModel table.
         
+        if (purchaseDetails.pendingCompletePurchase) {
+          try {
+            await _inAppPurchase.completePurchase(purchaseDetails).timeout(const Duration(seconds: 15));
+          } catch (e) {
+            debugPrint("Error completando la compra nativa: $e");
+          }
+        }
+
         if (mounted) {
           if (_loadingContext != null) {
             Navigator.pop(_loadingContext!);

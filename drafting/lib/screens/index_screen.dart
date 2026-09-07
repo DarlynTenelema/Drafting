@@ -21,7 +21,7 @@ import 'dart:convert';
 import '../core/services/api_client.dart';
 import '../core/state/active_product_state.dart';
 import 'group_member_dashboard_screen.dart';
-
+import 'invitations_screen.dart';
 import '../core/utils/event_bus.dart';
 import 'dart:async';
 
@@ -333,24 +333,6 @@ class _IndexScreenState extends State<IndexScreen> with SingleTickerProviderStat
                 if (mounted) _fetchUserData();
               },
             ),
-            ListTile(
-              leading: const Icon(Icons.mail, color: Colors.orange, size: 36),
-              title: const Text('Buzón de Emprender', style: TextStyle(color: Colors.white)),
-              onTap: () async {
-                Navigator.pop(context);
-                await Navigator.of(context).push(MaterialPageRoute(builder: (_) => const InvitationsScreen()));
-                if (mounted) _fetchUserData();
-              },
-            ),
-            if (_hasGroup)
-              ListTile(
-                leading: const Icon(Icons.group, color: Colors.white, size: 36),
-                title: const Text('Mi Equipo', style: TextStyle(color: Colors.white)),
-                onTap: () {
-                  Navigator.pop(context);
-                  Navigator.of(context).push(MaterialPageRoute(builder: (_) => const GroupMemberDashboardScreen()));
-                },
-              ),
             ListTile(
               leading: Image.asset('assets/images/crystal_coin_outline.png', width: 36, height: 36),
               title: const Text('Escencias Azules', style: TextStyle(color: Colors.white)),

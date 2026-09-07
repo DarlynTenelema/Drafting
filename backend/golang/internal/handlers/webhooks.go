@@ -117,6 +117,16 @@ func PlayStoreWebhook(w http.ResponseWriter, r *http.Request) {
 					// We find the payment transaction that has this purchase_token to know which UserID it belongs to.
 					var tx models.PaymentTransaction
 					if err := database.DB.Where("purchase_token = ?", notif.PurchaseToken).First(&tx).Error; err == nil {
+						
+						var dbUser models.User
+						database.DB.First(&dbUser, tx.UserID)
+
+						if dbUser.SubscriptionEndsAt != nil && dbUser.SubscriptionEndsAt.Unix() >= t.Unix() {
+							log.Printf("[RTDN] Duplicate webhook or already processed renewal for token %s", notif.PurchaseToken)
+							w.WriteHeader(http.StatusOK)
+							return
+						}
+
 						if err := database.DB.Model(&models.User{}).Where("id = ?", tx.UserID).Update("subscription_ends_at", t).Error; err != nil {
 							log.Printf("[RTDN] Error updating User subscription_ends_at: %v", err)
 						} else {
