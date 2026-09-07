@@ -130,6 +130,17 @@ func main() {
 			r.Post("/group/create", handlers.CreateGroup)
 			r.Post("/groups/create", handlers.CreateGroup)
 			r.Post("/group/otp/create", handlers.CreateOTPProfile)
+
+			// Draft and Invitations (Asynchronous Flow)
+			r.Get("/groups/draft/me", handlers.GetMyDraft)
+			r.Post("/groups/draft", handlers.CreateGroupDraft)
+			r.Put("/groups/draft/{id}", handlers.UpdateGroupDraft)
+			r.Post("/groups/draft/{id}/publish", handlers.PublishGroupDraft)
+			r.Get("/groups/invitations/me", handlers.GetMyInvitations)
+			r.Post("/groups/invitations/{id}/accept", handlers.AcceptInvitation)
+			r.Post("/groups/invitations/{id}/decline", handlers.DeclineInvitation)
+			r.Delete("/groups/invitations/{id}", handlers.RevokeInvitation)
+
 			r.Post("/creator/ai-model", handlers.SaveAIModel)
 			r.Get("/creator/ai-models", handlers.GetAllAIModels)
 			r.Post("/creator/ai-model/update", handlers.UpdateAIModel)

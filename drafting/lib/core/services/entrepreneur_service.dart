@@ -382,4 +382,100 @@ class EntrepreneurService {
       return null;
     }
   }
+
+  // --- DRAFT & INVITATION METHODS ---
+
+  Future<Map<String, dynamic>?> fetchMyDraftGroup() async {
+    try {
+      final response = await ApiClient.get('/groups/draft/me', authenticated: true);
+      if (response.statusCode == 200) {
+        return json.decode(response.body);
+      }
+      return null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  Future<Map<String, dynamic>> createGroupDraft(String name, String plan) async {
+    try {
+      final response = await ApiClient.post(
+        '/groups/draft',
+        authenticated: true,
+        body: {
+          'name': name,
+          'subscription_plan': plan,
+        },
+      );
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        return {'success': true, 'data': json.decode(response.body)};
+      }
+      return {'success': false, 'error': 'Failed to create draft'};
+    } catch (e) {
+      return {'success': false, 'error': e.toString()};
+    }
+  }
+
+  Future<Map<String, dynamic>> updateGroupDraft(String id, Map<String, dynamic> data) async {
+    try {
+      final response = await ApiClient.put(
+        '/groups/draft/$id',
+        authenticated: true,
+        body: data,
+      );
+      if (response.statusCode == 200) {
+        return {'success': true};
+      }
+      return {'success': false, 'error': 'Failed to update draft'};
+    } catch (e) {
+      return {'success': false, 'error': e.toString()};
+    }
+  }
+
+  Future<Map<String, dynamic>> publishGroupDraft(String id, Map<String, dynamic> reqData) async {
+    try {
+      final response = await ApiClient.post(
+        '/groups/draft/$id/publish',
+        authenticated: true,
+        body: reqData,
+      );
+      if (response.statusCode == 200) {
+        return {'success': true, 'data': json.decode(response.body)};
+      }
+      return {'success': false, 'error': response.body};
+    } catch (e) {
+      return {'success': false, 'error': e.toString()};
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getMyInvitations() async {
+    try {
+      final response = await ApiClient.get('/groups/invitations/me', authenticated: true);
+      if (response.statusCode == 200) {
+        return List<Map<String, dynamic>>.from(json.decode(response.body));
+      }
+      return [];
+    } catch (e) {
+      return [];
+    }
+  }
+
+  Future<bool> respondToInvitation(String id, bool accept) async {
+    try {
+      final action = accept ? 'accept' : 'decline';
+      final response = await ApiClient.post('/groups/invitations/$id/$action', authenticated: true, body: {});
+      return response.statusCode == 200;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  Future<bool> revokeInvitation(String id) async {
+    try {
+      final response = await ApiClient.delete('/groups/invitations/$id', authenticated: true);
+      return response.statusCode == 200;
+    } catch (e) {
+      return false;
+    }
+  }
 }

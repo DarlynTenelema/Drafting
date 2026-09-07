@@ -19,11 +19,15 @@ type Group struct {
 	MaxSalesLimit   int       `gorm:"not null;default:1000"`
 	PrivateJSONData string    `gorm:"type:jsonb"` // Store champion data/rules here
 	IsActive        bool      `gorm:"default:true"`
+	Status          string    `gorm:"type:varchar(50);default:'draft'"` // draft, active, suspended
 	PurchaseToken   string    `gorm:"type:varchar(512);uniqueIndex"` // Used to track Google Play subscription
 	DeletionScheduledFor *time.Time `gorm:"type:timestamp with time zone;default:null"`
 	CreatedAt       time.Time
 	UpdatedAt       time.Time
 	DeletedAt       gorm.DeletedAt `gorm:"index"`
+
+	// Relations
+	GroupInvitations []GroupInvitation `gorm:"foreignKey:GroupID"`
 }
 
 func (g *Group) BeforeCreate(tx *gorm.DB) (err error) {
@@ -44,6 +48,7 @@ type OTPProfile struct {
 	ProductImage    string    `gorm:"type:varchar(500)"`
 	PrivateJSONData string    `gorm:"type:jsonb"` // Store OTP specific rules here
 	IsActive        bool      `gorm:"default:true"`
+	Status          string    `gorm:"type:varchar(50);default:'draft'"` // draft, active, suspended
 	PurchaseToken   string    `gorm:"type:varchar(512);uniqueIndex"` // Used to track Google Play subscription
 	DeletionScheduledFor *time.Time `gorm:"type:timestamp with time zone;default:null"`
 	CreatedAt       time.Time
@@ -63,6 +68,7 @@ type GroupInvitation struct {
 	GroupID   uuid.UUID `gorm:"type:uuid;not null;index"`
 	Email     string    `gorm:"type:varchar(255);not null"`
 	Status    string    `gorm:"type:varchar(50);default:'pending'"` // pending, accepted
+	ExpiresAt time.Time
 	CreatedAt time.Time
 	UpdatedAt time.Time
 }

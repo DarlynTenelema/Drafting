@@ -7,6 +7,7 @@ import 'calculator_screen.dart';
 import 'legal_screen.dart';
 import 'group_setup_screen.dart';
 import 'leaderboard_screen.dart';
+import 'invitations_screen.dart';
 import '../core/services/entrepreneur_service.dart';
 
 class EntrepreneurOnboardingScreen extends StatefulWidget {
@@ -18,6 +19,7 @@ class EntrepreneurOnboardingScreen extends StatefulWidget {
 
 class _EntrepreneurOnboardingScreenState extends State<EntrepreneurOnboardingScreen> {
   bool _showDashboard = false;
+  Map<String, dynamic>? _draftGroup;
 
   @override
   void initState() {
@@ -27,9 +29,11 @@ class _EntrepreneurOnboardingScreenState extends State<EntrepreneurOnboardingScr
 
   void _checkDashboardVisibility() async {
     final isEligible = await EntrepreneurService().checkFirstTimeEligibility();
+    final draft = await EntrepreneurService().fetchMyDraftGroup();
     if (mounted) {
       setState(() {
         _showDashboard = !isEligible;
+        _draftGroup = draft;
       });
     }
   }
@@ -63,6 +67,15 @@ class _EntrepreneurOnboardingScreenState extends State<EntrepreneurOnboardingScr
             ),
             const SizedBox(height: 16),
           ],
+          FloatingActionButton(
+            heroTag: 'invitations',
+            onPressed: () {
+              Navigator.of(context).push(MaterialPageRoute(builder: (_) => const InvitationsScreen()));
+            },
+            backgroundColor: Colors.orange,
+            child: const Icon(Icons.mail, color: Colors.white),
+          ),
+          const SizedBox(height: 16),
           FloatingActionButton(
             heroTag: 'leaderboard',
             onPressed: () {
@@ -100,6 +113,64 @@ class _EntrepreneurOnboardingScreenState extends State<EntrepreneurOnboardingScr
           return ListView(
             padding: const EdgeInsets.all(24.0),
             children: [
+              if (_draftGroup != null) ...[
+                GestureDetector(
+                  onTap: () {
+                    // Navigate to group setup screen with draft data
+                    Navigator.of(context).push(MaterialPageRoute(
+                      builder: (_) => GroupSetupScreen(
+                        planId: _draftGroup!['SubscriptionPlan'],
+                        planName: 'Borrador',
+                        price: 0.0,
+                        isGroup: _draftGroup!['SubscriptionPlan'] != '10' && _draftGroup!['SubscriptionPlan'] != '20',
+                        draftGroup: _draftGroup,
+                      ),
+                    )).then((_) => _checkDashboardVisibility());
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.all(20),
+                    margin: const EdgeInsets.only(bottom: 24),
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [Colors.orange, Colors.deepOrange],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.circular(16),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.orange.withOpacity(0.3),
+                          blurRadius: 10,
+                          offset: const Offset(0, 5),
+                        ),
+                      ],
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.edit_document, color: Colors.white, size: 40),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Continuar creación',
+                                style: GoogleFonts.outfit(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                _draftGroup!['Name'] ?? 'Grupo sin nombre',
+                                style: GoogleFonts.inter(color: Colors.white70, fontSize: 14),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const Icon(Icons.arrow_forward_ios, color: Colors.white, size: 20),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
               Text(
                 'Modelos Individuales (OTP)',
                 style: GoogleFonts.outfit(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
@@ -291,9 +362,10 @@ class _EntrepreneurOnboardingScreenState extends State<EntrepreneurOnboardingScr
                       planName: name,
                       price: price,
                       isGroup: isGroup,
+                      planId: plan['PlanID']?.toString(),
                     ),
                   ),
-                );
+                ).then((_) => _checkDashboardVisibility());
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: isFull ? Colors.white12 : (isPremium ? const Color(0xFFFFD700) : AppTheme.primary),

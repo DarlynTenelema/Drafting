@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
@@ -14,12 +15,16 @@ class GroupSetupScreen extends StatefulWidget {
   final String planName;
   final double price;
   final bool isGroup;
+  final String? planId;
+  final Map<String, dynamic>? draftGroup;
 
   const GroupSetupScreen({
     super.key,
     required this.planName,
     required this.price,
     required this.isGroup,
+    this.planId,
+    this.draftGroup,
   });
 
   @override
@@ -98,12 +103,39 @@ class _GroupSetupScreenState extends State<GroupSetupScreen> {
     _purchaseSubscription = _inAppPurchase.purchaseStream.listen(
       _listenToPurchaseUpdated,
       onDone: () => _purchaseSubscription.cancel(),
-      onError: (_) {
-        if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Error en compra')));
+      onError: (error) {
+        debugPrint('Purchase error: $error');
       },
     );
 
     _checkEligibility();
+    
+    // Load from draft if available
+    if (widget.draftGroup != null) {
+      final draft = widget.draftGroup!;
+      _productNameCtrl.text = draft['ProductName'] ?? '';
+      
+      if (draft['GroupInvitations'] != null) {
+        for (var inv in draft['GroupInvitations']) {
+          _invitedMembers.add(InvitedMember(inv['Email'], accepted: inv['Status'] == 'accepted'));
+        }
+      }
+
+      // Load configured champions if available
+      if (draft['PrivateJSONData'] != null) {
+        try {
+          final Map<String, dynamic> parsed = json.decode(draft['PrivateJSONData']);
+          if (parsed.containsKey('champions')) {
+            final champions = parsed['champions'] as Map<String, dynamic>;
+            champions.forEach((k, v) {
+              _configuredChampions[k] = Map<String, dynamic>.from(v);
+            });
+          }
+        } catch (e) {
+          debugPrint('Error parsing draft private data: $e');
+        }
+      }
+    }
   }
 
   void _checkEligibility() async {
@@ -114,6 +146,48 @@ class _GroupSetupScreenState extends State<GroupSetupScreen> {
         _isEligible = eligible;
         _isAdmin = isAdmin;
       });
+    }
+  }
+
+  String? _draftId;
+
+  Future<bool> _autoSaveDraft() async {
+    if (!widget.isGroup) return true; // Only drafts for groups
+
+    // Don't save if completely empty
+    if (_productNameCtrl.text.isEmpty && _invitedMembers.isEmpty && _configuredChampions.isEmpty && _productImageFile == null) return true;
+
+    if (_draftId == null && widget.draftGroup != null) {
+      _draftId = widget.draftGroup!['id'] ?? widget.draftGroup!['ID'];
+    }
+
+    final data = {
+      'name': _productNameCtrl.text.isEmpty ? 'Borrador sin nombre' : _productNameCtrl.text,
+      'product_name': _productNameCtrl.text,
+      'description': '',
+      'subscription_plan': widget.planId ?? widget.planName,
+      'invites': _invitedMembers.map((e) => e.email).toList(),
+    };
+
+    if (_draftId == null) {
+      final res = await EntrepreneurService().createGroupDraft(data['name'] as String, data['subscription_plan'] as String);
+      if (res['success']) {
+        _draftId = res['data']['id'] ?? res['data']['ID'];
+        if (_draftId != null) {
+           await EntrepreneurService().updateGroupDraft(_draftId!, data);
+        }
+        return true;
+      } else {
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error al crear borrador: ${res['error']}')));
+        return false;
+      }
+    } else {
+      final res = await EntrepreneurService().updateGroupDraft(_draftId!, data);
+      if (res['success'] == false) {
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error al actualizar borrador: ${res['error']}')));
+        return false;
+      }
+      return true;
     }
   }
 
@@ -179,8 +253,8 @@ class _GroupSetupScreenState extends State<GroupSetupScreen> {
     super.dispose();
   }
 
-  int get _acceptedMembersCount => _invitedMembers.length;
-  bool get _isMembersGoalMet => _invitedMembers.length >= _targetMembers;
+  int get _acceptedMembersCount => _invitedMembers.where((m) => m.accepted).length;
+  bool get _isMembersGoalMet => _acceptedMembersCount >= _targetMembers;
   bool get _isChampionsGoalMet => _configuredChampions.length >= _targetChampions;
   bool get _isProductConfigured => _productNameCtrl.text.isNotEmpty && _productImageFile != null;
   bool get _canProceed => (_isAdmin || (_isMembersGoalMet && _isChampionsGoalMet)) && _isProductConfigured;
@@ -200,8 +274,9 @@ class _GroupSetupScreenState extends State<GroupSetupScreen> {
           _invitedMembers.add(InvitedMember(email));
           _emailController.clear();
         });
+        _autoSaveDraft();
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Usuario verificado. Se le enviará la invitación oficial al pagar.')),
+          const SnackBar(content: Text('Usuario verificado e invitado. Pasa al Buzón de Emprender.')),
         );
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -257,6 +332,7 @@ class _GroupSetupScreenState extends State<GroupSetupScreen> {
       setState(() {
         _configuredChampions[_selectedChampion] = championData;
       });
+      _autoSaveDraft();
       
       _earlyGameCtrl.clear();
       _lateGameCtrl.clear();
@@ -518,6 +594,20 @@ class _GroupSetupScreenState extends State<GroupSetupScreen> {
           'Requisitos de Desbloqueo',
           style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold),
         ),
+        actions: [
+          if (widget.isGroup)
+            TextButton.icon(
+              onPressed: () async {
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Guardando borrador...')));
+                bool success = await _autoSaveDraft();
+                if (success && mounted) {
+                  Navigator.of(context).pop();
+                }
+              },
+              icon: const Icon(Icons.save, color: Colors.orange),
+              label: const Text('Guardar y Salir', style: TextStyle(color: Colors.orange)),
+            ),
+        ],
       ),
       body: Column(
         children: [
@@ -594,9 +684,18 @@ class _GroupSetupScreenState extends State<GroupSetupScreen> {
                         ),
                         child: Column(
                           children: _invitedMembers.map((member) => ListTile(
-                            leading: const Icon(Icons.access_time, color: Colors.amber),
+                            leading: Icon(member.accepted ? Icons.check_circle : Icons.access_time, color: member.accepted ? Colors.green : Colors.amber),
                             title: Text(member.email, style: const TextStyle(color: Colors.white)),
-                            subtitle: const Text('Pendiente', style: TextStyle(color: Colors.amber, fontSize: 12)),
+                            subtitle: Text(member.accepted ? 'Aceptado' : 'Pendiente', style: TextStyle(color: member.accepted ? Colors.green : Colors.amber, fontSize: 12)),
+                            trailing: IconButton(
+                              icon: const Icon(Icons.close, color: Colors.redAccent),
+                              onPressed: () {
+                                setState(() {
+                                  _invitedMembers.remove(member);
+                                });
+                                _autoSaveDraft();
+                              },
+                            ),
                             onTap: null,
                           )).toList(),
                         ),
@@ -845,8 +944,29 @@ class _GroupSetupScreenState extends State<GroupSetupScreen> {
 
       Map<String, dynamic> result;
       if (widget.isGroup) {
-        final emails = _invitedMembers.map((e) => e.email).toList();
-        result = await EntrepreneurService().createGroup('Grupo de ${widget.planName}', widget.price.toString(), _getProductId(), emails, _productNameCtrl.text, imageUrl, _purchaseToken);
+        if (_draftId == null) await _autoSaveDraft();
+        if (_draftId == null) {
+          if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Error: No se pudo guardar el borrador.')));
+          setState(() => _isPurchasing = false);
+          return;
+        }
+        
+        // Update draft with image first
+        await EntrepreneurService().updateGroupDraft(_draftId!, {
+          'name': _productNameCtrl.text,
+          'product_name': _productNameCtrl.text,
+          'product_image': imageUrl,
+          'description': '',
+          'subscription_plan': widget.planId ?? widget.planName,
+          'invites': _invitedMembers.map((e) => e.email).toList(),
+        });
+
+        final reqData = {
+          'purchase_token': _purchaseToken,
+          'product_id': _getProductId(),
+          'purchase_price': widget.price,
+        };
+        result = await EntrepreneurService().publishGroupDraft(_draftId!, reqData);
       } else {
         result = await EntrepreneurService().createOTPProfile(_configuredChampions.keys.first, widget.price.toString(), _getProductId(), _productNameCtrl.text, imageUrl, _purchaseToken);
       }
