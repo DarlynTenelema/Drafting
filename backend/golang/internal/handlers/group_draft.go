@@ -129,6 +129,7 @@ func UpdateGroupDraft(w http.ResponseWriter, r *http.Request) {
 	group.ProductImage = req.ProductImage
 	group.Description = req.Description
 	group.SubscriptionPlan = req.SubscriptionPlan
+	group.PrivateJSONData = req.PrivateJSONData
 	database.DB.Save(&group)
 
 	// Process Invites (Add new ones, ignore existing)

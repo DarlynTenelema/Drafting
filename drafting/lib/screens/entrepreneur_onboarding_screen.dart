@@ -31,6 +31,11 @@ class _EntrepreneurOnboardingScreenState extends State<EntrepreneurOnboardingScr
     final isEligible = await EntrepreneurService().checkFirstTimeEligibility();
     final draft = await EntrepreneurService().fetchMyDraftGroup();
     if (mounted) {
+      if (draft == null) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('fetchMyDraftGroup returned null!')));
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Found draft: ${draft['id'] ?? draft['ID']}')));
+      }
       setState(() {
         _showDashboard = !isEligible;
         _draftGroup = draft;
@@ -95,6 +100,69 @@ class _EntrepreneurOnboardingScreenState extends State<EntrepreneurOnboardingScr
           ),
         ],
       ),
+      bottomNavigationBar: _draftGroup != null ? SafeArea(
+        child: GestureDetector(
+          onTap: () {
+            Navigator.of(context).push(MaterialPageRoute(
+              builder: (_) => GroupSetupScreen(
+                planId: _draftGroup!['subscription_plan']?.toString() ?? _draftGroup!['SubscriptionPlan']?.toString(),
+                planName: 'Borrador',
+                price: 0.0,
+                isGroup: (_draftGroup!['subscription_plan'] ?? _draftGroup!['SubscriptionPlan']) != '10' && (_draftGroup!['subscription_plan'] ?? _draftGroup!['SubscriptionPlan']) != '20',
+                draftGroup: _draftGroup,
+              ),
+            )).then((_) => _checkDashboardVisibility());
+          },
+          child: Container(
+            margin: const EdgeInsets.only(left: 20, right: 85, bottom: 20, top: 5), // Leaves space on the right for the floating buttons
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [Colors.orange, Colors.deepOrange],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.orange.withOpacity(0.3),
+                  blurRadius: 10,
+                  offset: const Offset(0, 5),
+                ),
+              ],
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.edit_document, color: Colors.white, size: 30),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Reanudar Borrador',
+                        style: GoogleFonts.outfit(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                      ),
+                      Text(
+                        (_draftGroup!['product_name']?.toString().isNotEmpty == true 
+                            ? _draftGroup!['product_name']?.toString() 
+                            : (_draftGroup!['ProductName']?.toString().isNotEmpty == true 
+                                ? _draftGroup!['ProductName']?.toString() 
+                                : (_draftGroup!['name']?.toString() ?? _draftGroup!['Name']?.toString() ?? 'Sin nombre'))) ?? 'Sin nombre',
+                        style: const TextStyle(color: Colors.white70, fontSize: 13),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+                const Icon(Icons.arrow_forward_ios, color: Colors.white, size: 16),
+              ],
+            ),
+          ),
+        ),
+      ) : null,
       body: FutureBuilder<List<dynamic>>(
         future: EntrepreneurService().getCreatorPlans(),
         builder: (context, snapshot) {
@@ -106,71 +174,13 @@ class _EntrepreneurOnboardingScreenState extends State<EntrepreneurOnboardingScr
             return const Center(child: Text('Error cargando los planes', style: TextStyle(color: Colors.white)));
           }
 
-          final plans = snapshot.data!;
+          final plans = snapshot.data ?? [];
           final otpPlans = plans.where((p) => p['isGroup'] == false).toList();
           final groupPlans = plans.where((p) => p['isGroup'] == true).toList();
 
           return ListView(
-            padding: const EdgeInsets.all(24.0),
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
             children: [
-              if (_draftGroup != null) ...[
-                GestureDetector(
-                  onTap: () {
-                    // Navigate to group setup screen with draft data
-                    Navigator.of(context).push(MaterialPageRoute(
-                      builder: (_) => GroupSetupScreen(
-                        planId: _draftGroup!['SubscriptionPlan'],
-                        planName: 'Borrador',
-                        price: 0.0,
-                        isGroup: _draftGroup!['SubscriptionPlan'] != '10' && _draftGroup!['SubscriptionPlan'] != '20',
-                        draftGroup: _draftGroup,
-                      ),
-                    )).then((_) => _checkDashboardVisibility());
-                  },
-                  child: Container(
-                    padding: const EdgeInsets.all(20),
-                    margin: const EdgeInsets.only(bottom: 24),
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: [Colors.orange, Colors.deepOrange],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                      borderRadius: BorderRadius.circular(16),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.orange.withOpacity(0.3),
-                          blurRadius: 10,
-                          offset: const Offset(0, 5),
-                        ),
-                      ],
-                    ),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.edit_document, color: Colors.white, size: 40),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Continuar creación',
-                                style: GoogleFonts.outfit(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                _draftGroup!['Name'] ?? 'Grupo sin nombre',
-                                style: GoogleFonts.inter(color: Colors.white70, fontSize: 14),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const Icon(Icons.arrow_forward_ios, color: Colors.white, size: 20),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
               Text(
                 'Modelos Individuales (OTP)',
                 style: GoogleFonts.outfit(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
@@ -204,14 +214,14 @@ class _EntrepreneurOnboardingScreenState extends State<EntrepreneurOnboardingScr
   }
 
   Widget _buildPlanCard(dynamic plan) {
-    String name = plan['name'];
-    String percentage = plan['percentage'];
-    double price = (plan['price'] as num).toDouble();
-    String period = plan['period'];
-    bool isGroup = plan['isGroup'] ?? false;
-    int availableSlots = plan['availableSlots'] ?? 0;
-    int totalSlots = plan['totalSlots'] ?? 100;
-    List<String> features = (plan['features'] as List<dynamic>).map((e) => e.toString()).toList();
+    String name = plan['name']?.toString() ?? plan['Name']?.toString() ?? 'Plan';
+    String percentage = plan['percentage']?.toString() ?? plan['Percentage']?.toString() ?? '0%';
+    double price = ((plan['price'] ?? plan['Price']) as num?)?.toDouble() ?? 0.0;
+    String period = plan['period']?.toString() ?? plan['Period']?.toString() ?? 'mes';
+    bool isGroup = plan['isGroup'] ?? plan['IsGroup'] ?? false;
+    int availableSlots = plan['availableSlots'] ?? plan['AvailableSlots'] ?? 0;
+    int totalSlots = plan['totalSlots'] ?? plan['TotalSlots'] ?? 100;
+    List<String> features = ((plan['features'] ?? plan['Features']) as List<dynamic>?)?.map((e) => e.toString()).toList() ?? [];
 
     bool isPremium = name.contains('Leyenda') || name.contains('Elite');
     bool isPro = name.contains('Pro') || name.contains('Avanzado');

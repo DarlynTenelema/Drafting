@@ -113,18 +113,23 @@ class _GroupSetupScreenState extends State<GroupSetupScreen> {
     // Load from draft if available
     if (widget.draftGroup != null) {
       final draft = widget.draftGroup!;
-      _productNameCtrl.text = draft['ProductName'] ?? '';
+      _productNameCtrl.text = draft['product_name'] ?? draft['ProductName'] ?? '';
       
-      if (draft['GroupInvitations'] != null) {
-        for (var inv in draft['GroupInvitations']) {
-          _invitedMembers.add(InvitedMember(inv['Email'], accepted: inv['Status'] == 'accepted'));
+      final invitations = draft['group_invitations'] ?? draft['GroupInvitations'];
+      if (invitations != null) {
+        for (var inv in invitations) {
+          final String email = inv['email']?.toString() ?? inv['Email']?.toString() ?? '';
+          if (email.isNotEmpty) {
+            _invitedMembers.add(InvitedMember(email, accepted: (inv['status'] ?? inv['Status']) == 'accepted'));
+          }
         }
       }
 
       // Load configured champions if available
-      if (draft['PrivateJSONData'] != null) {
+      final privateDataRaw = draft['private_json_data'] ?? draft['PrivateJSONData'];
+      if (privateDataRaw != null) {
         try {
-          final Map<String, dynamic> parsed = json.decode(draft['PrivateJSONData']);
+          final Map<String, dynamic> parsed = json.decode(privateDataRaw);
           if (parsed.containsKey('champions')) {
             final champions = parsed['champions'] as Map<String, dynamic>;
             champions.forEach((k, v) {
@@ -154,12 +159,13 @@ class _GroupSetupScreenState extends State<GroupSetupScreen> {
   Future<bool> _autoSaveDraft() async {
     if (!widget.isGroup) return true; // Only drafts for groups
 
-    // Don't save if completely empty
-    if (_productNameCtrl.text.isEmpty && _invitedMembers.isEmpty && _configuredChampions.isEmpty && _productImageFile == null) return true;
-
     if (_draftId == null && widget.draftGroup != null) {
       _draftId = widget.draftGroup!['id'] ?? widget.draftGroup!['ID'];
     }
+
+    final Map<String, dynamic> privateData = {
+      'champions': _configuredChampions,
+    };
 
     final data = {
       'name': _productNameCtrl.text.isEmpty ? 'Borrador sin nombre' : _productNameCtrl.text,
@@ -167,6 +173,7 @@ class _GroupSetupScreenState extends State<GroupSetupScreen> {
       'description': '',
       'subscription_plan': widget.planId ?? widget.planName,
       'invites': _invitedMembers.map((e) => e.email).toList(),
+      'private_json_data': json.encode(privateData),
     };
 
     if (_draftId == null) {
