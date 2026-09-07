@@ -133,19 +133,31 @@ func UpdateGroupDraft(w http.ResponseWriter, r *http.Request) {
 	group.PrivateJSONData = req.PrivateJSONData
 	database.DB.Save(&group)
 
-	// Process Invites (Add new ones, ignore existing)
+	// Process Invites (Sync state: Add new ones, delete removed ones)
+	var existingInvites []models.GroupInvitation
+	database.DB.Where("group_id = ?", group.ID).Find(&existingInvites)
+
+	incomingMap := make(map[string]bool)
 	for _, email := range req.Invites {
+		incomingMap[email] = true
+		
+		// Create if it doesn't exist
 		var existingInvite models.GroupInvitation
-		err := database.DB.Where("group_id = ? AND email = ?", group.ID, email).First(&existingInvite).Error
-		if err != nil {
-			// Doesn't exist, create it
+		if err := database.DB.Where("group_id = ? AND email = ?", group.ID, email).First(&existingInvite).Error; err != nil {
 			newInvite := models.GroupInvitation{
 				GroupID:   group.ID,
 				Email:     email,
 				Status:    "pending",
-				ExpiresAt: time.Now().Add(7 * 24 * time.Hour), // 7 days expiration
+				ExpiresAt: time.Now().Add(7 * 24 * time.Hour),
 			}
 			database.DB.Create(&newInvite)
+		}
+	}
+
+	// Delete invites that were removed in the frontend
+	for _, invite := range existingInvites {
+		if !incomingMap[invite.Email] {
+			database.DB.Delete(&invite)
 		}
 	}
 

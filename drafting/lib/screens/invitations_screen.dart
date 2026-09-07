@@ -88,7 +88,7 @@ class _InvitationsScreenState extends State<InvitationsScreen> {
                           style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold),
                         ),
                         subtitle: Text(
-                          'Estado: ${inv['status'] ?? 'Pendiente'}',
+                          'Estado: ${inv['status'] ?? inv['Status'] ?? 'Pendiente'}',
                           style: GoogleFonts.inter(color: Colors.white70),
                         ),
                         trailing: Row(
@@ -96,11 +96,11 @@ class _InvitationsScreenState extends State<InvitationsScreen> {
                           children: [
                             IconButton(
                               icon: const Icon(Icons.close, color: Colors.redAccent),
-                              onPressed: () => _respond(inv['id'], false),
+                              onPressed: () => _respond(inv['id']?.toString() ?? inv['ID']?.toString() ?? '', false),
                             ),
                             IconButton(
                               icon: const Icon(Icons.check, color: Colors.green),
-                              onPressed: () => _respond(inv['id'], true),
+                              onPressed: () => _respond(inv['id']?.toString() ?? inv['ID']?.toString() ?? '', true),
                             ),
                           ],
                         ),

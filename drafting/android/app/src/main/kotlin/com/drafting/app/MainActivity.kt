@@ -52,12 +52,39 @@ class MainActivity : FlutterActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        savedInstanceState?.let {
+            pendingBaseUrl = it.getString("pendingBaseUrl")
+            pendingSessionToken = it.getString("pendingSessionToken")
+            pendingMainRole = it.getString("pendingMainRole")
+            pendingSecondaryRole = it.getString("pendingSecondaryRole")
+            pendingAutofillRole = it.getString("pendingAutofillRole")
+            pendingIsPremium = it.getBoolean("pendingIsPremium", false)
+            pendingPlanTier = it.getString("pendingPlanTier", "plus")
+            pendingOtpChampions = it.getString("pendingOtpChampions", "")
+            pendingActiveCreatorId = it.getString("pendingActiveCreatorId", "")
+            awaitingOverlayPermission = it.getBoolean("awaitingOverlayPermission", false)
+        }
+
         val filter = IntentFilter("com.drafting.app.RESULT_ACTION")
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             registerReceiver(resultReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
         } else {
             registerReceiver(resultReceiver, filter)
         }
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        outState.putString("pendingBaseUrl", pendingBaseUrl)
+        outState.putString("pendingSessionToken", pendingSessionToken)
+        outState.putString("pendingMainRole", pendingMainRole)
+        outState.putString("pendingSecondaryRole", pendingSecondaryRole)
+        outState.putString("pendingAutofillRole", pendingAutofillRole)
+        outState.putBoolean("pendingIsPremium", pendingIsPremium)
+        outState.putString("pendingPlanTier", pendingPlanTier)
+        outState.putString("pendingOtpChampions", pendingOtpChampions)
+        outState.putString("pendingActiveCreatorId", pendingActiveCreatorId)
+        outState.putBoolean("awaitingOverlayPermission", awaitingOverlayPermission)
     }
 
     override fun onDestroy() {

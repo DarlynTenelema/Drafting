@@ -43,6 +43,15 @@ class _EntrepreneurOnboardingScreenState extends State<EntrepreneurOnboardingScr
     }
   }
 
+  String _getPlanNameForId(String? planId) {
+    if (planId == null) return 'Borrador';
+    if (planId == '10' || planId == '10.0' || planId == '10.00') return 'Plan Emprendedor Individual';
+    if (planId == '20' || planId == '20.0' || planId == '20.00') return 'Plan Emprendedor Individual (Anual)';
+    if (planId == '300' || planId == '300.0' || planId == '300.00') return 'Plan Empresarial (300)';
+    if (planId == '500' || planId == '500.0' || planId == '500.00') return 'Plan Corporativo (500)';
+    return 'Borrador';
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -106,7 +115,7 @@ class _EntrepreneurOnboardingScreenState extends State<EntrepreneurOnboardingScr
             Navigator.of(context).push(MaterialPageRoute(
               builder: (_) => GroupSetupScreen(
                 planId: _draftGroup!['subscription_plan']?.toString() ?? _draftGroup!['SubscriptionPlan']?.toString(),
-                planName: 'Borrador',
+                planName: _getPlanNameForId(_draftGroup!['subscription_plan']?.toString() ?? _draftGroup!['SubscriptionPlan']?.toString()),
                 price: 0.0,
                 isGroup: (_draftGroup!['subscription_plan'] ?? _draftGroup!['SubscriptionPlan']) != '10' && (_draftGroup!['subscription_plan'] ?? _draftGroup!['SubscriptionPlan']) != '20',
                 draftGroup: _draftGroup,
@@ -372,7 +381,7 @@ class _EntrepreneurOnboardingScreenState extends State<EntrepreneurOnboardingScr
                       planName: name,
                       price: price,
                       isGroup: isGroup,
-                      planId: plan['PlanID']?.toString(),
+                      planId: plan['planId']?.toString() ?? plan['PlanID']?.toString(),
                     ),
                   ),
                 ).then((_) => _checkDashboardVisibility());

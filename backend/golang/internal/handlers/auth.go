@@ -98,6 +98,22 @@ func Me(w http.ResponseWriter, r *http.Request) {
 		activePlan = "plus"
 	}
 
+	// Check if user has an active group (as owner)
+	var ownedGroup models.Group
+	hasGroup := false
+	var groupID string
+	if err := database.DB.Where("owner_id = ? AND status = 'active'", user.ID).First(&ownedGroup).Error; err == nil {
+		hasGroup = true
+		groupID = ownedGroup.ID.String()
+	} else {
+		// Check if user has accepted an invitation
+		var invitation models.GroupInvitation
+		if err := database.DB.Where("email = ? AND status = 'accepted'", user.Email).First(&invitation).Error; err == nil {
+			hasGroup = true
+			groupID = invitation.GroupID.String()
+		}
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
 		"id": user.ID,
@@ -110,6 +126,8 @@ func Me(w http.ResponseWriter, r *http.Request) {
 		"strikes": user.Strikes,
 		"is_premium": isPremium,
 		"plan_tier": activePlan,
+		"has_group": hasGroup,
+		"group_id": groupID,
 	})
 }
 

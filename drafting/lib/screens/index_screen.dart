@@ -20,7 +20,7 @@ import 'appeal_screen.dart';
 import 'dart:convert';
 import '../core/services/api_client.dart';
 import '../core/state/active_product_state.dart';
-
+import 'group_member_dashboard_screen.dart';
 
 import '../core/utils/event_bus.dart';
 import 'dart:async';
@@ -53,6 +53,7 @@ class _IndexScreenState extends State<IndexScreen> with SingleTickerProviderStat
   int _visibleFields = 1;
   String? _userName;
   String? _userPhotoUrl;
+  bool _hasGroup = false;
   
   final List<TextEditingController> _otpControllers = List.generate(5, (_) => TextEditingController());
 
@@ -159,6 +160,7 @@ class _IndexScreenState extends State<IndexScreen> with SingleTickerProviderStat
             _userPhotoUrl = data['profile_pic'];
             _isPremium = data['is_premium'] == true;
             _userTier = (data['plan_tier'] ?? 'plus').toString().toLowerCase();
+            _hasGroup = data['has_group'] == true;
             if (_userTier.contains('pro')) _visibleFields = 2;
             if (_userTier.contains('ultra')) _visibleFields = 1; // Start with 1, can add up to 5
           });
@@ -325,11 +327,30 @@ class _IndexScreenState extends State<IndexScreen> with SingleTickerProviderStat
             ListTile(
               leading: Image.asset('assets/images/scroll_outline.png', width: 36, height: 36),
               title: const Text('Emprender', style: TextStyle(color: Colors.white)),
-              onTap: () {
+              onTap: () async {
                 Navigator.pop(context);
-                Navigator.of(context).push(MaterialPageRoute(builder: (_) => const EntrepreneurOnboardingScreen()));
+                await Navigator.of(context).push(MaterialPageRoute(builder: (_) => const EntrepreneurOnboardingScreen()));
+                if (mounted) _fetchUserData();
               },
             ),
+            ListTile(
+              leading: const Icon(Icons.mail, color: Colors.orange, size: 36),
+              title: const Text('Buzón de Emprender', style: TextStyle(color: Colors.white)),
+              onTap: () async {
+                Navigator.pop(context);
+                await Navigator.of(context).push(MaterialPageRoute(builder: (_) => const InvitationsScreen()));
+                if (mounted) _fetchUserData();
+              },
+            ),
+            if (_hasGroup)
+              ListTile(
+                leading: const Icon(Icons.group, color: Colors.white, size: 36),
+                title: const Text('Mi Equipo', style: TextStyle(color: Colors.white)),
+                onTap: () {
+                  Navigator.pop(context);
+                  Navigator.of(context).push(MaterialPageRoute(builder: (_) => const GroupMemberDashboardScreen()));
+                },
+              ),
             ListTile(
               leading: Image.asset('assets/images/crystal_coin_outline.png', width: 36, height: 36),
               title: const Text('Escencias Azules', style: TextStyle(color: Colors.white)),

@@ -34,7 +34,8 @@ class GroupSetupScreen extends StatefulWidget {
 class InvitedMember {
   final String email;
   bool accepted;
-  InvitedMember(this.email, {this.accepted = false});
+  String status;
+  InvitedMember(this.email, {this.accepted = false, this.status = 'pending'});
 }
 
 class _GroupSetupScreenState extends State<GroupSetupScreen> {
@@ -85,13 +86,11 @@ class _GroupSetupScreenState extends State<GroupSetupScreen> {
       _targetMembers = 0;
       _targetChampions = 2; // OTP
     } else {
-      if (widget.planName.contains('Start')) {
-        _targetMembers = 5;
-        _targetChampions = 30;
-      } else if (widget.planName.contains('Avanzado') || widget.planName.contains('Pro')) {
+      final String id = widget.planId?.toString() ?? '';
+      if (id.contains('300')) {
         _targetMembers = 15;
         _targetChampions = 90;
-      } else if (widget.planName.contains('Elite') || widget.planName.contains('Leyenda')) {
+      } else if (id.contains('500')) {
         _targetMembers = 20;
         _targetChampions = AppConstants.totalWildRiftChampions;
       } else {
@@ -120,7 +119,8 @@ class _GroupSetupScreenState extends State<GroupSetupScreen> {
         for (var inv in invitations) {
           final String email = inv['email']?.toString() ?? inv['Email']?.toString() ?? '';
           if (email.isNotEmpty) {
-            _invitedMembers.add(InvitedMember(email, accepted: (inv['status'] ?? inv['Status']) == 'accepted'));
+            String invStatus = (inv['status'] ?? inv['Status'])?.toString() ?? 'pending';
+            _invitedMembers.add(InvitedMember(email, accepted: invStatus == 'accepted', status: invStatus));
           }
         }
       }
@@ -691,9 +691,9 @@ class _GroupSetupScreenState extends State<GroupSetupScreen> {
                         ),
                         child: Column(
                           children: _invitedMembers.map((member) => ListTile(
-                            leading: Icon(member.accepted ? Icons.check_circle : Icons.access_time, color: member.accepted ? Colors.green : Colors.amber),
+                            leading: Icon(member.accepted ? Icons.check_circle : (member.status == 'declined' ? Icons.cancel : Icons.access_time), color: member.accepted ? Colors.green : (member.status == 'declined' ? Colors.redAccent : Colors.amber)),
                             title: Text(member.email, style: const TextStyle(color: Colors.white)),
-                            subtitle: Text(member.accepted ? 'Aceptado' : 'Pendiente', style: TextStyle(color: member.accepted ? Colors.green : Colors.amber, fontSize: 12)),
+                            subtitle: Text(member.accepted ? 'Aceptado' : (member.status == 'declined' ? 'Rechazado' : 'Pendiente'), style: TextStyle(color: member.accepted ? Colors.green : (member.status == 'declined' ? Colors.redAccent : Colors.amber), fontSize: 12)),
                             trailing: IconButton(
                               icon: const Icon(Icons.close, color: Colors.redAccent),
                               onPressed: () {

@@ -140,6 +140,7 @@ func main() {
 			r.Post("/groups/invitations/{id}/accept", handlers.AcceptInvitation)
 			r.Post("/groups/invitations/{id}/decline", handlers.DeclineInvitation)
 			r.Delete("/groups/invitations/{id}", handlers.RevokeInvitation)
+			r.Get("/groups/my-group", handlers.GetMyGroup)
 
 			r.Post("/creator/ai-model", handlers.SaveAIModel)
 			r.Get("/creator/ai-models", handlers.GetAllAIModels)

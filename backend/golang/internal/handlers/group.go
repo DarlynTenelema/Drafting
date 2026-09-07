@@ -130,10 +130,45 @@ func SaveChampionData(w http.ResponseWriter, r *http.Request) {
 			EarlyGameStrategy: req.Rules,
 		})
 	}
+}
+
+// GetMyGroup returns the active group the logged-in user belongs to (either as owner or accepted participant)
+func GetMyGroup(w http.ResponseWriter, r *http.Request) {
+	user, ok := r.Context().Value(middleware.UserContextKey).(*models.User)
+	if !ok {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	var group models.Group
+	
+	// 1. Check if they are the owner
+	err := database.DB.Where("owner_id = ? AND status = 'active'", user.ID).First(&group).Error
+	if err != nil {
+		// 2. If not owner, check if they are an accepted participant
+		var invite models.GroupInvitation
+		if invErr := database.DB.Where("email = ? AND status = 'accepted'", user.Email).First(&invite).Error; invErr == nil {
+			err = database.DB.Where("id = ? AND status = 'active'", invite.GroupID).First(&group).Error
+		}
+	}
+
+	if err != nil {
+		http.Error(w, "Group not found or not a member", http.StatusNotFound)
+		return
+	}
+
+	// Fetch members for the group
+	var members []models.GroupInvitation
+	database.DB.Where("group_id = ? AND status = 'accepted'", group.ID).Find(&members)
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]bool{"success": true})
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"group": group,
+		"members": members,
+		"is_owner": group.OwnerID == user.ID,
+	})
 }
+
 
 func GetMyChampions(w http.ResponseWriter, r *http.Request) {
 	user, ok := r.Context().Value(middleware.UserContextKey).(*models.User)

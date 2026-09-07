@@ -6,6 +6,7 @@ import 'dart:convert';
 import '../theme/app_theme.dart';
 import '../core/state/active_product_state.dart';
 import '../core/services/subscription_service.dart';
+import '../core/services/native_service.dart';
 import 'creator_payment_screen.dart';
 import 'login_screen.dart';
 
@@ -189,6 +190,8 @@ class _ConsumerStoreScreenState extends State<ConsumerStoreScreen> with SingleTi
         sessionToken: widget.sessionToken,
       );
       await ActiveProductState().setActiveProduct(product.title, product.id);
+      await NativeService.stopCaptureService(); // Detener el servicio para forzar reinicio con nuevas reglas
+
       
       if (mounted) {
         Navigator.pop(context); // Close loading dialog

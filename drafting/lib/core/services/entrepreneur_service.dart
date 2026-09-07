@@ -460,6 +460,18 @@ class EntrepreneurService {
     }
   }
 
+  Future<Map<String, dynamic>?> getMyGroup() async {
+    try {
+      final response = await ApiClient.get('/groups/my-group', authenticated: true);
+      if (response.statusCode == 200) {
+        return json.decode(response.body);
+      }
+      return null;
+    } catch (e) {
+      return null;
+    }
+  }
+
   Future<bool> respondToInvitation(String id, bool accept) async {
     try {
       final action = accept ? 'accept' : 'decline';

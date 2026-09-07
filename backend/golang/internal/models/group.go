@@ -64,13 +64,13 @@ func (o *OTPProfile) BeforeCreate(tx *gorm.DB) (err error) {
 }
 
 type GroupInvitation struct {
-	ID        uuid.UUID `gorm:"type:uuid;primary_key;default:gen_random_uuid()"`
-	GroupID   uuid.UUID `gorm:"type:uuid;not null;index"`
-	Email     string    `gorm:"type:varchar(255);not null"`
-	Status    string    `gorm:"type:varchar(50);default:'pending'"` // pending, accepted
-	ExpiresAt time.Time
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	ID        uuid.UUID `gorm:"type:uuid;primary_key;default:gen_random_uuid()" json:"id"`
+	GroupID   uuid.UUID `gorm:"type:uuid;not null;index" json:"group_id"`
+	Email     string    `gorm:"type:varchar(255);not null" json:"email"`
+	Status    string    `gorm:"type:varchar(50);default:'pending'" json:"status"` // pending, accepted
+	ExpiresAt time.Time `json:"expires_at"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
 }
 
 func (g *GroupInvitation) BeforeCreate(tx *gorm.DB) (err error) {

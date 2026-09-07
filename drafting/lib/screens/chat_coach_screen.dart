@@ -56,6 +56,7 @@ class _ChatCoachScreenState extends State<ChatCoachScreen> {
     _eventSub = EventBus().stream.listen((event) {
       if (event == 'subscription_updated' && mounted) {
         _fetchUserTier();
+        _loadMatches();
       }
     });
   }

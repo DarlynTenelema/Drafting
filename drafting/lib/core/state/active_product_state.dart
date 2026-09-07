@@ -12,6 +12,7 @@ class ActiveProductState {
   Future<void> init() async {
     final prefs = await SharedPreferences.getInstance();
     activeProductNotifier.value = prefs.getString('active_product');
+    activeCreatorIdNotifier.value = prefs.getString('active_creator_id');
   }
 
   Future<void> setActiveProduct(String productName, String creatorId) async {
