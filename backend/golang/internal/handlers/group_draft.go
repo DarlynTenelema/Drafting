@@ -90,6 +90,7 @@ type UpdateGroupDraftRequest struct {
 	ProductImage     string   `json:"product_image"`
 	Description      string   `json:"description"`
 	SubscriptionPlan string   `json:"subscription_plan"`
+	PrivateJSONData  string   `json:"private_json_data"`
 	Invites          []string `json:"invites"`
 }
 
