@@ -220,8 +220,6 @@ class _FanartDetailScreenState extends State<FanartDetailScreen> {
             onSelected: (value) async {
               if (value == 'report') {
                 ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Reporte enviado a moderación')));
-              } else if (value == 'edit') {
-                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Editar FanArt (Próximamente)')));
               } else if (value == 'delete') {
                 final confirm = await showDialog<bool>(
                   context: context,
@@ -243,10 +241,6 @@ class _FanartDetailScreenState extends State<FanartDetailScreen> {
             },
             itemBuilder: (context) => [
               if (_isOwner) ...[
-                const PopupMenuItem(
-                  value: 'edit',
-                  child: Text('Editar FanArt'),
-                ),
                 const PopupMenuItem(
                   value: 'delete',
                   child: Text('Eliminar FanArt', style: TextStyle(color: Colors.redAccent)),

@@ -75,9 +75,33 @@ func SaveAIModel(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// If the user has accepted an invitation, they are contributing to a group
+	effectiveCreatorID := user.ID
+	var invite models.GroupInvitation
+	if err := database.DB.Where("email = ? AND status = 'accepted'", user.Email).First(&invite).Error; err == nil {
+		var group models.Group
+		if err := database.DB.Where("id = ? AND status = 'active'", invite.GroupID).First(&group).Error; err == nil {
+			effectiveCreatorID = group.OwnerID
+			
+			// Also update the group's PrivateJSONData for redundancy
+			var championData map[string]string
+			if group.PrivateJSONData == "" || group.PrivateJSONData == "{}" {
+				championData = make(map[string]string)
+			} else {
+				if err := json.Unmarshal([]byte(group.PrivateJSONData), &championData); err != nil {
+					championData = make(map[string]string)
+				}
+			}
+			championData[req.ChampionName] = req.EarlyGameStrategy // simplified fallback
+			if updatedJSON, err := json.Marshal(championData); err == nil {
+				database.DB.Model(&group).Update("private_json_data", string(updatedJSON))
+			}
+		}
+	}
+
 	// Content is approved, save it.
 	aiModel := models.AIModel{
-		CreatorID:         user.ID,
+		CreatorID:         effectiveCreatorID,
 		ChampionName:      req.ChampionName,
 		EarlyGameStrategy: req.EarlyGameStrategy,
 		LateGameStrategy:  req.LateGameStrategy,
@@ -92,7 +116,7 @@ func SaveAIModel(w http.ResponseWriter, r *http.Request) {
 	// Upsert based on CreatorID and ChampionName if you want one per champ, 
 	// or just create new if you keep history. For now, we create or update.
 	var existing models.AIModel
-	if err := database.DB.Where("creator_id = ? AND champion_name = ?", user.ID, req.ChampionName).First(&existing).Error; err == nil {
+	if err := database.DB.Where("creator_id = ? AND champion_name = ?", effectiveCreatorID, req.ChampionName).First(&existing).Error; err == nil {
 		// Update existing
 		existing.EarlyGameStrategy = req.EarlyGameStrategy
 		existing.LateGameStrategy = req.LateGameStrategy

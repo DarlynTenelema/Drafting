@@ -7,6 +7,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../core/services/api_client.dart';
 import '../theme/app_theme.dart';
+import 'legal_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
   final String sessionToken;
@@ -248,7 +249,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   tileColor: AppTheme.surface,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   onTap: () {
-                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Términos y condiciones (Próximamente)')));
+                    Navigator.push(context, MaterialPageRoute(builder: (_) => const LegalScreen()));
                   },
                 ),
               ],

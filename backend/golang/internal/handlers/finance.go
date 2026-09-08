@@ -225,6 +225,17 @@ func SubscribeToGroup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Verify owner's subscription is active
+	var owner models.User
+	if err := database.DB.Where("id = ?", group.OwnerID).First(&owner).Error; err != nil {
+		http.Error(w, "Group owner not found", http.StatusInternalServerError)
+		return
+	}
+	if owner.SubscriptionEndsAt == nil || time.Now().After(*owner.SubscriptionEndsAt) {
+		http.Error(w, "Este producto actualmente se encuentra suspendido y no admite nuevas suscripciones.", http.StatusForbidden)
+		return
+	}
+
 	// Verify the subscription purchase
 	if playStoreVerifier != nil && playStoreVerifier.Enabled() {
 		if _, err := playStoreVerifier.VerifySubscriptionPurchase(r.Context(), req.SubscriptionID, req.PurchaseToken); err != nil {
@@ -477,6 +488,17 @@ func SubscribeToCreator(w http.ResponseWriter, r *http.Request) {
 	var profile models.OTPProfile
 	if err := database.DB.Where("id = ?", profileID).First(&profile).Error; err != nil {
 		http.Error(w, "Creator profile not found", http.StatusNotFound)
+		return
+	}
+
+	// Verify owner's subscription is active
+	var owner models.User
+	if err := database.DB.Where("id = ?", profile.OwnerID).First(&owner).Error; err != nil {
+		http.Error(w, "Creator owner not found", http.StatusInternalServerError)
+		return
+	}
+	if owner.SubscriptionEndsAt == nil || time.Now().After(*owner.SubscriptionEndsAt) {
+		http.Error(w, "Este producto actualmente se encuentra suspendido y no admite nuevas suscripciones.", http.StatusForbidden)
 		return
 	}
 

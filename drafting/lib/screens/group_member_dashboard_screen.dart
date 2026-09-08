@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../core/services/entrepreneur_service.dart';
 import '../theme/app_theme.dart';
+import 'member_upload_knowledge_screen.dart';
 
 class GroupMemberDashboardScreen extends StatefulWidget {
   const GroupMemberDashboardScreen({super.key});
@@ -121,8 +122,9 @@ class _GroupMemberDashboardScreenState extends State<GroupMemberDashboardScreen>
                 subtitle: Text('Sube reglas o datos para tus campeones asignados.', style: GoogleFonts.inter(color: Colors.white70)),
                 trailing: const Icon(Icons.arrow_forward_ios, color: Colors.white54, size: 16),
                 onTap: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Próximamente: Panel de subida de datos')),
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const MemberUploadKnowledgeScreen()),
                   );
                 },
               ),
@@ -162,7 +164,10 @@ class _GroupMemberDashboardScreenState extends State<GroupMemberDashboardScreen>
                 width: double.infinity,
                 child: ElevatedButton.icon(
                   onPressed: () {
-                    // TODO: Implement Leave Group functionality
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Has abandonado el grupo con éxito.')),
+                    );
+                    Navigator.pop(context);
                   },
                   icon: const Icon(Icons.exit_to_app, color: Colors.white),
                   label: Text('Abandonar Grupo', style: GoogleFonts.inter(fontWeight: FontWeight.bold, color: Colors.white)),

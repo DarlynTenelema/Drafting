@@ -123,17 +123,6 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  void _showUpdatesInfo() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: const Text('Pantalla de nuevas actualizaciones próximamente'),
-        backgroundColor: AppTheme.primary,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -226,23 +215,6 @@ class _LoginScreenState extends State<LoginScreen> {
               
               const Spacer(flex: 1),
               
-              // Botón de Info (!)
-              IconButton(
-                onPressed: _showUpdatesInfo,
-                icon: Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    border: Border.all(color: AppTheme.primary.withValues(alpha: 0.5), width: 2),
-                  ),
-                  child: const Icon(
-                    Icons.priority_high,
-                    color: AppTheme.primary,
-                    size: 20,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 32),
             ],
           ),
         ),

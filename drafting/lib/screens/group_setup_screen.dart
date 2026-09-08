@@ -561,7 +561,7 @@ class _GroupSetupScreenState extends State<GroupSetupScreen> {
                                     return const Center(child: CircularProgressIndicator());
                                   }
                                 );
-                                await _executeCreationFlow();
+                                await _executeCreationFlow(null);
                               }
                             } 
                           : null,
@@ -926,7 +926,7 @@ class _GroupSetupScreenState extends State<GroupSetupScreen> {
     );
   }
 
-  Future<void> _executeCreationFlow(PurchaseDetails purchaseDetails) async {
+  Future<void> _executeCreationFlow(PurchaseDetails? purchaseDetails) async {
     try {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Paso 1: Subiendo imagen a Supabase...')));
       
@@ -977,7 +977,7 @@ class _GroupSetupScreenState extends State<GroupSetupScreen> {
         // If we want to link them or do something else, we can do it here.
         // For now, they are safely stored in the AIModel table.
         
-        if (purchaseDetails.pendingCompletePurchase) {
+        if (purchaseDetails != null && purchaseDetails.pendingCompletePurchase) {
           try {
             await _inAppPurchase.completePurchase(purchaseDetails).timeout(const Duration(seconds: 15));
           } catch (e) {
