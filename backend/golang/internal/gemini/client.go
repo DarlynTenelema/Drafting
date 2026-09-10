@@ -87,52 +87,34 @@ func AnalyzeDraft(ctx context.Context, base64Image string, mainRole, secondaryRo
 
 	if queryType == "otp" {
 		prompt = fmt.Sprintf(`Eres un Analista Experto de Wild Rift.
-El usuario es un OTP (One Trick Pony) y domina a los siguientes campeones: %s.
+El usuario es un OTP y domina a: %s.
 
-Instrucciones de visión artificial (Analiza internamente, NO lo escribas):
-1. ESTADO DE SELECCIÓN: Observa si el usuario ya ha fijado a su campeón.
-2. ROL: Identifica el rol asignado en la pantalla.
-3. BANEOS Y ENEMIGOS: Identifica a los enemigos y baneos.
-4. ADAPTACIÓN: Recomienda el mejor campeón OTP (%s) o adapta el ya elegido.
+Recomienda el mejor campeón OTP o adapta el ya elegido.
 
 Reglas CRÍTICAS:
 - IDIOMA: Español.
 - FORMATO: PROHIBIDO USAR MARKDOWN. Texto limpio.
-- CERO EXPLICACIONES LARGAS. Responde ÚNICAMENTE con los nombres separados por comas.
+- RESPONDE ÚNICAMENTE CON LA ESTRUCTURA EXACTA (sin charla, sin incluir el título de la estructura).
 
-ESTRUCTURAS EXACTAS REQUERIDAS (Usa SOLO UNA según el estado, no incluyas el título de la estructura):
-
-ESTRUCTURA A (Aún eligiendo):
-Campeón OTP: [Nombre]
-Hechizos: [Hechizo 1], [Hechizo 2]
-Runas: [Runa 1], [Runa 2], [Runa 3]
-Build Core: [Objeto 1], [Objeto 2], [Objeto 3]
-Situacional: [Objeto 4], [Objeto 5]
-
-ESTRUCTURA B (Ya eligió):
+ESTRUCTURA (Ya eligió):
 Tu Campeón: [Nombre]
 Hechizos: [Hechizo 1], [Hechizo 2]
 Runas: [Runa 1], [Runa 2], [Runa 3]
 Build Core: [Objeto 1], [Objeto 2], [Objeto 3]
 Situacional: [Objeto 4], [Objeto 5]
 
-%s`, otpChampions, otpChampions, privateRulesContext)
+%s`, otpChampions, privateRulesContext)
 	} else if queryType == "in_game" {
 		prompt = fmt.Sprintf(`Eres un Analista Experto de Wild Rift.
 Partida en curso.
 
-Instrucciones (NO lo escribas):
-1. Analiza objetos de aliados y enemigos.
-2. Identifica quién gana y la amenaza enemiga.
-3. Recomienda próximos objetos.
-
 Reglas CRÍTICAS:
 - IDIOMA: Español.
 - FORMATO: PROHIBIDO USAR MARKDOWN.
-- CERO CHARLA. Solo responde con nombres separados por comas.
+- RESPONDE ÚNICAMENTE CON LA ESTRUCTURA EXACTA.
 
 ESTRUCTURA:
-Análisis: [5 palabras máximo]
+Análisis: [5 palabras máximo de quién gana]
 Objetos Recomendados: [Objeto 1], [Objeto 2], [Objeto 3]
 
 %s`, privateRulesContext)
@@ -140,16 +122,10 @@ Objetos Recomendados: [Objeto 1], [Objeto 2], [Objeto 3]
 		prompt = fmt.Sprintf(`Eres un Analista Experto de Wild Rift.
 Roles preferidos: %s, %s, %s.
 
-Instrucciones (Analiza, NO lo escribas):
-1. ROL: Identifica tu rol.
-2. BANEOS: Revisa baneos.
-3. EQUIPO ALIADO y ENEMIGOS: Identifica sinergias y counters.
-4. ADAPTACIÓN: Elige 3 campeones ideales.
-
 Reglas CRÍTICAS:
 - IDIOMA: Español.
 - FORMATO: PROHIBIDO USAR MARKDOWN.
-- CERO CHARLA. Respuestas cortas separadas por comas.
+- RESPONDE ÚNICAMENTE CON LA ESTRUCTURA EXACTA (sin charla, sin analizar en texto).
 
 ESTRUCTURA EXACTA:
 Opciones: [Campeón 1], [Campeón 2], [Campeón 3]
@@ -157,17 +133,14 @@ Opciones: [Campeón 1], [Campeón 2], [Campeón 3]
 [Campeón 1]
 Hechizos: [Hechizo 1], [Hechizo 2]
 Runas: [Runa 1], [Runa 2], [Runa 3]
-Build: [Objeto 1], [Objeto 2], [Objeto 3], [Objeto 4]
 
 [Campeón 2]
 Hechizos: [Hechizo 1], [Hechizo 2]
 Runas: [Runa 1], [Runa 2], [Runa 3]
-Build: [Objeto 1], [Objeto 2], [Objeto 3], [Objeto 4]
 
 [Campeón 3]
 Hechizos: [Hechizo 1], [Hechizo 2]
 Runas: [Runa 1], [Runa 2], [Runa 3]
-Build: [Objeto 1], [Objeto 2], [Objeto 3], [Objeto 4]
 
 %s`, mainRole, secondaryRole, autofillRole, privateRulesContext)
 	}
