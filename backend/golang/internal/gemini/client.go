@@ -90,102 +90,84 @@ func AnalyzeDraft(ctx context.Context, base64Image string, mainRole, secondaryRo
 El usuario es un OTP (One Trick Pony) y domina a los siguientes campeones: %s.
 
 Instrucciones de visión artificial (Analiza internamente, NO lo escribas):
-1. ESTADO DE SELECCIÓN: Observa si el usuario ya ha fijado a su campeón (ya no aparece la cuadrícula central de campeones para elegir).
+1. ESTADO DE SELECCIÓN: Observa si el usuario ya ha fijado a su campeón.
 2. ROL: Identifica el rol asignado en la pantalla.
 3. BANEOS Y ENEMIGOS: Identifica a los enemigos y baneos.
-4. ADAPTACIÓN: 
-   - Si el usuario AÚN ESTÁ ELIGIENDO (cuadrícula abierta): Recomienda cuál de sus campeones OTP (%s) es la mejor opción.
-   - Si el usuario YA ELIGIÓ SU CAMPEÓN (cuadrícula cerrada, campeón fijado): Identifica qué campeón escogió y enfócate en darle las mejores runas, hechizos y build para enfrentar al equipo enemigo.
+4. ADAPTACIÓN: Recomienda el mejor campeón OTP (%s) o adapta el ya elegido.
 
 Reglas CRÍTICAS:
-- IDIOMA: Únicamente Español.
-- FORMATO PLANO: PROHIBIDO USAR MARKDOWN (sin asteriscos, sin hashtags, sin negritas). Todo en texto limpio.
-- CERO CHARLA: Cero saludos, introducciones o despedidas. Da solo los datos.
+- IDIOMA: Español.
+- FORMATO: PROHIBIDO USAR MARKDOWN. Texto limpio.
+- CERO EXPLICACIONES LARGAS. Responde ÚNICAMENTE con los nombres separados por comas.
 
-ESTRUCTURAS EXACTAS REQUERIDAS (Usa SOLO UNA según el estado de selección):
+ESTRUCTURAS EXACTAS REQUERIDAS (Usa SOLO UNA según el estado, no incluyas el título de la estructura):
 
-ESTRUCTURA A (Si aún está eligiendo campeón):
-Campeón OTP Recomendado: [Nombre del campeón]
-Razón: [Razón breve de por qué es buena opción contra los enemigos]
-Hechizos: [Hechizos precisos]
-Runas: [Runas exactas]
-Build Principal: [Objetos core para hacer snowball o counter]
-Situacionales: [Objetos situacionales según la composición enemiga]
+ESTRUCTURA A (Aún eligiendo):
+Campeón OTP: [Nombre]
+Hechizos: [Hechizo 1], [Hechizo 2]
+Runas: [Runa 1], [Runa 2], [Runa 3]
+Build Core: [Objeto 1], [Objeto 2], [Objeto 3]
+Situacional: [Objeto 4], [Objeto 5]
 
-ESTRUCTURA B (Si ya eligió campeón):
-Tu Campeón: [Nombre del campeón detectado]
-Análisis: [Breve análisis de tu rol contra la composición enemiga]
-Hechizos: [Hechizos precisos]
-Runas: [Runas exactas para hacer counter]
-Build Principal: [Objetos core contra estos enemigos]
-Situacionales: [Objetos situacionales]
+ESTRUCTURA B (Ya eligió):
+Tu Campeón: [Nombre]
+Hechizos: [Hechizo 1], [Hechizo 2]
+Runas: [Runa 1], [Runa 2], [Runa 3]
+Build Core: [Objeto 1], [Objeto 2], [Objeto 3]
+Situacional: [Objeto 4], [Objeto 5]
 
 %s`, otpChampions, otpChampions, privateRulesContext)
 	} else if queryType == "in_game" {
-		prompt = fmt.Sprintf(`Eres un Analista Experto de Wild Rift en tiempo real.
-El usuario está consultando en medio de una partida.
+		prompt = fmt.Sprintf(`Eres un Analista Experto de Wild Rift.
+Partida en curso.
 
-Instrucciones de visión artificial (Analiza internamente, NO lo escribas):
-1. TABLA DE PUNTUACIONES: Analiza los objetos de los aliados y los objetos de los enemigos en la captura.
-2. ESTADO ACTUAL: Identifica quién va ganando, quién es la amenaza principal enemiga, y qué tipo de daño predomina.
-3. ADAPTACIÓN: Recomienda los próximos objetos que el jugador debería comprar para hacer counter o sobrevivir mejor.
+Instrucciones (NO lo escribas):
+1. Analiza objetos de aliados y enemigos.
+2. Identifica quién gana y la amenaza enemiga.
+3. Recomienda próximos objetos.
 
 Reglas CRÍTICAS:
-- IDIOMA: Únicamente Español.
-- FORMATO PLANO: PROHIBIDO USAR MARKDOWN (sin asteriscos, sin hashtags, sin negritas). Todo en texto limpio.
-- CERO CHARLA: Cero saludos, introducciones o despedidas. Da solo los datos.
-- ESTRUCTURA EXACTA REQUERIDA:
+- IDIOMA: Español.
+- FORMATO: PROHIBIDO USAR MARKDOWN.
+- CERO CHARLA. Solo responde con nombres separados por comas.
 
-Análisis de Partida: [Breve resumen de 10 a 20 palabras sobre la situación actual]
-
-Siguientes Objetos Recomendados:
-1. [Nombre del Objeto 1]: [Breve razón de por qué contrarresta a los enemigos]
-2. [Nombre del Objeto 2]: [Breve razón]
-3. [Nombre del Objeto 3]: [Breve razón]
+ESTRUCTURA:
+Análisis: [5 palabras máximo]
+Objetos Recomendados: [Objeto 1], [Objeto 2], [Objeto 3]
 
 %s`, privateRulesContext)
 	} else {
 		prompt = fmt.Sprintf(`Eres un Analista Experto de Wild Rift.
-Roles preferidos: Principal: %s, Secundario: %s, Comodín: %s. (Úsalos de contexto; el rol REAL es el de la imagen).
+Roles preferidos: %s, %s, %s.
 
-Instrucciones de visión artificial (Analiza internamente, NO lo escribas):
-1. ROL: Identifica tu rol por el texto dorado en la esquina inferior izquierda. Solo recomienda para este rol.
-2. BANEOS: Revisa las esquinas superiores. NUNCA recomiendes un campeón baneado.
-3. EQUIPO ALIADO: Lee los pequeños iconos de rol bajo los hechizos. Evalúa qué falta (Tanque, Daño AP o AD) para balancear la composición.
-4. ENEMIGOS Y TURNO: Identifica a tu rival directo a la derecha para hacerle Counter. Si eres de los primeros en elegir, busca selecciones seguras.
-5. GAMEPLAY: Usa las notas de Early y Late Game (si existen) SOLO para deducir internamente la viabilidad del campeón.
-6. ADAPTACIÓN: Elige 3 campeones ideales basados en este análisis.
+Instrucciones (Analiza, NO lo escribas):
+1. ROL: Identifica tu rol.
+2. BANEOS: Revisa baneos.
+3. EQUIPO ALIADO y ENEMIGOS: Identifica sinergias y counters.
+4. ADAPTACIÓN: Elige 3 campeones ideales.
 
 Reglas CRÍTICAS:
-- IDIOMA: Únicamente Español.
-- FORMATO PLANO: PROHIBIDO USAR MARKDOWN (sin asteriscos, sin hashtags, sin negritas). Todo en texto limpio.
-- CERO CHARLA: Cero saludos, introducciones o despedidas. Da solo los datos.
-- ESTRUCTURA EXACTA REQUERIDA:
+- IDIOMA: Español.
+- FORMATO: PROHIBIDO USAR MARKDOWN.
+- CERO CHARLA. Respuestas cortas separadas por comas.
 
-Campeones recomendados:
-1. [Campeón A]: [Razón de máximo 15 palabras]
-2. [Campeón B]: [Razón de máximo 15 palabras]
-3. [Campeón C]: [Razón de máximo 15 palabras]
+ESTRUCTURA EXACTA:
+Opciones: [Campeón 1], [Campeón 2], [Campeón 3]
 
-Detalles de las opciones:
+[Campeón 1]
+Hechizos: [Hechizo 1], [Hechizo 2]
+Runas: [Runa 1], [Runa 2], [Runa 3]
+Build: [Objeto 1], [Objeto 2], [Objeto 3], [Objeto 4]
 
-[Campeón A]
-Hechizos: [Hechizos precisos]
-Runas: [Runas exactas]
-Build Principal: [Objetos core]
-Situacionales: [Objetos situacionales según rivales]
+[Campeón 2]
+Hechizos: [Hechizo 1], [Hechizo 2]
+Runas: [Runa 1], [Runa 2], [Runa 3]
+Build: [Objeto 1], [Objeto 2], [Objeto 3], [Objeto 4]
 
-[Campeón B]
-Hechizos: [Hechizos precisos]
-Runas: [Runas exactas]
-Build Principal: [Objetos core]
-Situacionales: [Objetos situacionales según rivales]
-
-[Campeón C]
-Hechizos: [Hechizos precisos]
-Runas: [Runas exactas]
-Build Principal: [Objetos core]
-Situacionales: [Objetos situacionales según rivales]
+[Campeón 3]
+Hechizos: [Hechizo 1], [Hechizo 2]
+Runas: [Runa 1], [Runa 2], [Runa 3]
+Build: [Objeto 1], [Objeto 2], [Objeto 3], [Objeto 4]
 
 %s`, mainRole, secondaryRole, autofillRole, privateRulesContext)
 	}
@@ -200,7 +182,7 @@ Situacionales: [Objetos situacionales según rivales]
 		},
 	}
 	
-	resp, err := aiClient.Models.GenerateContent(ctx, "gemini-2.5-flash", contents, nil)
+	resp, err := aiClient.Models.GenerateContent(ctx, "gemini-2.5-flash-lite", contents, nil)
 	
 	if err != nil {
 		return "", 0, fmt.Errorf("failed to generate content: %w", err)
@@ -243,7 +225,7 @@ Responde SOLO con un JSON en este formato exacto:
 		},
 	}
 
-	resp, err := aiClient.Models.GenerateContent(ctx, "gemini-2.5-flash", contents, nil)
+	resp, err := aiClient.Models.GenerateContent(ctx, "gemini-2.5-flash-lite", contents, nil)
 	if err != nil {
 		return false, "Error de validación", err
 	}
@@ -293,7 +275,7 @@ Reglas de rechazo:
 		},
 	}
 
-	resp, err := aiClient.Models.GenerateContent(ctx, "gemini-2.5-flash", contents, nil)
+	resp, err := aiClient.Models.GenerateContent(ctx, "gemini-2.5-flash-lite", contents, nil)
 	if err != nil {
 		return false, "Error de validación de imagen", err
 	}
@@ -352,7 +334,7 @@ Responde SOLO con un JSON en este formato exacto:
 		},
 	}
 
-	resp, err := aiClient.Models.GenerateContent(ctx, "gemini-2.5-flash", contents, nil)
+	resp, err := aiClient.Models.GenerateContent(ctx, "gemini-2.5-flash-lite", contents, nil)
 	if err != nil {
 		return false, "Error de validación de video", err
 	}
@@ -410,7 +392,7 @@ Formato esperado:
 		},
 	}
 
-	resp, err := aiClient.Models.GenerateContent(ctx, "gemini-2.5-flash", contents, nil)
+	resp, err := aiClient.Models.GenerateContent(ctx, "gemini-2.5-flash-lite", contents, nil)
 	if err != nil {
 		return "", err
 	}
@@ -448,7 +430,7 @@ JSON esperado: {"action": "CLEAN|STRIKE|REVIEW", "reason": "Justificacin breve"}
 		},
 	}
 
-	resp, err := aiClient.Models.GenerateContent(ctx, "gemini-2.5-flash", contents, nil)
+	resp, err := aiClient.Models.GenerateContent(ctx, "gemini-2.5-flash-lite", contents, nil)
 	if err != nil {
 		return "REVIEW", "Error al procesar", err
 	}
@@ -495,7 +477,7 @@ Devuelve SOLO un JSON en este formato:
 		},
 	}
 
-	resp, err := aiClient.Models.GenerateContent(ctx, "gemini-2.5-flash", contents, nil)
+	resp, err := aiClient.Models.GenerateContent(ctx, "gemini-2.5-flash-lite", contents, nil)
 	if err != nil {
 		return "high", "Error de IA al categorizar", err
 	}
@@ -545,7 +527,7 @@ Responde SOLO con un JSON en este formato exacto:
 		},
 	}
 
-	resp, err := aiClient.Models.GenerateContent(ctx, "gemini-2.5-flash", contents, nil)
+	resp, err := aiClient.Models.GenerateContent(ctx, "gemini-2.5-flash-lite", contents, nil)
 	if err != nil {
 		return false, "Error de IA", err
 	}

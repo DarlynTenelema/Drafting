@@ -66,7 +66,7 @@ Responde ÚNICAMENTE en formato JSON plano sin markdown, con la siguiente estruc
 		},
 	}
 
-	resp, err := aiClient.Models.GenerateContent(ctx, "gemini-2.5-flash", contents, config)
+	resp, err := aiClient.Models.GenerateContent(ctx, "gemini-2.5-flash-lite", contents, config)
 	if err != nil {
 		log.Printf("Gemini DetermineMatchContinuity error: %v", err)
 		return response, 0, err
@@ -169,7 +169,7 @@ Responde a su mensaje final de forma útil, estratégica y analítica.
 		Parts: []*genai.Part{genai.NewPartFromText(userMessage)},
 	})
 
-	resp, err := aiClient.Models.GenerateContent(ctx, "gemini-2.5-flash", contents, nil)
+	resp, err := aiClient.Models.GenerateContent(ctx, "gemini-2.5-flash-lite", contents, nil)
 	if err != nil {
 		log.Printf("Gemini ChatCoachConverse error: %v", err)
 		return "", 0, err
@@ -217,7 +217,7 @@ Mensaje:
 		},
 	}
 
-	resp, err := aiClient.Models.GenerateContent(ctx, "gemini-2.5-flash", contents, nil)
+	resp, err := aiClient.Models.GenerateContent(ctx, "gemini-2.5-flash-lite", contents, nil)
 	if err != nil {
 		return "", err
 	}

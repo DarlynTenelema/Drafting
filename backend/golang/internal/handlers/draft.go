@@ -75,17 +75,19 @@ func AnalyzeDraft(w http.ResponseWriter, r *http.Request) {
 	isPremium := plan != "freemium"
 
 	if !isPremium {
-		// Enforce premium-only queries
-		if req.QueryType == "otp" || req.QueryType == "in_game" {
-			http.Error(w, "Se requiere suscripción Premium para esta función.", http.StatusForbidden)
-			return
-		}
-
 		var count int64
 		database.DB.Model(&models.ApiUsage{}).Where("user_id = ?", user.ID).Count(&count)
 		
 		if count >= 5 {
 			http.Error(w, "Prueba gratuita agotada. Límite de 5 peticiones alcanzado.", http.StatusForbidden)
+			return
+		}
+	}
+
+	// Enforce Pro/Ultra only features
+	if req.QueryType == "otp" || req.QueryType == "in_game" {
+		if !strings.Contains(plan, "pro") && !strings.Contains(plan, "ultra") {
+			http.Error(w, "Se requiere suscripción Pro o Ultra para esta función.", http.StatusForbidden)
 			return
 		}
 	}

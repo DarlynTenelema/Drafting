@@ -150,23 +150,23 @@ func Cooldown(next http.Handler) http.Handler {
 			plan = "freemium"
 		}
 
-		limit := int64(10) // Plus limit
+		limit := int64(20) // Plus limit (Daily)
 		if strings.HasPrefix(plan, "pro") || strings.HasPrefix(plan, "creator_pro") {
-			limit = 20
+			limit = 35
 		} else if strings.HasPrefix(plan, "ultra") || strings.HasPrefix(plan, "creator_ultra") {
-			limit = 30
+			limit = 50
 		} else if strings.HasPrefix(plan, "freemium") {
-			limit = 5 // Limit 5 per hour. Lifetime limit handled in handlers.
+			limit = 5 // Limit 5 lifetime (handled in handlers, but fallback here)
 		}
 
-		// 1. Check Requests per hour (Cooldown)
+		// 1. Check Requests per DAY (Cooldown)
 		var count int64
-		database.DB.Model(&models.ApiUsage{}).Where("user_id = ? AND created_at > ?", user.ID, time.Now().Add(-1*time.Hour)).Count(&count)
+		database.DB.Model(&models.ApiUsage{}).Where("user_id = ? AND created_at > ?", user.ID, time.Now().Add(-24*time.Hour)).Count(&count)
 		if count >= limit {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusTooManyRequests)
 			json.NewEncoder(w).Encode(map[string]string{
-				"error": "Límite de consultas por hora alcanzado para tu plan. Intenta de nuevo más tarde o mejora tu plan.",
+				"error": "Límite de consultas diario alcanzado para tu plan. Regresa mañana o mejora tu plan.",
 			})
 			return
 		}
@@ -180,17 +180,17 @@ func Cooldown(next http.Handler) http.Handler {
 			if err := database.DB.Where("user_id = ? AND status = 'completed'", user.ID).Order("created_at desc").First(&latestTx).Error; err == nil {
 				switch latestTx.ProductID {
 				case "sub_ultra_1d", "sub_creator_ultra_1d":
-					maxTokens = 250000
+					maxTokens = 100000 // 100K daily
 					since = time.Now().Add(-24 * time.Hour)
 				case "sub_ultra_1w", "sub_creator_ultra_1w":
-					maxTokens = 300000
-					since = time.Now().Add(-24 * time.Hour) // 300K diarios
+					maxTokens = 150000
+					since = time.Now().Add(-24 * time.Hour) // 150K diarios
 				case "sub_ultra_1m", "sub_creator_ultra_1m":
-					maxTokens = 2500000
-					since = time.Now().Add(-7 * 24 * time.Hour) // 2.5M semanales
+					maxTokens = 1000000
+					since = time.Now().Add(-7 * 24 * time.Hour) // 1M semanales
 				case "sub_ultra_1y", "sub_creator_ultra_1y":
-					maxTokens = 12000000
-					since = time.Now().Add(-30 * 24 * time.Hour) // 12M mensuales
+					maxTokens = 5000000
+					since = time.Now().Add(-30 * 24 * time.Hour) // 5M mensuales
 				}
 			}
 
