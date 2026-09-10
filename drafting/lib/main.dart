@@ -7,7 +7,7 @@ import 'theme/app_theme.dart';
 import 'screens/splash_screen.dart';
 import 'core/state/active_product_state.dart';
 import 'core/config/app_config.dart';
-
+import 'core/services/api_client.dart';
 void main() async {
   if (kReleaseMode) {
     debugPrint = (String? message, {int? wrapWidth}) {};
@@ -47,6 +47,12 @@ void main() async {
     );
 
     await ActiveProductState().init();
+
+    // Pre-calentar el backend en segundo plano para evitar Cold Starts
+    ApiClient.get('/').catchError((_) {
+      // Ignoramos errores, solo queremos despertar el servidor
+      return null;
+    });
 
     runApp(const DraftingApp());
   }, (error, stack) {

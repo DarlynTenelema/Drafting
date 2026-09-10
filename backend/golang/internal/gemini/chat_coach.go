@@ -17,21 +17,21 @@ type DetermineMatchContinuityResponse struct {
 }
 
 // DetermineMatchContinuity analyzes if the new screenshot belongs to the same match as the previous screenshot
-func DetermineMatchContinuity(ctx context.Context, previousImageBase64 string, newImageBase64 string) (DetermineMatchContinuityResponse, error) {
+func DetermineMatchContinuity(ctx context.Context, previousImageBase64 string, newImageBase64 string) (DetermineMatchContinuityResponse, int64, error) {
 	var response DetermineMatchContinuityResponse
 
 	if aiClient == nil {
-		return response, fmt.Errorf("AI client not initialized")
+		return response, 0, fmt.Errorf("AI client not initialized")
 	}
 
 	prevImgData, err := base64.StdEncoding.DecodeString(previousImageBase64)
 	if err != nil {
-		return response, fmt.Errorf("invalid previous image base64: %v", err)
+		return response, 0, fmt.Errorf("invalid previous image base64: %v", err)
 	}
 
 	newImgData, err := base64.StdEncoding.DecodeString(newImageBase64)
 	if err != nil {
-		return response, fmt.Errorf("invalid new image base64: %v", err)
+		return response, 0, fmt.Errorf("invalid new image base64: %v", err)
 	}
 
 	prompt := `Analiza estas dos imágenes tomadas de un juego de Wild Rift.
@@ -69,11 +69,16 @@ Responde ÚNICAMENTE en formato JSON plano sin markdown, con la siguiente estruc
 	resp, err := aiClient.Models.GenerateContent(ctx, "gemini-2.5-flash", contents, config)
 	if err != nil {
 		log.Printf("Gemini DetermineMatchContinuity error: %v", err)
-		return response, err
+		return response, 0, err
+	}
+
+	var tokens int64
+	if resp.UsageMetadata != nil {
+		tokens = int64(resp.UsageMetadata.TotalTokenCount)
 	}
 
 	if len(resp.Candidates) == 0 || len(resp.Candidates[0].Content.Parts) == 0 {
-		return response, fmt.Errorf("no response from model")
+		return response, tokens, fmt.Errorf("no response from model")
 	}
 
 	var jsonStr string
@@ -86,10 +91,10 @@ Responde ÚNICAMENTE en formato JSON plano sin markdown, con la siguiente estruc
 	err = json.Unmarshal([]byte(jsonStr), &response)
 	if err != nil {
 		log.Printf("Error unmarshaling json from gemini: %s, err: %v", jsonStr, err)
-		return response, err
+		return response, tokens, err
 	}
 
-	return response, nil
+	return response, tokens, nil
 }
 
 // ChatCoachChatMessage is a message struct for the AI conversation

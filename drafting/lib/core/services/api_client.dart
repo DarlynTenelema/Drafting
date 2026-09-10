@@ -11,7 +11,7 @@ class ApiClient {
 
   static Future<http.Response> _handleRequest(Future<http.Response> Function() requestFunc) async {
     try {
-      final response = await requestFunc().timeout(const Duration(seconds: 15));
+      final response = await requestFunc().timeout(const Duration(seconds: 30));
       if (response.statusCode == 401) {
         await SessionService.clearSession();
       }

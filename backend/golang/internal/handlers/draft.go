@@ -5,6 +5,7 @@ import (
 	"log"
 	"net/http"
 	"regexp"
+	"strings"
 	"time"
 
 	"backend/internal/chatcoach"
@@ -143,8 +144,10 @@ func AnalyzeDraft(w http.ResponseWriter, r *http.Request) {
 	user.LastDraftAt = time.Now()
 	database.DB.Save(user)
 
-	// Trigger Chat Coach processing asynchronously
-	go chatcoach.ProcessCapturedImage(user.ID.String(), req.ImageBase64, req.QueryType)
+	// Trigger Chat Coach processing asynchronously only for ultra users
+	if strings.Contains(plan, "ultra") {
+		go chatcoach.ProcessCapturedImage(user.ID.String(), req.ImageBase64, req.QueryType)
+	}
 
 	// Send Response
 	resp := DraftResponse{Recommendation: recommendation}

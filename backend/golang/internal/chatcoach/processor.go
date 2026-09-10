@@ -62,7 +62,13 @@ func ProcessCapturedImage(userID string, imageBase64 string, queryType string) {
 				ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 				defer cancel()
 
-				continuityResp, err := gemini.DetermineMatchContinuity(ctx, prevBase64, imageBase64)
+				continuityResp, tokens, err := gemini.DetermineMatchContinuity(ctx, prevBase64, imageBase64)
+				
+				if tokens > 0 {
+					userIdUUID, _ := uuid.Parse(userID)
+					database.DB.Create(&models.ApiUsage{UserID: userIdUUID, TokensUsed: int(tokens), CreatedAt: time.Now()})
+				}
+
 				if err == nil {
 					log.Printf("ChatCoach: Continuity Check: IsSameMatch=%v, Reasoning=%s", continuityResp.IsSameMatch, continuityResp.Reasoning)
 					if !continuityResp.IsSameMatch {
