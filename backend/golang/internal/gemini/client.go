@@ -130,15 +130,15 @@ Reglas CRÍTICAS:
 ESTRUCTURA EXACTA:
 Opciones: [Campeón 1], [Campeón 2], [Campeón 3]
 
-[Campeón 1]
+Campeón 1
 Hechizos: [Hechizo 1], [Hechizo 2]
 Runas: [Runa 1], [Runa 2], [Runa 3]
 
-[Campeón 2]
+Campeón 2
 Hechizos: [Hechizo 1], [Hechizo 2]
 Runas: [Runa 1], [Runa 2], [Runa 3]
 
-[Campeón 3]
+Campeón 3
 Hechizos: [Hechizo 1], [Hechizo 2]
 Runas: [Runa 1], [Runa 2], [Runa 3]
 
