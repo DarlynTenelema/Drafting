@@ -148,7 +148,7 @@ ESTRUCTURA EXACTA:
 	
 	maxTokens := int32(200)
 	config := &genai.GenerateContentConfig{
-		MaxOutputTokens: &maxTokens,
+		MaxOutputTokens: maxTokens,
 	}
 	resp, err := aiClient.Models.GenerateContent(ctx, "gemini-2.5-flash-lite", contents, config)
 	
