@@ -169,7 +169,11 @@ Responde a su mensaje final de forma útil, estratégica y analítica.
 		Parts: []*genai.Part{genai.NewPartFromText(userMessage)},
 	})
 
-	resp, err := aiClient.Models.GenerateContent(ctx, "gemini-2.5-flash-lite", contents, nil)
+	maxTokens := int32(200)
+	config := &genai.GenerateContentConfig{
+		MaxOutputTokens: &maxTokens,
+	}
+	resp, err := aiClient.Models.GenerateContent(ctx, "gemini-2.5-flash-lite", contents, config)
 	if err != nil {
 		log.Printf("Gemini ChatCoachConverse error: %v", err)
 		return "", 0, err

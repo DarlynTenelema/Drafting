@@ -124,23 +124,14 @@ Roles preferidos: %s, %s, %s.
 
 Reglas CRÍTICAS:
 - IDIOMA: Español.
-- FORMATO: PROHIBIDO USAR MARKDOWN.
-- RESPONDE ÚNICAMENTE CON LA ESTRUCTURA EXACTA (sin charla, sin analizar en texto).
+- FORMATO: PROHIBIDO USAR MARKDOWN para estilos, solo viñetas.
+- RESPUESTAS DIRECTAS Y CORTAS.
 
 ESTRUCTURA EXACTA:
-Opciones: [Campeón 1], [Campeón 2], [Campeón 3]
-
-Campeón 1
-Hechizos: [Hechizo 1], [Hechizo 2]
-Runas: [Runa 1], [Runa 2], [Runa 3]
-
-Campeón 2
-Hechizos: [Hechizo 1], [Hechizo 2]
-Runas: [Runa 1], [Runa 2], [Runa 3]
-
-Campeón 3
-Hechizos: [Hechizo 1], [Hechizo 2]
-Runas: [Runa 1], [Runa 2], [Runa 3]
+[Explica un porqué muy corto, máx 15 palabras. Ej: Hay mucho CC del lado enemigo, usa:]
+- [Campeón 1]
+- [Campeón 2]
+- [Campeón 3]
 
 %s`, mainRole, secondaryRole, autofillRole, privateRulesContext)
 	}
@@ -155,7 +146,11 @@ Runas: [Runa 1], [Runa 2], [Runa 3]
 		},
 	}
 	
-	resp, err := aiClient.Models.GenerateContent(ctx, "gemini-2.5-flash-lite", contents, nil)
+	maxTokens := int32(200)
+	config := &genai.GenerateContentConfig{
+		MaxOutputTokens: &maxTokens,
+	}
+	resp, err := aiClient.Models.GenerateContent(ctx, "gemini-2.5-flash-lite", contents, config)
 	
 	if err != nil {
 		return "", 0, fmt.Errorf("failed to generate content: %w", err)

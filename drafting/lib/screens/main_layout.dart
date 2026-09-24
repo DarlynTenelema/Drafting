@@ -2,10 +2,9 @@ import 'package:flutter/material.dart';
 
 import '../theme/app_theme.dart';
 import 'index_screen.dart';
-import 'fanarts_screen.dart';
-import 'videos_screen.dart';
-import 'consumer_store_screen.dart';
+import 'index_screen.dart';
 import 'chat_coach_screen.dart'; // Import ChatCoachScreen
+import 'trivia_screen.dart';
 
 class MainLayoutScreen extends StatefulWidget {
   final String sessionToken;
@@ -22,7 +21,7 @@ class MainLayoutScreen extends StatefulWidget {
 }
 
 class _MainLayoutScreenState extends State<MainLayoutScreen> {
-  int _currentIndex = 2; // Default to Home (IndexScreen)
+  int _currentIndex = 1; // Default to Home (IndexScreen)
 
   Widget _buildBottomNavBar() {
     return Container(
@@ -51,24 +50,14 @@ class _MainLayoutScreenState extends State<MainLayoutScreen> {
             label: 'IA Coach',
           ),
           BottomNavigationBarItem(
-            icon: ImageIcon(AssetImage('assets/images/paintbrush_outline.png'), size: 28),
-            activeIcon: ImageIcon(AssetImage('assets/images/paintbrush_solid.png'), size: 28),
-            label: 'FanArt',
-          ),
-          BottomNavigationBarItem(
             icon: ImageIcon(AssetImage('assets/images/home_outline.png'), size: 30),
             activeIcon: ImageIcon(AssetImage('assets/images/home_solid.png'), size: 30),
             label: 'Inicio',
           ),
           BottomNavigationBarItem(
-            icon: ImageIcon(AssetImage('assets/images/video_outline.png'), size: 28),
-            activeIcon: ImageIcon(AssetImage('assets/images/video_solid.png'), size: 28),
-            label: 'Videos',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.storefront_outlined, size: 28),
-            activeIcon: Icon(Icons.storefront, size: 28),
-            label: 'Tienda',
+            icon: Icon(Icons.quiz_outlined, size: 28),
+            activeIcon: Icon(Icons.quiz, size: 28),
+            label: 'Trivia',
           ),
         ],
       ),
@@ -77,10 +66,8 @@ class _MainLayoutScreenState extends State<MainLayoutScreen> {
 
   List<Widget> get _screens => [
         ChatCoachScreen(bottomNavBar: _buildBottomNavBar()), // 0
-        FanartsScreen(bottomNavBar: _buildBottomNavBar()), // 1
-        IndexScreen(sessionToken: widget.sessionToken, groupName: widget.activeGroupName, bottomNavBar: _buildBottomNavBar()), // 2
-        VideosScreen(bottomNavBar: _buildBottomNavBar()), // 3
-        ConsumerStoreScreen(sessionToken: widget.sessionToken, bottomNavBar: _buildBottomNavBar()), // 4
+        IndexScreen(sessionToken: widget.sessionToken, groupName: widget.activeGroupName, bottomNavBar: _buildBottomNavBar()), // 1
+        TriviaScreen(bottomNavBar: _buildBottomNavBar()), // 2
       ];
 
   @override

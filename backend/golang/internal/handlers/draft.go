@@ -76,10 +76,11 @@ func AnalyzeDraft(w http.ResponseWriter, r *http.Request) {
 
 	if !isPremium {
 		var count int64
-		database.DB.Model(&models.ApiUsage{}).Where("user_id = ?", user.ID).Count(&count)
+		oneHourAgo := time.Now().Add(-1 * time.Hour)
+		database.DB.Model(&models.ApiUsage{}).Where("user_id = ? AND created_at > ?", user.ID, oneHourAgo).Count(&count)
 		
-		if count >= 5 {
-			http.Error(w, "Prueba gratuita agotada. Límite de 5 peticiones alcanzado.", http.StatusForbidden)
+		if count >= 2 {
+			http.Error(w, "Límite de consultas gratuitas alcanzado. Puedes realizar 2 consultas por hora.", http.StatusForbidden)
 			return
 		}
 	}

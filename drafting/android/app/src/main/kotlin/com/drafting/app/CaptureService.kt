@@ -40,6 +40,10 @@ import java.io.OutputStreamWriter
 import java.net.HttpURLConnection
 import java.net.URL
 import kotlin.concurrent.thread
+import com.google.android.gms.ads.AdRequest
+import com.google.android.gms.ads.AdSize
+import com.google.android.gms.ads.AdView
+import com.google.android.gms.ads.MobileAds
 
 class CaptureService : Service() {
     private val NOTIFICATION_ID = 101
@@ -66,6 +70,7 @@ class CaptureService : Service() {
 
     override fun onCreate() {
         super.onCreate()
+        MobileAds.initialize(this) {}
         createNotificationChannel()
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             startForeground(
@@ -477,6 +482,19 @@ class CaptureService : Service() {
             floatingView.findViewById<LinearLayout>(R.id.loadingLayout).visibility = View.GONE
             floatingView.findViewById<ScrollView>(R.id.resultScrollView).visibility = View.VISIBLE
             floatingView.findViewById<TextView>(R.id.resultTextView).text = text
+            
+            if (!isPremium) {
+                val adContainer = floatingView.findViewById<FrameLayout>(R.id.adContainer)
+                adContainer.visibility = View.VISIBLE
+                if (adContainer.childCount == 0) {
+                    val adView = AdView(this)
+                    adView.setAdSize(AdSize.MEDIUM_RECTANGLE)
+                    adView.adUnitId = "ca-app-pub-3940256099942544/6300978111" // Test ID
+                    adContainer.addView(adView)
+                    val adRequest = AdRequest.Builder().build()
+                    adView.loadAd(adRequest)
+                }
+            }
         }
     }
 

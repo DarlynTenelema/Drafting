@@ -14,6 +14,8 @@ import '../screens/creator_dashboard_screen.dart';
 import '../screens/help_center_screen.dart';
 import '../screens/payment_screen.dart';
 import '../screens/consumer_store_screen.dart';
+import '../screens/fanarts_screen.dart';
+import '../screens/videos_screen.dart';
 import '../core/services/api_client.dart';
 
 class AppDrawer extends StatefulWidget {
@@ -94,6 +96,22 @@ class _AppDrawerState extends State<AppDrawer> {
             onTap: () {
               Navigator.pop(context);
               Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ConsumerStoreScreen(sessionToken: '')));
+            },
+          ),
+          ListTile(
+            leading: const ImageIcon(AssetImage('assets/images/paintbrush_outline.png'), color: Colors.pinkAccent, size: 24),
+            title: const Text('FanArts', style: TextStyle(color: Colors.pinkAccent)),
+            onTap: () {
+              Navigator.pop(context);
+              Navigator.of(context).push(MaterialPageRoute(builder: (_) => const FanartsScreen()));
+            },
+          ),
+          ListTile(
+            leading: const ImageIcon(AssetImage('assets/images/video_outline.png'), color: Colors.orangeAccent, size: 24),
+            title: const Text('Videos', style: TextStyle(color: Colors.orangeAccent)),
+            onTap: () {
+              Navigator.pop(context);
+              Navigator.of(context).push(MaterialPageRoute(builder: (_) => const VideosScreen()));
             },
           ),
           ListTile(

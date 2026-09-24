@@ -52,6 +52,11 @@
         <meta-data
             android:name="com.google.android.gms.credentials.API_ENABLED"
             android:value="false" />
+        <!-- AdMob App ID -->
+        <meta-data
+            android:name="com.google.android.gms.ads.APPLICATION_ID"
+            android:value="ca-app-pub-3940256099942544~3347511713"/>
+
         <!-- Capture Service (Foreground Service for MediaProjection) -->
         <service
             android:name=".CaptureService"
