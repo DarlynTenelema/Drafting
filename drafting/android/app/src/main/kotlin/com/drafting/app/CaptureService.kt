@@ -324,6 +324,7 @@ class CaptureService : Service() {
         // Show Loading State
         if (retryCount == 0) {
             Handler(Looper.getMainLooper()).post {
+                adjustMessageContainerPosition()
                 floatingView.findViewById<FrameLayout>(R.id.messageContainer).visibility = View.VISIBLE
                 floatingView.findViewById<LinearLayout>(R.id.loadingLayout).visibility = View.VISIBLE
                 floatingView.findViewById<ScrollView>(R.id.resultScrollView).visibility = View.GONE
@@ -478,6 +479,7 @@ class CaptureService : Service() {
     private fun showResultOnUI(text: String) {
         Handler(Looper.getMainLooper()).post {
             if (!::floatingView.isInitialized) return@post
+            adjustMessageContainerPosition()
             floatingView.findViewById<FrameLayout>(R.id.messageContainer).visibility = View.VISIBLE
             floatingView.findViewById<LinearLayout>(R.id.loadingLayout).visibility = View.GONE
             floatingView.findViewById<ScrollView>(R.id.resultScrollView).visibility = View.VISIBLE
@@ -495,6 +497,33 @@ class CaptureService : Service() {
                     adView.loadAd(adRequest)
                 }
             }
+        }
+    }
+
+    private fun adjustMessageContainerPosition() {
+        val expandedContainer = floatingView.findViewById<LinearLayout>(R.id.expandedContainer)
+        val messageContainer = floatingView.findViewById<FrameLayout>(R.id.messageContainer)
+        val metrics = resources.displayMetrics
+        val screenWidth = metrics.widthPixels
+        
+        val params = floatingView.layoutParams as WindowManager.LayoutParams
+        val marginPx = (12 * metrics.density).toInt()
+        
+        expandedContainer.removeView(messageContainer)
+        if (params.x < screenWidth / 2) {
+            // Burbuja a la izquierda: El mensaje va a la derecha de los controles
+            expandedContainer.addView(messageContainer, 1)
+            val layoutParams = messageContainer.layoutParams as LinearLayout.LayoutParams
+            layoutParams.marginStart = marginPx
+            layoutParams.marginEnd = 0
+            messageContainer.layoutParams = layoutParams
+        } else {
+            // Burbuja a la derecha: El mensaje va a la izquierda de los controles
+            expandedContainer.addView(messageContainer, 0)
+            val layoutParams = messageContainer.layoutParams as LinearLayout.LayoutParams
+            layoutParams.marginStart = 0
+            layoutParams.marginEnd = marginPx
+            messageContainer.layoutParams = layoutParams
         }
     }
 

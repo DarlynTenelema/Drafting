@@ -1,7 +1,10 @@
 import 'dart:async';
 import 'dart:math';
 import 'package:flutter/material.dart';
+import 'package:google_mobile_ads/google_mobile_ads.dart';
+import 'dart:io';
 import 'package:drafting/theme/app_theme.dart';
+import '../widgets/ad_banner.dart';
 
 class Question {
   final String text;
@@ -51,17 +54,35 @@ class _TriviaScreenState extends State<TriviaScreen> {
   int _lives = 3;
   int _timeLeft = 30;
   Timer? _timer;
+  RewardedAd? _rewardedAd;
 
   @override
   void initState() {
     super.initState();
     _initRandomQuestions();
     _startTimer();
+    _loadRewardedAd();
+  }
+
+  void _loadRewardedAd() {
+    RewardedAd.load(
+      adUnitId: Platform.isAndroid ? 'ca-app-pub-3940256099942544/5224354917' : 'ca-app-pub-3940256099942544/1712485313', // Test IDs
+      request: const AdRequest(),
+      rewardedAdLoadCallback: RewardedAdLoadCallback(
+        onAdLoaded: (ad) {
+          _rewardedAd = ad;
+        },
+        onAdFailedToLoad: (err) {
+          _rewardedAd = null;
+        },
+      ),
+    );
   }
 
   @override
   void dispose() {
     _timer?.cancel();
+    _rewardedAd?.dispose();
     super.dispose();
   }
 
@@ -166,15 +187,36 @@ class _TriviaScreenState extends State<TriviaScreen> {
             label: const Text('Ver Video'),
             style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primary),
             onPressed: () {
-              // TODO: Aquí llamaremos al anuncio de video bonificado (Rewarded Ad)
-              // Simulamos que el usuario vio el video con éxito:
-              Navigator.pop(context);
-              setState(() {
-                _lives = 3; // Recargar vidas
-                _selectedOptionIndex = null;
-                _isAnswered = false;
-              });
-              _startTimer();
+              if (_rewardedAd != null) {
+                _rewardedAd!.show(onUserEarnedReward: (AdWithoutView ad, RewardItem reward) {
+                  setState(() {
+                    _lives = 3;
+                    _selectedOptionIndex = null;
+                    _isAnswered = false;
+                  });
+                });
+                _rewardedAd!.fullScreenContentCallback = FullScreenContentCallback(
+                  onAdDismissedFullScreenContent: (ad) {
+                    ad.dispose();
+                    _loadRewardedAd();
+                    Navigator.pop(context); // Cerrar diálogo
+                    _startTimer();
+                  },
+                  onAdFailedToShowFullScreenContent: (ad, err) {
+                    ad.dispose();
+                    _loadRewardedAd();
+                  },
+                );
+              } else {
+                // Si el anuncio no cargó, regalamos la vida para no trabar al usuario
+                Navigator.pop(context);
+                setState(() {
+                  _lives = 3;
+                  _selectedOptionIndex = null;
+                  _isAnswered = false;
+                });
+                _startTimer();
+              }
             },
           ),
         ],
@@ -383,17 +425,13 @@ class _TriviaScreenState extends State<TriviaScreen> {
               ),
             ),
             
-            // --- ESPACIO RESERVADO PARA EL BANNER AD ---
-            // Le daremos una altura de 60px que es el estándar de AdMob (320x50 o banner adaptativo)
+            // --- ESPACIO PARA EL BANNER AD ---
             Container(
               width: double.infinity,
               height: 60,
-              color: AppTheme.surface.withValues(alpha: 0.5),
+              color: AppTheme.background,
               alignment: Alignment.center,
-              child: const Text(
-                'Espacio para Banner AdMob',
-                style: TextStyle(color: AppTheme.textMuted, fontStyle: FontStyle.italic),
-              ),
+              child: const AdBanner(size: AdSize.banner),
             ),
           ],
         ),

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:flutter/foundation.dart' show kIsWeb, kReleaseMode, PlatformDispatcher, FlutterError, FlutterErrorDetails;
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'theme/app_theme.dart';
 import 'screens/splash_screen.dart';
 import 'core/state/active_product_state.dart';
@@ -15,6 +16,7 @@ void main() async {
 
   runZonedGuarded(() async {
     WidgetsFlutterBinding.ensureInitialized();
+    await MobileAds.instance.initialize();
 
     FlutterError.onError = (FlutterErrorDetails details) {
       FlutterError.presentError(details);
