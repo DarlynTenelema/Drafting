@@ -119,30 +119,31 @@ ESTRUCTURA EXACTA:
 
 %s`, privateRulesContext)
 	} else {
-		prompt = fmt.Sprintf(`Eres un Analista Maestro de League of Legends: Wild Rift.
+		prompt = fmt.Sprintf(`Eres un Analista Maestro y Challenger de League of Legends: Wild Rift.
 Analiza la pantalla de selección de campeones (draft) considerando los roles preferidos: %s, %s, %s.
 
-Recomienda los 3 mejores campeones explicando brevemente su aporte y qué runas llevar.
+Tu objetivo es recomendar los 3 mejores campeones ideales para contrarrestar al equipo rival y complementar al equipo aliado.
 
 Reglas CRÍTICAS:
 - IDIOMA: Español.
-- FORMATO: PROHIBIDO USAR ASTERISCOS (**) O ESTILOS MARKDOWN. Solo viñetas limpias (•).
-- CONCISIÓN: El jugador solo tiene 30 segundos. Sé claro, directo y accionable sin rodeos ni texto de relleno.
+- FORMATO: PROHIBIDO USAR ASTERISCOS (**) O ESTILOS MARKDOWN. Solo texto limpio y viñetas con punto (•).
+- COMPLETITUD OBLIGATORIA: Debes completar la recomendación de los 3 campeones con sus runas y hechizos. No cortes la respuesta a medias.
+- CONCISIÓN: El jugador solo tiene 30 segundos. Sé claro, directo y accionable sin rodeos.
 
 ESTRUCTURA EXACTA:
-Situación: [Diagnóstico en 1 frase corta del draft rival]
+Situación: [Diagnóstico en 1 frase corta del draft rival y qué necesita tu equipo]
 
 1. [Campeón 1]
-• Aporte: [Por qué elegirlo o qué aportará contra ellos en 1 sola frase]
-• Runas: [Runa Clave] + [Secundaria recomendada]
+• Aporte: [Por qué contrarresta al rival o sinergiza con tu equipo en 1 sola frase]
+• Runas y Hechizos: [Runa Clave + Secundaria] | [Hechizo 1 y 2]
 
 2. [Campeón 2]
-• Aporte: [Por qué elegirlo o qué aportará contra ellos en 1 sola frase]
-• Runas: [Runa Clave] + [Secundaria recomendada]
+• Aporte: [Por qué contrarresta al rival o sinergiza con tu equipo en 1 sola frase]
+• Runas y Hechizos: [Runa Clave + Secundaria] | [Hechizo 1 y 2]
 
 3. [Campeón 3]
-• Aporte: [Por qué elegirlo o qué aportará contra ellos en 1 sola frase]
-• Runas: [Runa Clave] + [Secundaria recomendada]
+• Aporte: [Por qué contrarresta al rival o sinergiza con tu equipo en 1 sola frase]
+• Runas y Hechizos: [Runa Clave + Secundaria] | [Hechizo 1 y 2]
 
 %s`, mainRole, secondaryRole, autofillRole, privateRulesContext)
 	}
@@ -157,18 +158,29 @@ Situación: [Diagnóstico en 1 frase corta del draft rival]
 		},
 	}
 	
-	maxTokens := int32(1000)
-	config := &genai.GenerateContentConfig{
-		MaxOutputTokens: maxTokens,
-	}
+	maxTokens := int32(2500)
+	thinkingBudget := int32(0) // Desactiva tokens de razonamiento interno: respuesta ultra rápida (1-2s), sin consumir tokens ocultos y sin truncar
 
 	models := []string{"gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"}
 	var lastErr error
 	var resp *genai.GenerateContentResponse
+	var usedModel string
 
 	for _, model := range models {
+		config := &genai.GenerateContentConfig{
+			MaxOutputTokens: maxTokens,
+		}
+		// Gemini 2.5 soporta thinking_config; desactivamos el pensamiento para draft en tiempo real
+		if strings.Contains(model, "2.5") {
+			config.ThinkingConfig = &genai.ThinkingConfig{
+				ThinkingBudget: &thinkingBudget,
+			}
+		}
+
 		resp, lastErr = aiClient.Models.GenerateContent(ctx, model, contents, config)
 		if lastErr == nil && resp != nil {
+			usedModel = model
+			log.Printf("✅ Recomendación generada exitosamente con modelo: %s", usedModel)
 			break
 		}
 		log.Printf("⚠️ Modelo '%s' falló: %v. Intentando siguiente modelo...", model, lastErr)
@@ -182,6 +194,12 @@ Situación: [Diagnóstico en 1 frase corta del draft rival]
 		var tokens int32 = 0
 		if resp.UsageMetadata != nil {
 			tokens = resp.UsageMetadata.TotalTokenCount
+			log.Printf("📊 [%s] Tokens - Prompt: %d, Salida: %d, Total: %d",
+				usedModel,
+				resp.UsageMetadata.PromptTokenCount,
+				resp.UsageMetadata.CandidatesTokenCount,
+				resp.UsageMetadata.TotalTokenCount,
+			)
 		}
 		return resp.Text(), tokens, nil
 	}
