@@ -16,15 +16,6 @@ import (
 
 var aiClient *genai.Client
 
-// CleanJSON safely removes markdown blocks from Gemini responses
-func CleanJSON(text string) string {
-	text = strings.TrimSpace(text)
-	text = strings.TrimPrefix(text, "```json")
-	text = strings.TrimPrefix(text, "```")
-	text = strings.TrimSuffix(text, "```")
-	return strings.TrimSpace(text)
-}
-
 func InitVertexClient() error {
 	ctx := context.Background()
 
@@ -195,6 +186,3 @@ Situación: [Diagnóstico en 1 frase corta del draft rival y qué necesita tu eq
 
 	return "No clear recommendation could be generated.", 0, nil
 }
-
-
-
