@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../core/services/api_client.dart';
+import '../core/services/session_service.dart';
 
 class AchievementsScreen extends StatefulWidget {
   final String referralCode;
@@ -41,6 +42,22 @@ class _AchievementsScreenState extends State<AchievementsScreen> {
     _count = widget.referralCount;
     _claimed = widget.referralRewardsClaimed;
     _hasRedeemed = widget.hasRedeemedReferral;
+    _checkClipboardForCode();
+  }
+
+  Future<void> _checkClipboardForCode() async {
+    if (_hasRedeemed) return;
+    try {
+      final data = await Clipboard.getData('text/plain');
+      final text = data?.text?.trim().toUpperCase();
+      if (text != null && text.startsWith('WR') && text.length == 8 && text != widget.referralCode) {
+        if (mounted && _codeController.text.isEmpty) {
+          setState(() {
+            _codeController.text = text;
+          });
+        }
+      }
+    } catch (_) {}
   }
 
   @override
@@ -65,9 +82,13 @@ class _AchievementsScreenState extends State<AchievementsScreen> {
     });
 
     try {
+      final deviceId = await SessionService.getDeviceId();
       final response = await ApiClient.post(
         '/api/v1/user/redeem-referral',
-        body: {'referral_code': code},
+        body: {
+          'referral_code': code,
+          'device_id': deviceId,
+        },
       );
 
       if (!mounted) return;

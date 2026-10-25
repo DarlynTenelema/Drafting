@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strings"
 
@@ -13,6 +14,7 @@ import (
 
 type RedeemReferralRequest struct {
 	ReferralCode string `json:"referral_code"`
+	DeviceID     string `json:"device_id"`
 }
 
 // RedeemReferral processes an invitation code with strict anti-fraud checks.
@@ -56,6 +58,18 @@ func RedeemReferral(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// 3.1 Antifraude: No bucles de referidos mutuos (si el anfitrión ya fue referido por ti)
+	if referrer.ReferredByID != nil && *referrer.ReferredByID == currentUser.ID {
+		http.Error(w, "No puedes canjear el código de un amigo que ya fue invitado por ti.", http.StatusBadRequest)
+		return
+	}
+
+	// Sincronizar device_id si se envió en la petición y el usuario aún no lo tenía registrado
+	if currentUser.DeviceID == "" && req.DeviceID != "" {
+		currentUser.DeviceID = req.DeviceID
+		database.DB.Model(currentUser).Update("device_id", currentUser.DeviceID)
+	}
+
 	// 4. Antifraude: No usar el mismo dispositivo físico
 	if currentUser.DeviceID != "" && referrer.DeviceID != "" && currentUser.DeviceID == referrer.DeviceID {
 		http.Error(w, "No se permite canjear invitaciones en el mismo dispositivo.", http.StatusBadRequest)
@@ -73,12 +87,23 @@ func RedeemReferral(w http.ResponseWriter, r *http.Request) {
 
 	// Ejecutar en transacción atómica
 	err := database.DB.Transaction(func(tx *gorm.DB) error {
+		// Bloquear y recargar al anfitrión dentro de la transacción
+		var lockedReferrer models.User
+		if err := tx.Where("id = ?", referrer.ID).First(&lockedReferrer).Error; err != nil {
+			return err
+		}
+
+		if lockedReferrer.ReferralCount >= 10 {
+			return errors.New("MAX_LIMIT_REACHED")
+		}
+
 		// Actualizar al usuario actual (invitado)
-		currentUser.ReferredByID = &referrer.ID
+		currentUser.ReferredByID = &lockedReferrer.ID
 		const welcomeBonus = 2 // Bono de bienvenida para el invitado
 		currentUser.AddAdQueries(welcomeBonus)
 		if err := tx.Model(currentUser).Updates(map[string]interface{}{
 			"referred_by_id":    currentUser.ReferredByID,
+			"device_id":         currentUser.DeviceID,
 			"ad_queries":        currentUser.AdQueries,
 			"available_queries": currentUser.AvailableQueries,
 		}).Error; err != nil {
@@ -88,21 +113,20 @@ func RedeemReferral(w http.ResponseWriter, r *http.Request) {
 		newAvailableQueries = currentUser.AvailableQueries
 
 		// Actualizar al anfitrión
-		referrer.ReferralCount++
+		lockedReferrer.ReferralCount++
 
 		// Verificar si desbloqueó un hito (cada 2 amigos = +5 consultas, hasta 5 veces)
-		// Milestones: al llegar a 2, 4, 6, 8, 10 amigos
-		if referrer.ReferralCount/2 > referrer.ReferralRewardsClaimed && referrer.ReferralRewardsClaimed < 5 {
-			referrer.ReferralRewardsClaimed++
-			referrer.AddAdQueries(5)
+		if lockedReferrer.ReferralCount/2 > lockedReferrer.ReferralRewardsClaimed && lockedReferrer.ReferralRewardsClaimed < 5 {
+			lockedReferrer.ReferralRewardsClaimed++
+			lockedReferrer.AddAdQueries(5)
 			milestoneEarned = true
 		}
 
-		if err := tx.Model(&referrer).Updates(map[string]interface{}{
-			"referral_count":           referrer.ReferralCount,
-			"referral_rewards_claimed": referrer.ReferralRewardsClaimed,
-			"ad_queries":               referrer.AdQueries,
-			"available_queries":        referrer.AvailableQueries,
+		if err := tx.Model(&lockedReferrer).Updates(map[string]interface{}{
+			"referral_count":           lockedReferrer.ReferralCount,
+			"referral_rewards_claimed": lockedReferrer.ReferralRewardsClaimed,
+			"ad_queries":               lockedReferrer.AdQueries,
+			"available_queries":        lockedReferrer.AvailableQueries,
 		}).Error; err != nil {
 			return err
 		}
@@ -111,6 +135,10 @@ func RedeemReferral(w http.ResponseWriter, r *http.Request) {
 	})
 
 	if err != nil {
+		if err.Error() == "MAX_LIMIT_REACHED" {
+			http.Error(w, "Este usuario ya alcanzó el límite máximo de 10 amigos invitados.", http.StatusBadRequest)
+			return
+		}
 		http.Error(w, "Error al procesar la invitación. Inténtalo de nuevo.", http.StatusInternalServerError)
 		return
 	}

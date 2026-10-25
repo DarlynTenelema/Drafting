@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"sync"
 	"time"
 
 	"backend/internal/auth"
@@ -15,6 +16,7 @@ import (
 
 type AuthRequest struct {
 	GoogleToken string `json:"google_token"`
+	DeviceID    string `json:"device_id"`
 }
 
 type AuthResponse struct {
@@ -32,6 +34,14 @@ func GoogleLogin(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		http.Error(w, "Invalid Google token", http.StatusUnauthorized)
 		return
+	}
+
+	if req.DeviceID != "" {
+		var bannedUser models.User
+		if err := database.DB.Where("device_id = ? AND banned = ?", req.DeviceID, true).First(&bannedUser).Error; err == nil {
+			http.Error(w, "Este dispositivo ha sido bloqueado por violar las normas de la comunidad.", http.StatusForbidden)
+			return
+		}
 	}
 
 	var user models.User
@@ -52,6 +62,7 @@ func GoogleLogin(w http.ResponseWriter, r *http.Request) {
 				Email:               claims.Email,
 				Username:            claims.Name,
 				ProfilePic:          claims.Picture,
+				DeviceID:            req.DeviceID,
 				SessionToken:        jti,
 				BonusQueries:        10,
 				DailyQueries:        3,
@@ -68,9 +79,11 @@ func GoogleLogin(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	} else {
-		// Update existing user with new session jti only. Do NOT overwrite Username and ProfilePic
-		// because the user might have customized them via UpdateProfile.
+		// Update existing user with new session jti.
 		user.SessionToken = jti
+		if req.DeviceID != "" && user.DeviceID == "" {
+			user.DeviceID = req.DeviceID
+		}
 		if err := database.DB.Save(&user).Error; err != nil {
 			http.Error(w, "Internal server error: failed to update session: " + err.Error(), http.StatusInternalServerError)
 			return
@@ -179,6 +192,8 @@ func UpdateProfile(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+var lastObtainQueryMap sync.Map // map[uuid.UUID]time.Time
+
 // ObtainQueries adds reward queries to the user (e.g. from watching an ad or pressing Obtain Queries)
 func ObtainQueries(w http.ResponseWriter, r *http.Request) {
 	user, ok := r.Context().Value(middleware.UserContextKey).(*models.User)
@@ -187,7 +202,16 @@ func ObtainQueries(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	const queriesToAdd = 5
+	// Antifraude: Cooldown de 15 segundos entre recargas de consultas
+	if lastTime, exists := lastObtainQueryMap.Load(user.ID); exists {
+		if t, ok := lastTime.(time.Time); ok && time.Since(t) < 15*time.Second {
+			http.Error(w, "Por favor espera 15 segundos antes de solicitar otra recarga.", http.StatusTooManyRequests)
+			return
+		}
+	}
+	lastObtainQueryMap.Store(user.ID, time.Now())
+
+	const queriesToAdd = 3
 	user.AddAdQueries(queriesToAdd)
 
 	if err := database.DB.Model(user).Updates(map[string]interface{}{
@@ -205,6 +229,6 @@ func ObtainQueries(w http.ResponseWriter, r *http.Request) {
 		"bonus_queries":     user.BonusQueries,
 		"ad_queries":        user.AdQueries,
 		"added":             queriesToAdd,
-		"message":           "¡Has obtenido 5 consultas!",
+		"message":           "¡Has obtenido 3 consultas!",
 	})
 }

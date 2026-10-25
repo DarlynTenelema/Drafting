@@ -90,3 +90,73 @@ func TestReferralCodeGeneration(t *testing.T) {
 		t.Fatalf("Expected referral code to start with 'WR', got %s", code)
 	}
 }
+
+func TestZeroQueriesExhaustionAndNoInfiniteTokens(t *testing.T) {
+	user := models.User{
+		ID:                  uuid.New(),
+		BonusQueries:        0,
+		DailyQueries:        2,
+		AdQueries:           1,
+		AvailableQueries:    3,
+		LastDailyRewardDate: "2026-10-25",
+	}
+
+	// 1. Consumir exactamente las 3 disponibles
+	for i := 1; i <= 3; i++ {
+		ok := user.ConsumeQuery()
+		if !ok {
+			t.Fatalf("Se esperaba éxito en consumo #%d", i)
+		}
+	}
+
+	if user.AvailableQueries != 0 {
+		t.Fatalf("Se esperaba que AvailableQueries fuera 0, quedó en %d", user.AvailableQueries)
+	}
+
+	// 2. Intentar consumir 20 veces cuando ya es 0 (no debe permitirlo ni volverse negativo)
+	for i := 1; i <= 20; i++ {
+		ok := user.ConsumeQuery()
+		if ok {
+			t.Fatalf("FALLO DE SEGURIDAD: ConsumeQuery() permitió descontar sin saldo disponible en iteración %d", i)
+		}
+		if user.AvailableQueries < 0 {
+			t.Fatalf("FALLO DE DESBORDAMIENTO: AvailableQueries se volvió negativo: %d", user.AvailableQueries)
+		}
+		if user.AvailableQueries != 0 {
+			t.Fatalf("AvailableQueries debería mantenerse en 0, pero es: %d", user.AvailableQueries)
+		}
+	}
+
+	// 3. Comprobar que llamadas repetidas a RefreshDailyQueries en el mismo día no regalan tokens
+	for i := 1; i <= 10; i++ {
+		refreshed := user.RefreshDailyQueries("2026-10-25")
+		if refreshed {
+			t.Fatalf("FALLO DE SEGURIDAD: Se otorgaron tokens infinitos en llamada repetida a RefreshDailyQueries #%d", i)
+		}
+		if user.AvailableQueries != 0 {
+			t.Fatalf("AvailableQueries cambió inesperadamente a %d", user.AvailableQueries)
+		}
+	}
+
+	// 4. Agregar recarga de 3 consultas por anuncio y verificar agotamiento
+	user.AddAdQueries(3)
+	if user.AvailableQueries != 3 || user.AdQueries != 3 {
+		t.Fatalf("Se esperaban exactamente 3 consultas recargadas, obtenido: %d", user.AvailableQueries)
+	}
+
+	// Consumir las 3 recargadas
+	for i := 1; i <= 3; i++ {
+		if !user.ConsumeQuery() {
+			t.Fatalf("Error al consumir recarga #%d", i)
+		}
+	}
+
+	if user.AvailableQueries != 0 {
+		t.Fatalf("AvailableQueries debería volver a 0 tras agotar recargas, quedó en %d", user.AvailableQueries)
+	}
+
+	if user.ConsumeQuery() {
+		t.Fatalf("ConsumeQuery no debería permitir consumir tras agotar recargas")
+	}
+}
+

@@ -157,12 +157,12 @@ Situación: [Diagnóstico en 1 frase corta del draft rival]
 		},
 	}
 	
-	maxTokens := int32(500)
+	maxTokens := int32(1000)
 	config := &genai.GenerateContentConfig{
 		MaxOutputTokens: maxTokens,
 	}
 
-	models := []string{"gemini-2.5-flash-lite", "gemini-2.0-flash", "gemini-1.5-flash"}
+	models := []string{"gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"}
 	var lastErr error
 	var resp *genai.GenerateContentResponse
 

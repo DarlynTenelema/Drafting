@@ -7,6 +7,7 @@ import 'package:google_sign_in/google_sign_in.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../core/config/app_config.dart';
+import '../core/services/ad_service.dart';
 import '../core/services/api_client.dart';
 import '../core/services/native_service.dart';
 import '../core/services/session_service.dart';
@@ -53,6 +54,7 @@ class _IndexScreenState extends State<IndexScreen> {
     _loadCachedState();
     _fetchUserData();
     _listenToNativeEvents();
+    AdService.loadRewardedAd();
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
@@ -93,7 +95,8 @@ class _IndexScreenState extends State<IndexScreen> {
         // Análisis exitoso: descontar 1 consulta
         _decrementQuery();
       } else if (code == 402) {
-        // Sin consultas disponibles
+        // Sin consultas disponibles: detener inmediatamente el servicio nativo
+        NativeService.stopCaptureService();
         setState(() {
           _isActive = false;
           _availableQueries = 0;
@@ -121,6 +124,15 @@ class _IndexScreenState extends State<IndexScreen> {
     await prefs.setInt('daily_queries', _dailyQueries);
     await prefs.setInt('bonus_queries', _bonusQueries);
     await prefs.setInt('ad_queries', _adQueries);
+
+    // Si se agotaron las consultas, detener asistente y avisar al usuario
+    if (_availableQueries == 0 && mounted) {
+      NativeService.stopCaptureService();
+      setState(() {
+        _isActive = false;
+      });
+      _showNoQueriesDialog();
+    }
   }
 
   Future<void> _fetchUserData() async {
@@ -289,7 +301,7 @@ class _IndexScreenState extends State<IndexScreen> {
                     _obtainQueries();
                   },
                   icon: const Icon(Icons.add_circle_outline_rounded),
-                  label: const Text('Obtener +5 Consultas Gratis'),
+                  label: const Text('Obtener +3 Consultas Gratis'),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF10B981),
                     foregroundColor: Colors.white,
@@ -410,100 +422,97 @@ class _IndexScreenState extends State<IndexScreen> {
 
     HapticFeedback.mediumImpact();
 
-    // ==========================================================
-    // NOTA PARA FASE 2 (VINCULACIÓN CON APPODEAL):
-    // Una vez que la app esté en producción en Google Play Store:
-    // Aquí invocaremos el anuncio de video recompensado:
-    //
-    // try {
-    //   if (await Appodeal.isLoaded(AppodealAdType.RewardedVideo)) {
-    //     await Appodeal.show(AppodealAdType.RewardedVideo);
-    //     // En el callback onRewardedVideoFinished:
-    //   }
-    // } catch (e) { ... }
-    // ==========================================================
+    AdService.showRewardedAd(
+      onUserEarnedReward: () async {
+        try {
+          final response = await ApiClient.post('/api/v1/user/obtain-queries');
+          int added = 3;
 
-    try {
-      // Intentar actualizar en el backend
-      final response = await ApiClient.post('/api/v1/user/obtain-queries');
-      int added = 5;
-
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        if (data['available_queries'] is int) {
-          _availableQueries = data['available_queries'];
-        } else {
-          _availableQueries += added;
-        }
-        if (data['ad_queries'] is int) {
-          _adQueries = data['ad_queries'];
-        } else {
-          _adQueries += added;
-        }
-        if (data['daily_queries'] is int) {
-          _dailyQueries = data['daily_queries'];
-        }
-        if (data['bonus_queries'] is int) {
-          _bonusQueries = data['bonus_queries'];
-        }
-      } else {
-        // Modo offline / respaldo local
-        _availableQueries += added;
-        _adQueries += added;
-      }
-
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setInt('available_queries', _availableQueries);
-      await prefs.setInt('ad_queries', _adQueries);
-      await prefs.setInt('daily_queries', _dailyQueries);
-      await prefs.setInt('bonus_queries', _bonusQueries);
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            backgroundColor: const Color(0xFF10B981),
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            content: Row(
-              children: [
-                const Icon(Icons.bolt_rounded, color: Colors.white, size: 28),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    '¡+$added consultas añadidas! Tienes $_availableQueries consultas disponibles.',
-                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-                  ),
+          if (response.statusCode == 200) {
+            final data = jsonDecode(response.body);
+            if (data['available_queries'] is int) {
+              _availableQueries = data['available_queries'];
+            } else {
+              _availableQueries += added;
+            }
+            if (data['ad_queries'] is int) {
+              _adQueries = data['ad_queries'];
+            } else {
+              _adQueries += added;
+            }
+            if (data['daily_queries'] is int) {
+              _dailyQueries = data['daily_queries'];
+            }
+            if (data['bonus_queries'] is int) {
+              _bonusQueries = data['bonus_queries'];
+            }
+          } else if (response.statusCode == 429) {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  backgroundColor: Color(0xFFEF4444),
+                  behavior: SnackBarBehavior.floating,
+                  content: Text('Por favor espera 15 segundos antes de solicitar otra recarga.'),
                 ),
-              ],
-            ),
-            duration: const Duration(seconds: 3),
-          ),
-        );
-      }
-    } catch (e) {
-      // Si falla la red, otorgamos igualmente para no bloquear al usuario
-      _availableQueries += 5;
-      _adQueries += 5;
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setInt('available_queries', _availableQueries);
-      await prefs.setInt('ad_queries', _adQueries);
+              );
+            }
+            return;
+          }
 
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            backgroundColor: const Color(0xFF10B981),
-            behavior: SnackBarBehavior.floating,
-            content: Text('¡+5 consultas añadidas! Tienes $_availableQueries consultas.'),
-          ),
-        );
-      }
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isLoadingQueries = false;
-        });
-      }
-    }
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setInt('available_queries', _availableQueries);
+          await prefs.setInt('ad_queries', _adQueries);
+          await prefs.setInt('daily_queries', _dailyQueries);
+          await prefs.setInt('bonus_queries', _bonusQueries);
+
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                backgroundColor: const Color(0xFF10B981),
+                behavior: SnackBarBehavior.floating,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                content: Row(
+                  children: [
+                    const Icon(Icons.bolt_rounded, color: Colors.white, size: 28),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        '¡+$added consultas añadidas! Tienes $_availableQueries consultas disponibles.',
+                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                  ],
+                ),
+                duration: const Duration(seconds: 3),
+              ),
+            );
+          }
+        } catch (e) {
+          debugPrint('Error al registrar recompensa: $e');
+        } finally {
+          if (mounted) {
+            setState(() {
+              _isLoadingQueries = false;
+            });
+          }
+        }
+      },
+      onAdFailed: (error) {
+        if (mounted) {
+          setState(() {
+            _isLoadingQueries = false;
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              backgroundColor: const Color(0xFF334155),
+              behavior: SnackBarBehavior.floating,
+              content: Text(error),
+              duration: const Duration(seconds: 3),
+            ),
+          );
+        }
+      },
+    );
   }
 
   void _showNoQueriesDialog() {
@@ -868,7 +877,7 @@ class _IndexScreenState extends State<IndexScreen> {
                                 children: [
                                   Icon(Icons.add_rounded, size: 18),
                                   SizedBox(width: 4),
-                                  Text('+5 Gratis', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                                  Text('+3 Gratis', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
                                 ],
                               ),
                       ),

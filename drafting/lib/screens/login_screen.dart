@@ -43,9 +43,13 @@ class _LoginScreenState extends State<LoginScreen> {
       final String? idToken = googleAuth.idToken;
 
       if (idToken != null) {
+        final deviceId = await SessionService.getDeviceId();
         final response = await ApiClient.post(
           '/api/v1/auth/google',
-          body: {'google_token': idToken},
+          body: {
+            'google_token': idToken,
+            'device_id': deviceId,
+          },
         );
 
         if (response.statusCode == 200) {
