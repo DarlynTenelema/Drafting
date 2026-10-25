@@ -94,8 +94,16 @@ class CaptureService : Service() {
             @Suppress("DEPRECATION")
             intent.getParcelableExtra<Intent>("data")
         }
-        baseUrl = intent.getStringExtra("baseUrl")
-        sessionToken = intent.getStringExtra("sessionToken")
+        val incomingBaseUrl = intent.getStringExtra("baseUrl")
+        if (!incomingBaseUrl.isNullOrBlank()) {
+            baseUrl = incomingBaseUrl
+            getSharedPreferences("drafting_prefs", Context.MODE_PRIVATE).edit().putString("base_url", incomingBaseUrl).apply()
+        }
+        val incomingSessionToken = intent.getStringExtra("sessionToken")
+        if (!incomingSessionToken.isNullOrBlank()) {
+            sessionToken = incomingSessionToken
+            getSharedPreferences("drafting_prefs", Context.MODE_PRIVATE).edit().putString("session_token", incomingSessionToken).apply()
+        }
         mainRole = intent.getStringExtra("mainRole")
         secondaryRole = intent.getStringExtra("secondaryRole")
         autofillRole = intent.getStringExtra("autofillRole")
@@ -410,18 +418,23 @@ class CaptureService : Service() {
         showToast("Analizando...")
         thread {
             try {
+                val prefs = getSharedPreferences("drafting_prefs", Context.MODE_PRIVATE)
                 val base = (baseUrl?.trim()?.trimEnd('/')?.takeIf { it.isNotEmpty() }
+                    ?: prefs.getString("base_url", null)?.trim()?.trimEnd('/')?.takeIf { it.isNotEmpty() }
                     ?: BuildConfig.BASE_URL.trimEnd('/'))
                 if (base.isEmpty()) {
                     throw IllegalStateException("BASE_URL is not configured")
                 }
 
+                val currentToken = sessionToken?.takeIf { it.isNotEmpty() }
+                    ?: prefs.getString("session_token", null)?.takeIf { it.isNotEmpty() }
+
                 val url = URL("$base/api/v1/draft/analyze")
                 val conn = url.openConnection() as HttpURLConnection
                 conn.requestMethod = "POST"
                 conn.setRequestProperty("Content-Type", "application/json")
-                if (!sessionToken.isNullOrEmpty()) {
-                    conn.setRequestProperty("Authorization", "Bearer $sessionToken")
+                if (!currentToken.isNullOrEmpty()) {
+                    conn.setRequestProperty("Authorization", "Bearer $currentToken")
                 }
                 conn.connectTimeout = 30000
                 conn.readTimeout = 30000

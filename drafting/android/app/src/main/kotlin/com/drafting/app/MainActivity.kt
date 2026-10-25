@@ -108,6 +108,16 @@ class MainActivity : FlutterActivity() {
 
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL).setMethodCallHandler { call, result ->
             if (call.method == "startService") {
+                pendingBaseUrl = call.argument("baseUrl")
+                pendingSessionToken = call.argument("sessionToken")
+                pendingMainRole = call.argument("mainRole")
+                pendingSecondaryRole = call.argument("secondaryRole")
+                pendingAutofillRole = call.argument("autofillRole")
+                pendingIsPremium = call.argument("isPremium") ?: false
+                pendingPlanTier = call.argument("planTier") ?: "plus"
+                pendingOtpChampions = call.argument("otpChampions") ?: ""
+                pendingActiveCreatorId = call.argument("activeCreatorId") ?: ""
+
                 if (!Settings.canDrawOverlays(this)) {
                     val intent = Intent(
                         Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
@@ -118,16 +128,6 @@ class MainActivity : FlutterActivity() {
                     result.error("PERMISSION_DENIED", "Overlay permission required", null)
                     return@setMethodCallHandler
                 }
-
-                pendingBaseUrl = call.argument("baseUrl")
-                pendingSessionToken = call.argument("sessionToken")
-                pendingMainRole = call.argument("mainRole")
-                pendingSecondaryRole = call.argument("secondaryRole")
-                pendingAutofillRole = call.argument("autofillRole")
-                pendingIsPremium = call.argument("isPremium") ?: false
-                pendingPlanTier = call.argument("planTier") ?: "plus"
-                pendingOtpChampions = call.argument("otpChampions") ?: ""
-                pendingActiveCreatorId = call.argument("activeCreatorId") ?: ""
 
                 startMediaProjectionRequest()
                 result.success(true)
