@@ -9,36 +9,26 @@ import (
 )
 
 type User struct {
-	ID           uuid.UUID `gorm:"type:uuid;primary_key;default:gen_random_uuid()"`
-	GoogleID     *string   `gorm:"type:varchar(255);unique"`
-	Email        string    `gorm:"type:varchar(255);not null"`
-	Username     string    `gorm:"type:varchar(255)"`
-	ProfilePic   string    `gorm:"type:varchar(255)"`
-	PasswordHash string    `gorm:"type:varchar(255)"`
-	DeviceID     string    `gorm:"type:varchar(255)"`
-	SessionToken     string    `gorm:"type:varchar(255)"`
-	StripeAccountID  *string   `gorm:"type:varchar(255)"` // For Creators
-	StripeCustomerID *string   `gorm:"type:varchar(255)"` // For Consumers
-	Role             string    `gorm:"type:varchar(50);default:'consumer'"` // 'consumer', 'entrepreneur', 'admin'
-	Strikes      int       `gorm:"default:0"`
-	Banned       bool      `gorm:"default:false"`
-	IsPendingBan bool      `gorm:"default:false"`
-	PendingBanUntil *time.Time
-	HasUsedCreatorTrial bool `gorm:"default:false"`
-	ActiveGroupID *uuid.UUID `gorm:"type:uuid"` // The group the user is subscribed to
-	CurrentGoal   *string    `gorm:"type:varchar(255)"` // The current short-term goal for the AI coach
-	ActivePlan    *string    `gorm:"type:varchar(50);default:'freemium'"` // e.g., 'freemium', 'plus', 'pro', 'ultra'
-	AvailableQueries       int        `gorm:"default:13"`
-	BonusQueries           int        `gorm:"default:10"` // Consultas por ser nuevo (máximo 10)
-	DailyQueries           int        `gorm:"default:3"`  // Consultas diarias (tope máximo de 3 acumuladas)
-	AdQueries              int        `gorm:"default:0"`  // Consultas por recarga / anuncios (crece infinitamente)
-	LastDailyRewardDate    string     `gorm:"type:varchar(10);default:''"`
-	ReferralCode           string     `gorm:"type:varchar(16);index"`
-	ReferredByID           *uuid.UUID `gorm:"type:uuid;index"`
-	ReferralCount          int        `gorm:"default:0"`
-	ReferralRewardsClaimed int        `gorm:"default:0"`
-	TokensUsedInCycle      int        `gorm:"default:0"`
-	LastTokenResetDate     *time.Time `gorm:""`
+	ID                     uuid.UUID      `gorm:"type:uuid;primary_key;default:gen_random_uuid()"`
+	GoogleID               *string        `gorm:"type:varchar(255);unique"`
+	Email                  string         `gorm:"type:varchar(255);not null"`
+	Username               string         `gorm:"type:varchar(255)"`
+	ProfilePic             string         `gorm:"type:varchar(255)"`
+	PasswordHash           string         `gorm:"type:varchar(255)"`
+	DeviceID               string         `gorm:"type:varchar(255)"`
+	SessionToken           string         `gorm:"type:varchar(255)"`
+	Role                   string         `gorm:"type:varchar(50);default:'consumer'"`
+	Banned                 bool           `gorm:"default:false"`
+	ActivePlan             *string        `gorm:"type:varchar(50);default:'freemium'"` // 'freemium', 'plus', 'pro'
+	AvailableQueries       int            `gorm:"default:13"`
+	BonusQueries           int            `gorm:"default:10"` // Consultas por ser nuevo (máximo 10)
+	DailyQueries           int            `gorm:"default:3"`  // Consultas diarias (tope máximo de 3)
+	AdQueries              int            `gorm:"default:0"`  // Consultas por recarga / anuncios
+	LastDailyRewardDate    string         `gorm:"type:varchar(10);default:''"`
+	ReferralCode           string         `gorm:"type:varchar(16);index"`
+	ReferredByID           *uuid.UUID     `gorm:"type:uuid;index"`
+	ReferralCount          int            `gorm:"default:0"`
+	ReferralRewardsClaimed int            `gorm:"default:0"`
 	LastDraftAt            time.Time
 	SubscriptionEndsAt     *time.Time
 	CreatedAt              time.Time

@@ -19,9 +19,8 @@ type DraftRequest struct {
 	MainRole      string `json:"main_role"`
 	SecondaryRole string `json:"secondary_role"`
 	AutofillRole  string `json:"autofill_role"`
-	QueryType       string `json:"query_type"`
-	OTPChampions    string `json:"otp_champions"`
-	ActiveCreatorID string `json:"active_creator_id"`
+	QueryType     string `json:"query_type"`
+	OTPChampions  string `json:"otp_champions"`
 }
 
 type DraftResponse struct {
@@ -70,10 +69,8 @@ func AnalyzeDraft(w http.ResponseWriter, r *http.Request) {
 	}
 	// -----------------------------------
 
-	privateRulesJSON := ""
-
 	// Call Gemini API
-	recommendation, tokens, err := gemini.AnalyzeDraft(r.Context(), req.ImageBase64, req.MainRole, req.SecondaryRole, req.AutofillRole, privateRulesJSON, req.QueryType, req.OTPChampions)
+	recommendation, tokens, err := gemini.AnalyzeDraft(r.Context(), req.ImageBase64, req.MainRole, req.SecondaryRole, req.AutofillRole, req.QueryType, req.OTPChampions)
 	if err != nil {
 		log.Printf("AnalyzeDraft Error: %v", err)
 		http.Error(w, fmt.Sprintf("Error al generar recomendación: %v", err), http.StatusInternalServerError)
