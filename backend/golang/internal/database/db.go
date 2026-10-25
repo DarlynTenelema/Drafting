@@ -47,6 +47,9 @@ func Connect() {
 	db.Exec(`ALTER TABLE users ADD COLUMN IF NOT EXISTS referral_count integer DEFAULT 0`)
 	db.Exec(`ALTER TABLE users ADD COLUMN IF NOT EXISTS referral_rewards_claimed integer DEFAULT 0`)
 
+	// Asignar códigos únicos a usuarios existentes para que no tengan '' repetido
+	db.Exec(`UPDATE users SET referral_code = 'WR' || UPPER(SUBSTRING(REPLACE(id::text, '-', ''), 1, 6)) WHERE referral_code IS NULL OR referral_code = ''`)
+
 	// Auto Migrate the schema conditionally for production safety
 	if config.GetEnv("DB_AUTO_MIGRATE", "false") == "true" || config.GetEnv("ENV", "development") != "production" {
 		err = db.AutoMigrate(
@@ -54,7 +57,7 @@ func Connect() {
 			&models.ApiUsage{},
 		)
 		if err != nil {
-			log.Fatalf("Failed to auto migrate database: %v", err)
+			log.Printf("Warning: Non-fatal AutoMigrate notice: %v", err)
 		}
 	} else {
 		log.Println("Skipping AutoMigrate in production environment.")

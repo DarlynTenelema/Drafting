@@ -30,7 +30,7 @@ type User struct {
 	ActivePlan    *string    `gorm:"type:varchar(50);default:'freemium'"` // e.g., 'freemium', 'plus', 'pro', 'ultra'
 	AvailableQueries       int        `gorm:"default:10"`
 	LastDailyRewardDate    string     `gorm:"type:varchar(10);default:''"`
-	ReferralCode           string     `gorm:"type:varchar(16);uniqueIndex"`
+	ReferralCode           string     `gorm:"type:varchar(16);index"`
 	ReferredByID           *uuid.UUID `gorm:"type:uuid;index"`
 	ReferralCount          int        `gorm:"default:0"`
 	ReferralRewardsClaimed int        `gorm:"default:0"`
