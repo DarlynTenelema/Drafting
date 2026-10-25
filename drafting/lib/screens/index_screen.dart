@@ -13,7 +13,7 @@ import '../core/services/session_service.dart';
 import '../shared/widgets/hextech_orb.dart';
 import '../theme/app_theme.dart';
 import '../widgets/tutorial_dialog.dart';
-import '../widgets/referral_dialog.dart';
+import 'achievements_screen.dart';
 import 'login_screen.dart';
 
 class IndexScreen extends StatefulWidget {
@@ -28,11 +28,9 @@ class IndexScreen extends StatefulWidget {
   State<IndexScreen> createState() => _IndexScreenState();
 }
 
-class _IndexScreenState extends State<IndexScreen> with SingleTickerProviderStateMixin {
+class _IndexScreenState extends State<IndexScreen> {
   StreamSubscription? _eventSubscription;
   late String _sessionToken;
-  late AnimationController _glowController;
-  late Animation<double> _glowAnimation;
 
   bool _isActive = false;
   int _availableQueries = 10;
@@ -48,14 +46,6 @@ class _IndexScreenState extends State<IndexScreen> with SingleTickerProviderStat
   void initState() {
     super.initState();
     _sessionToken = widget.sessionToken;
-    _glowController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1400),
-    )..repeat(reverse: true);
-    _glowAnimation = Tween<double>(begin: 6.0, end: 24.0).animate(
-      CurvedAnimation(parent: _glowController, curve: Curves.easeInOut),
-    );
-
     _loadCachedState();
     _fetchUserData();
     _listenToNativeEvents();
@@ -69,7 +59,6 @@ class _IndexScreenState extends State<IndexScreen> with SingleTickerProviderStat
 
   @override
   void dispose() {
-    _glowController.dispose();
     _eventSubscription?.cancel();
     super.dispose();
   }
@@ -172,14 +161,46 @@ class _IndexScreenState extends State<IndexScreen> with SingleTickerProviderStat
     }
   }
 
-  void _showReferralDialog() {
-    ReferralDialog.show(
+  void _openAchievementsScreen() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => AchievementsScreen(
+          referralCode: _referralCode ?? '',
+          referralCount: _referralCount,
+          referralRewardsClaimed: _referralRewardsClaimed,
+          hasRedeemedReferral: _hasRedeemedReferral,
+          onDataChanged: _fetchUserData,
+        ),
+      ),
+    );
+  }
+
+  void _showLogoutDialog() {
+    showDialog(
       context: context,
-      referralCode: _referralCode ?? '',
-      referralCount: _referralCount,
-      referralRewardsClaimed: _referralRewardsClaimed,
-      hasRedeemedReferral: _hasRedeemedReferral,
-      onDataChanged: _fetchUserData,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppTheme.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Cerrar sesión', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        content: Text(
+          '¿Deseas cerrar la sesión de ${_userName ?? "tu cuenta"}?',
+          style: const TextStyle(color: AppTheme.textMuted),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Cancelar', style: TextStyle(color: Colors.grey)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              _handleLogout();
+            },
+            child: const Text('Salir', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
     );
   }
 
@@ -455,12 +476,13 @@ class _IndexScreenState extends State<IndexScreen> with SingleTickerProviderStat
         child: SafeArea(
           child: Column(
             children: [
-              // --- 1. TOP HEADER BAR ---
+              // --- 1. TOP HEADER BAR (Compacto, SIN DESBORDAMIENTO) ---
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 12.0),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
+                    // Brand Logo & Title
                     Row(
                       children: [
                         Container(
@@ -492,28 +514,12 @@ class _IndexScreenState extends State<IndexScreen> with SingleTickerProviderStat
                       ],
                     ),
 
+                    // Actions: Tutorial & User Profile Avatar (Compact)
                     Row(
                       children: [
-                        // Referral / Invite Friends Button
-                        Container(
-                          margin: const EdgeInsets.only(right: 10),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF10B981).withValues(alpha: 0.15),
-                            shape: BoxShape.circle,
-                            border: Border.all(color: const Color(0xFF10B981).withValues(alpha: 0.35)),
-                          ),
-                          child: IconButton(
-                            tooltip: 'Invitar amigos (+5)',
-                            icon: const Icon(Icons.people_alt_rounded, color: Color(0xFF10B981), size: 20),
-                            padding: const EdgeInsets.all(6),
-                            constraints: const BoxConstraints(),
-                            onPressed: _showReferralDialog,
-                          ),
-                        ),
-
                         // Tutorial / Help Button
                         Container(
-                          margin: const EdgeInsets.only(right: 10),
+                          margin: const EdgeInsets.only(right: 12),
                           decoration: BoxDecoration(
                             color: const Color(0xFF00E5FF).withValues(alpha: 0.12),
                             shape: BoxShape.circle,
@@ -522,305 +528,137 @@ class _IndexScreenState extends State<IndexScreen> with SingleTickerProviderStat
                           child: IconButton(
                             tooltip: 'Ver tutorial',
                             icon: const Icon(Icons.help_outline_rounded, color: Color(0xFF00E5FF), size: 20),
-                            padding: const EdgeInsets.all(6),
+                            padding: const EdgeInsets.all(7),
                             constraints: const BoxConstraints(),
                             onPressed: () => TutorialDialog.show(context),
                           ),
                         ),
 
-                        // User Profile Chip / Logout
+                        // User Profile Avatar (Tap to logout / info)
                         InkWell(
-                          onTap: () {
-                        showDialog(
-                          context: context,
-                          builder: (ctx) => AlertDialog(
-                            backgroundColor: AppTheme.surface,
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                            title: const Text('Cerrar sesión', style: TextStyle(color: Colors.white)),
-                            content: Text(
-                              '¿Deseas cerrar la sesión de ${_userName ?? "tu cuenta"}?',
-                              style: const TextStyle(color: AppTheme.textMuted),
-                            ),
-                            actions: [
-                              TextButton(
-                                onPressed: () => Navigator.of(ctx).pop(),
-                                child: const Text('Cancelar', style: TextStyle(color: Colors.grey)),
-                              ),
-                              ElevatedButton(
-                                style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
-                                onPressed: () {
-                                  Navigator.of(ctx).pop();
-                                  _handleLogout();
-                                },
-                                child: const Text('Salir', style: TextStyle(color: Colors.white)),
-                              ),
-                            ],
-                          ),
-                        );
-                      },
-                      borderRadius: BorderRadius.circular(20),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.05),
+                          onTap: _showLogoutDialog,
                           borderRadius: BorderRadius.circular(20),
-                          border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            CircleAvatar(
-                              radius: 14,
+                          child: Container(
+                            padding: const EdgeInsets.all(2),
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              border: Border.all(color: Colors.white.withValues(alpha: 0.25), width: 1.5),
+                            ),
+                            child: CircleAvatar(
+                              radius: 16,
                               backgroundColor: AppTheme.primary.withValues(alpha: 0.3),
                               backgroundImage: _userPhotoUrl != null ? NetworkImage(_userPhotoUrl!) : null,
                               child: _userPhotoUrl == null
-                                  ? const Icon(Icons.person, color: Colors.white, size: 16)
+                                  ? const Icon(Icons.person, color: Colors.white, size: 18)
                                   : null,
                             ),
-                            const SizedBox(width: 8),
-                            ConstrainedBox(
-                              constraints: const BoxConstraints(maxWidth: 100),
-                              child: Text(
-                                _userName ?? 'Jugador',
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 4),
-                            const Icon(Icons.logout, color: Colors.white54, size: 16),
-                          ],
+                          ),
                         ),
-                      ),
+                      ],
                     ),
                   ],
                 ),
-              ],
-            ),
-          ),
+              ),
 
-              const SizedBox(height: 12),
+              const SizedBox(height: 8),
 
-              // --- 2. CONSULTAS DISPONIBLES CARD ---
+              // --- 2. CONSULTAS & RECARGA CARD (Compacto y unificado) ---
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                padding: const EdgeInsets.symmetric(horizontal: 20.0),
                 child: Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                   decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(20),
+                    borderRadius: BorderRadius.circular(18),
                     gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
                       colors: [
-                        const Color(0xFF1E293B).withValues(alpha: 0.8),
+                        const Color(0xFF1E293B).withValues(alpha: 0.75),
                         const Color(0xFF0F172A).withValues(alpha: 0.9),
                       ],
                     ),
                     border: Border.all(
                       color: _availableQueries > 0
                           ? const Color(0xFF00E5FF).withValues(alpha: 0.25)
-                          : Colors.redAccent.withValues(alpha: 0.3),
-                      width: 1.2,
+                          : Colors.redAccent.withValues(alpha: 0.4),
                     ),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.4),
-                        blurRadius: 16,
-                        offset: const Offset(0, 6),
+                        color: Colors.black.withValues(alpha: 0.25),
+                        blurRadius: 12,
+                        offset: const Offset(0, 4),
                       ),
                     ],
                   ),
                   child: Row(
                     children: [
                       Container(
-                        padding: const EdgeInsets.all(12),
+                        padding: const EdgeInsets.all(10),
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
-                          color: (_availableQueries > 0 ? const Color(0xFF00E5FF) : Colors.redAccent)
-                              .withValues(alpha: 0.15),
+                          color: (_availableQueries > 0 ? const Color(0xFF00E5FF) : Colors.redAccent).withValues(alpha: 0.15),
                         ),
                         child: Icon(
                           Icons.bolt_rounded,
                           color: _availableQueries > 0 ? const Color(0xFF00E5FF) : Colors.redAccent,
-                          size: 30,
+                          size: 22,
                         ),
                       ),
-                      const SizedBox(width: 16),
+                      const SizedBox(width: 12),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
                           children: [
                             Text(
-                              '$_availableQueries ${_availableQueries == 1 ? "Consulta" : "Consultas"} disponibles',
+                              '$_availableQueries ${_availableQueries == 1 ? "Consulta" : "Consultas"}',
                               style: GoogleFonts.outfit(
-                                fontSize: 18,
+                                fontSize: 17,
                                 fontWeight: FontWeight.bold,
                                 color: Colors.white,
                               ),
                             ),
-                            const SizedBox(height: 4),
                             Text(
-                              'Cada captura de pantalla consume 1 consulta',
+                              '1 por captura en Wild Rift',
                               style: TextStyle(
-                                fontSize: 12,
-                                color: Colors.white.withValues(alpha: 0.6),
+                                fontSize: 11,
+                                color: Colors.white.withValues(alpha: 0.5),
                               ),
                             ),
                           ],
                         ),
+                      ),
+                      // Botón Recarga Rápida
+                      ElevatedButton(
+                        onPressed: _isLoadingQueries ? null : _obtainQueries,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF10B981),
+                          foregroundColor: Colors.white,
+                          elevation: 0,
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                        child: _isLoadingQueries
+                            ? const SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                              )
+                            : const Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.add_rounded, size: 18),
+                                  SizedBox(width: 4),
+                                  Text('+5 Gratis', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                                ],
+                              ),
                       ),
                     ],
                   ),
                 ),
               ),
 
-              // --- 2.5 BANNER RECOMENDADO: INVITA A 2 AMIGOS Y GANA +5 ---
-              Padding(
-                padding: const EdgeInsets.only(left: 24.0, right: 24.0, top: 12.0),
-                child: InkWell(
-                  onTap: _showReferralDialog,
-                  borderRadius: BorderRadius.circular(14),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF10B981).withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: const Color(0xFF10B981).withValues(alpha: 0.3)),
-                    ),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.card_giftcard_rounded, color: Color(0xFF10B981), size: 20),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Text(
-                            'Invita a 2 amigos y gana +5 consultas',
-                            style: GoogleFonts.inter(
-                              color: const Color(0xFF10B981),
-                              fontSize: 13,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF10B981).withValues(alpha: 0.2),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Text(
-                            '$_referralRewardsClaimed/5',
-                            style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
-                          ),
-                        ),
-                        const SizedBox(width: 6),
-                        const Icon(Icons.arrow_forward_ios_rounded, color: Colors.white54, size: 12),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
+              const Spacer(flex: 2),
 
-              const SizedBox(height: 14),
-
-              // --- 3. BOTÓN DESTACADO: "OBTENER CONSULTAS" ---
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24.0),
-                child: SizedBox(
-                  width: double.infinity,
-                  height: 58,
-                  child: AnimatedBuilder(
-                    animation: _glowAnimation,
-                    builder: (context, child) {
-                      final isZero = _availableQueries <= 0;
-                      return Container(
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(18),
-                          gradient: const LinearGradient(
-                            colors: [
-                              Color(0xFF10B981), // Emerald
-                              Color(0xFF059669),
-                            ],
-                          ),
-                          border: isZero
-                              ? Border.all(
-                                  color: Colors.white.withValues(alpha: 0.8),
-                                  width: 1.5,
-                                )
-                              : null,
-                          boxShadow: [
-                            BoxShadow(
-                              color: const Color(0xFF10B981).withValues(alpha: isZero ? 0.75 : 0.4),
-                              blurRadius: isZero ? _glowAnimation.value : 18,
-                              spreadRadius: isZero ? (_glowAnimation.value / 4.5) : 0,
-                              offset: const Offset(0, 4),
-                            ),
-                          ],
-                        ),
-                        child: child,
-                      );
-                    },
-                    child: ElevatedButton(
-                      onPressed: _isLoadingQueries ? null : _obtainQueries,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.transparent,
-                        shadowColor: Colors.transparent,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(18),
-                        ),
-                      ),
-                      child: _isLoadingQueries
-                          ? const SizedBox(
-                              width: 24,
-                              height: 24,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2.5,
-                                color: Colors.white,
-                              ),
-                            )
-                          : Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                const Icon(Icons.add_circle_outline_rounded, color: Colors.white, size: 24),
-                                const SizedBox(width: 10),
-                                Text(
-                                  'Obtener consultas',
-                                  style: GoogleFonts.outfit(
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.white,
-                                    letterSpacing: 0.5,
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                                  decoration: BoxDecoration(
-                                    color: Colors.white.withValues(alpha: 0.2),
-                                    borderRadius: BorderRadius.circular(10),
-                                  ),
-                                  child: const Text(
-                                    '+5',
-                                    style: TextStyle(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 13,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                    ),
-                  ),
-                ),
-              ),
-
-              const Spacer(),
-
-              // --- 4. CENTRAL ACTION: HEXTECH ORB (CAPTURA DE PANTALLA) ---
+              // --- 3. PROTAGONISTA CENTRAL: ESFERA HEXTECH (ACTIVAR ASISTENTE) ---
               Center(
                 child: HextechOrb(
                   isActive: _isActive,
@@ -828,7 +666,7 @@ class _IndexScreenState extends State<IndexScreen> with SingleTickerProviderStat
                 ),
               ),
 
-              const SizedBox(height: 28),
+              const SizedBox(height: 24),
 
               // Status indicator below Orb
               AnimatedContainer(
@@ -867,8 +705,8 @@ class _IndexScreenState extends State<IndexScreen> with SingleTickerProviderStat
                     const SizedBox(width: 8),
                     Text(
                       _isActive
-                          ? 'ASISTENTE ACTIVO SOBRE TU JUEGO'
-                          : 'TOCA LA ESFERA PARA ACTIVAR EL ASISTENTE',
+                          ? 'ASISTENTE ACTIVO SOBRE WILD RIFT'
+                          : 'TOCA LA ESFERA PARA ACTIVAR',
                       style: GoogleFonts.inter(
                         fontSize: 12,
                         fontWeight: FontWeight.w700,
@@ -880,17 +718,89 @@ class _IndexScreenState extends State<IndexScreen> with SingleTickerProviderStat
                 ),
               ),
 
-              const Spacer(),
+              const Spacer(flex: 2),
+
+              // --- 4. ACCESO A LA PANTALLA EXCLUSIVA DE LOGROS Y RECOMPENSAS ---
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20.0),
+                child: InkWell(
+                  onTap: _openAchievementsScreen,
+                  borderRadius: BorderRadius.circular(16),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.04),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: const Color(0xFF10B981).withValues(alpha: 0.15),
+                          ),
+                          child: const Icon(Icons.emoji_events_rounded, color: Color(0xFF10B981), size: 20),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                'Logros y Recompensas',
+                                style: GoogleFonts.outfit(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                ),
+                              ),
+                              Text(
+                                'Invita a 2 amigos y gana +5 consultas',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: Colors.white.withValues(alpha: 0.5),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF10B981).withValues(alpha: 0.2),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            '$_referralRewardsClaimed/5',
+                            style: const TextStyle(
+                              color: Color(0xFF10B981),
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        const Icon(Icons.arrow_forward_ios_rounded, color: Colors.white38, size: 12),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 12),
 
               // Bottom footer hint
               Padding(
-                padding: const EdgeInsets.only(bottom: 16.0),
+                padding: const EdgeInsets.only(bottom: 12.0),
                 child: Text(
                   'Abre tu juego después de activar. La burbuja flotará en pantalla.',
                   textAlign: TextAlign.center,
                   style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.white.withValues(alpha: 0.4),
+                    fontSize: 11,
+                    color: Colors.white.withValues(alpha: 0.35),
                   ),
                 ),
               ),
