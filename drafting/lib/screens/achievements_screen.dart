@@ -100,19 +100,22 @@ class _AchievementsScreenState extends State<AchievementsScreen> {
     }
   }
 
-  void _copyToClipboard(String text) {
-    Clipboard.setData(ClipboardData(text: text));
+  void _copyToClipboard(String text, {bool isFullMessage = false}) {
+    final toCopy = isFullMessage
+        ? '🎮 ¡Descarga Drafting para Wild Rift y canjea mi código $text para ganar +2 consultas gratis de bienvenida!'
+        : text;
+    Clipboard.setData(ClipboardData(text: toCopy));
     HapticFeedback.lightImpact();
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         backgroundColor: const Color(0xFF10B981),
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        content: const Row(
+        content: Row(
           children: [
-            Icon(Icons.check_circle, color: Colors.white, size: 20),
-            SizedBox(width: 8),
-            Text('¡Código copiado al portapapeles!'),
+            const Icon(Icons.check_circle, color: Colors.white, size: 20),
+            const SizedBox(width: 8),
+            Text(isFullMessage ? '¡Mensaje de invitación copiado!' : '¡Código copiado al portapapeles!'),
           ],
         ),
         duration: const Duration(seconds: 2),
@@ -354,6 +357,26 @@ class _AchievementsScreenState extends State<AchievementsScreen> {
                               label: const Text('Copiar', style: TextStyle(fontWeight: FontWeight.bold)),
                             ),
                           ],
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: const Color(0xFF00E5FF),
+                            side: BorderSide(color: const Color(0xFF00E5FF).withValues(alpha: 0.4)),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                            padding: const EdgeInsets.symmetric(vertical: 10),
+                          ),
+                          onPressed: widget.referralCode.isNotEmpty
+                              ? () => _copyToClipboard(widget.referralCode, isFullMessage: true)
+                              : null,
+                          icon: const Icon(Icons.share_rounded, size: 16),
+                          label: const Text(
+                            'Copiar mensaje para WhatsApp / Discord',
+                            style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                          ),
                         ),
                       ),
                     ],

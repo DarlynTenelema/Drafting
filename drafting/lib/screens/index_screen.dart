@@ -38,12 +38,6 @@ class _IndexScreenState extends State<IndexScreen> {
   int _bonusQueries = 10;
   int _adQueries = 0;
 
-  String _mainRole = 'Auto';
-  String _secondaryRole = 'Auto';
-  String _otpChampion = '';
-  String _main1Champion = '';
-  String _main2Champion = '';
-
   bool _isLoadingQueries = false;
   String? _userName;
   String? _userPhotoUrl;
@@ -81,11 +75,6 @@ class _IndexScreenState extends State<IndexScreen> {
         _dailyQueries = prefs.getInt('daily_queries') ?? 3;
         _bonusQueries = prefs.getInt('bonus_queries') ?? 10;
         _adQueries = prefs.getInt('ad_queries') ?? 0;
-        _mainRole = prefs.getString('pref_main_role') ?? 'Auto';
-        _secondaryRole = prefs.getString('pref_secondary_role') ?? 'Auto';
-        _otpChampion = prefs.getString('pref_otp_champion') ?? '';
-        _main1Champion = prefs.getString('pref_main1_champion') ?? '';
-        _main2Champion = prefs.getString('pref_main2_champion') ?? '';
       });
     }
   }
@@ -212,308 +201,6 @@ class _IndexScreenState extends State<IndexScreen> {
           onDataChanged: _fetchUserData,
         ),
       ),
-    );
-  }
-
-  void _showRolesAndOtpDialog() {
-    final otpController = TextEditingController(text: _otpChampion);
-    final main1Controller = TextEditingController(text: _main1Champion);
-    final main2Controller = TextEditingController(text: _main2Champion);
-    String tempMainRole = _mainRole;
-    String tempSecondaryRole = _secondaryRole;
-
-    final roles = ['Auto', 'Barón (Top)', 'Jungla', 'Mid', 'Tirador (ADC)', 'Soporte'];
-
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: const Color(0xFF0F172A),
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setModalState) {
-            return Padding(
-              padding: EdgeInsets.only(
-                bottom: MediaQuery.of(context).viewInsets.bottom + 20,
-                left: 20,
-                right: 20,
-                top: 20,
-              ),
-              child: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Center(
-                      child: Container(
-                        width: 40,
-                        height: 4,
-                        decoration: BoxDecoration(
-                          color: Colors.white24,
-                          borderRadius: BorderRadius.circular(2),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    Row(
-                      children: [
-                        const Icon(Icons.tune_rounded, color: Color(0xFFC89B3C), size: 24),
-                        const SizedBox(width: 10),
-                        Text(
-                          'Mis Roles y Campeones',
-                          style: GoogleFonts.outfit(
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      'La IA priorizará recomendaciones adaptadas a tus líneas y campeones favoritos.',
-                      style: TextStyle(color: Colors.white.withValues(alpha: 0.6), fontSize: 13),
-                    ),
-                    const SizedBox(height: 18),
-
-                    // Línea Principal
-                    Text(
-                      'Línea Principal (Rol 1)',
-                      style: GoogleFonts.outfit(
-                        fontSize: 14,
-                        fontWeight: FontWeight.bold,
-                        color: const Color(0xFF00E5FF),
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: roles.map((role) {
-                        final isSelected = tempMainRole == role;
-                        return ChoiceChip(
-                          label: Text(role),
-                          selected: isSelected,
-                          onSelected: (val) {
-                            if (val) setModalState(() => tempMainRole = role);
-                          },
-                          selectedColor: const Color(0xFF00E5FF).withValues(alpha: 0.25),
-                          backgroundColor: Colors.white.withValues(alpha: 0.05),
-                          labelStyle: TextStyle(
-                            color: isSelected ? const Color(0xFF00E5FF) : Colors.white70,
-                            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                            fontSize: 12,
-                          ),
-                          side: BorderSide(
-                            color: isSelected ? const Color(0xFF00E5FF) : Colors.white12,
-                          ),
-                        );
-                      }).toList(),
-                    ),
-                    const SizedBox(height: 16),
-
-                    // Línea Secundaria
-                    Text(
-                      'Línea Secundaria (Rol 2)',
-                      style: GoogleFonts.outfit(
-                        fontSize: 14,
-                        fontWeight: FontWeight.bold,
-                        color: const Color(0xFFC89B3C),
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: roles.map((role) {
-                        final isSelected = tempSecondaryRole == role;
-                        return ChoiceChip(
-                          label: Text(role),
-                          selected: isSelected,
-                          onSelected: (val) {
-                            if (val) setModalState(() => tempSecondaryRole = role);
-                          },
-                          selectedColor: const Color(0xFFC89B3C).withValues(alpha: 0.25),
-                          backgroundColor: Colors.white.withValues(alpha: 0.05),
-                          labelStyle: TextStyle(
-                            color: isSelected ? const Color(0xFFC89B3C) : Colors.white70,
-                            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                            fontSize: 12,
-                          ),
-                          side: BorderSide(
-                            color: isSelected ? const Color(0xFFC89B3C) : Colors.white12,
-                          ),
-                        );
-                      }).toList(),
-                    ),
-                    const SizedBox(height: 18),
-
-                    // Campeón OTP
-                    Text(
-                      'Campeón OTP (Tu Especialidad)',
-                      style: GoogleFonts.outfit(
-                        fontSize: 14,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    TextField(
-                      controller: otpController,
-                      style: const TextStyle(color: Colors.white),
-                      decoration: InputDecoration(
-                        hintText: 'Ej: Yasuo, Zed, Kai\'Sa, Thresh...',
-                        hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.3)),
-                        filled: true,
-                        fillColor: Colors.white.withValues(alpha: 0.05),
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: Colors.white12),
-                        ),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: Colors.white12),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: Color(0xFFC89B3C)),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 14),
-
-                    // Mains Secundarios
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Main 1 (Opcional)',
-                                style: GoogleFonts.outfit(fontSize: 12, color: Colors.white70),
-                              ),
-                              const SizedBox(height: 6),
-                              TextField(
-                                controller: main1Controller,
-                                style: const TextStyle(color: Colors.white, fontSize: 13),
-                                decoration: InputDecoration(
-                                  hintText: 'Ej: Lee Sin',
-                                  hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.3), fontSize: 13),
-                                  filled: true,
-                                  fillColor: Colors.white.withValues(alpha: 0.05),
-                                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                                  border: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                    borderSide: const BorderSide(color: Colors.white12),
-                                  ),
-                                  enabledBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                    borderSide: const BorderSide(color: Colors.white12),
-                                  ),
-                                  focusedBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                    borderSide: const BorderSide(color: Color(0xFF00E5FF)),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Main 2 (Opcional)',
-                                style: GoogleFonts.outfit(fontSize: 12, color: Colors.white70),
-                              ),
-                              const SizedBox(height: 6),
-                              TextField(
-                                controller: main2Controller,
-                                style: const TextStyle(color: Colors.white, fontSize: 13),
-                                decoration: InputDecoration(
-                                  hintText: 'Ej: Nautilus',
-                                  hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.3), fontSize: 13),
-                                  filled: true,
-                                  fillColor: Colors.white.withValues(alpha: 0.05),
-                                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                                  border: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                    borderSide: const BorderSide(color: Colors.white12),
-                                  ),
-                                  enabledBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                    borderSide: const BorderSide(color: Colors.white12),
-                                  ),
-                                  focusedBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                    borderSide: const BorderSide(color: Color(0xFF00E5FF)),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 22),
-
-                    // Botón Guardar
-                    SizedBox(
-                      width: double.infinity,
-                      height: 48,
-                      child: ElevatedButton(
-                        onPressed: () async {
-                          final prefs = await SharedPreferences.getInstance();
-                          setState(() {
-                            _mainRole = tempMainRole;
-                            _secondaryRole = tempSecondaryRole;
-                            _otpChampion = otpController.text.trim();
-                            _main1Champion = main1Controller.text.trim();
-                            _main2Champion = main2Controller.text.trim();
-                          });
-                          await prefs.setString('pref_main_role', _mainRole);
-                          await prefs.setString('pref_secondary_role', _secondaryRole);
-                          await prefs.setString('pref_otp_champion', _otpChampion);
-                          await prefs.setString('pref_main1_champion', _main1Champion);
-                          await prefs.setString('pref_main2_champion', _main2Champion);
-                          if (context.mounted) {
-                            Navigator.pop(context);
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('✅ Preferencias guardadas correctamente'),
-                                duration: Duration(seconds: 2),
-                              ),
-                            );
-                          }
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFFC89B3C),
-                          foregroundColor: Colors.black,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                          elevation: 0,
-                        ),
-                        child: Text(
-                          'Guardar Preferencias',
-                          style: GoogleFonts.outfit(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            );
-          },
-        );
-      },
     );
   }
 
@@ -934,21 +621,15 @@ class _IndexScreenState extends State<IndexScreen> {
       final hasPermission = await _checkAndShowDisclosure();
       if (!hasPermission) return;
 
-      final otpCombined = [
-        _otpChampion,
-        _main1Champion,
-        _main2Champion,
-      ].where((s) => s.trim().isNotEmpty).join(', ');
-
       bool started = await NativeService.startCaptureService(
         baseUrl: AppConfig.apiBaseUrl,
         sessionToken: _sessionToken,
-        mainRole: _mainRole,
-        secondaryRole: _secondaryRole,
+        mainRole: "Auto",
+        secondaryRole: "Auto",
         autofillRole: "Auto",
         isPremium: true,
         planTier: "plus",
-        otpChampions: otpCombined,
+        otpChampions: "",
         activeCreatorId: "",
       );
 
@@ -1260,65 +941,7 @@ class _IndexScreenState extends State<IndexScreen> {
 
               const Spacer(flex: 2),
 
-              // --- 4. ACCESO A CONFIGURACIÓN DE ROLES Y CAMPEONES ---
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20.0),
-                child: InkWell(
-                  onTap: _showRolesAndOtpDialog,
-                  borderRadius: BorderRadius.circular(16),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.04),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
-                    ),
-                    child: Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: const Color(0xFF00E5FF).withValues(alpha: 0.15),
-                          ),
-                          child: const Icon(Icons.tune_rounded, color: Color(0xFF00E5FF), size: 20),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(
-                                'Mis Roles y Campeones OTP',
-                                style: GoogleFonts.outfit(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.white,
-                                ),
-                              ),
-                              Text(
-                                '$_mainRole / $_secondaryRole${_otpChampion.isNotEmpty ? " • OTP: $_otpChampion" : ""}',
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  color: Colors.white.withValues(alpha: 0.5),
-                                ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ],
-                          ),
-                        ),
-                        const Icon(Icons.arrow_forward_ios_rounded, color: Colors.white38, size: 12),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-
-              const SizedBox(height: 10),
-
-              // --- 5. ACCESO A LA PANTALLA EXCLUSIVA DE LOGROS Y RECOMPENSAS ---
+              // --- 4. ACCESO A LA PANTALLA EXCLUSIVA DE LOGROS Y RECOMPENSAS ---
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20.0),
                 child: InkWell(
