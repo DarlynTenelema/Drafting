@@ -48,12 +48,16 @@ func GoogleLogin(w http.ResponseWriter, r *http.Request) {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 			// User does not exist, create new.
 			user = models.User{
-				GoogleID:         &claims.GoogleID,
-				Email:            claims.Email,
-				Username:         claims.Name,
-				ProfilePic:       claims.Picture,
-				SessionToken:     jti,
-				AvailableQueries: 10,
+				GoogleID:            &claims.GoogleID,
+				Email:               claims.Email,
+				Username:            claims.Name,
+				ProfilePic:          claims.Picture,
+				SessionToken:        jti,
+				BonusQueries:        10,
+				DailyQueries:        3,
+				AdQueries:           0,
+				AvailableQueries:    13,
+				LastDailyRewardDate: time.Now().UTC().Format("2006-01-02"),
 			}
 			if err := database.DB.Create(&user).Error; err != nil {
 				http.Error(w, "Internal server error: failed to create user", http.StatusInternalServerError)
@@ -87,18 +91,15 @@ func Me(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Sistema de 3 consultas gratis cada día (Daily Bonus)
+	// Sistema de consultas diarias: Tope máximo de 3 (NO acumula más allá de 3 al pasar días)
 	today := time.Now().UTC().Format("2006-01-02")
-	dailyGranted := false
-	if user.LastDailyRewardDate != today {
-		const dailyBonus = 3
-		user.AvailableQueries += dailyBonus
-		user.LastDailyRewardDate = today
+	dailyGranted := user.RefreshDailyQueries(today)
+	if dailyGranted {
 		database.DB.Model(user).Updates(map[string]interface{}{
+			"daily_queries":          user.DailyQueries,
 			"available_queries":      user.AvailableQueries,
 			"last_daily_reward_date": user.LastDailyRewardDate,
 		})
-		dailyGranted = true
 	}
 
 	isPremium := user.SubscriptionEndsAt != nil && user.SubscriptionEndsAt.After(time.Now())
@@ -128,6 +129,9 @@ func Me(w http.ResponseWriter, r *http.Request) {
 		"is_premium":               isPremium,
 		"plan_tier":                activePlan,
 		"available_queries":        user.AvailableQueries,
+		"daily_queries":            user.DailyQueries,
+		"bonus_queries":            user.BonusQueries,
+		"ad_queries":               user.AdQueries,
 		"daily_reward_granted":     dailyGranted,
 		"referral_code":            user.ReferralCode,
 		"referral_count":           user.ReferralCount,
@@ -184,9 +188,12 @@ func ObtainQueries(w http.ResponseWriter, r *http.Request) {
 	}
 
 	const queriesToAdd = 5
-	user.AvailableQueries += queriesToAdd
+	user.AddAdQueries(queriesToAdd)
 
-	if err := database.DB.Model(user).Update("available_queries", user.AvailableQueries).Error; err != nil {
+	if err := database.DB.Model(user).Updates(map[string]interface{}{
+		"ad_queries":        user.AdQueries,
+		"available_queries": user.AvailableQueries,
+	}).Error; err != nil {
 		http.Error(w, "Failed to update queries", http.StatusInternalServerError)
 		return
 	}
@@ -194,6 +201,9 @@ func ObtainQueries(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
 		"available_queries": user.AvailableQueries,
+		"daily_queries":     user.DailyQueries,
+		"bonus_queries":     user.BonusQueries,
+		"ad_queries":        user.AdQueries,
 		"added":             queriesToAdd,
 		"message":           "¡Has obtenido 5 consultas!",
 	})

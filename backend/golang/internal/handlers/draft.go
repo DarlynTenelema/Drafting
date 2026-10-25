@@ -83,10 +83,13 @@ func AnalyzeDraft(w http.ResponseWriter, r *http.Request) {
 	// Record successful API usage with tokens for cost tracking
 	database.DB.Create(&models.ApiUsage{UserID: user.ID, TokensUsed: int(tokens), CreatedAt: time.Now()})
 
-	// Decrement query count and update user's LastDraftAt only if successful
-	user.AvailableQueries--
+	// Decrement query count with priority (Daily -> Bonus -> Ad)
+	user.ConsumeQuery()
 	user.LastDraftAt = time.Now()
 	database.DB.Model(user).Updates(map[string]interface{}{
+		"daily_queries":     user.DailyQueries,
+		"bonus_queries":     user.BonusQueries,
+		"ad_queries":        user.AdQueries,
 		"available_queries": user.AvailableQueries,
 		"last_draft_at":     user.LastDraftAt,
 	})

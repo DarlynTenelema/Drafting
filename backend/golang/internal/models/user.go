@@ -28,7 +28,10 @@ type User struct {
 	ActiveGroupID *uuid.UUID `gorm:"type:uuid"` // The group the user is subscribed to
 	CurrentGoal   *string    `gorm:"type:varchar(255)"` // The current short-term goal for the AI coach
 	ActivePlan    *string    `gorm:"type:varchar(50);default:'freemium'"` // e.g., 'freemium', 'plus', 'pro', 'ultra'
-	AvailableQueries       int        `gorm:"default:10"`
+	AvailableQueries       int        `gorm:"default:13"`
+	BonusQueries           int        `gorm:"default:10"` // Consultas por ser nuevo (máximo 10)
+	DailyQueries           int        `gorm:"default:3"`  // Consultas diarias (tope máximo de 3 acumuladas)
+	AdQueries              int        `gorm:"default:0"`  // Consultas por recarga / anuncios (crece infinitamente)
 	LastDailyRewardDate    string     `gorm:"type:varchar(10);default:''"`
 	ReferralCode           string     `gorm:"type:varchar(16);index"`
 	ReferredByID           *uuid.UUID `gorm:"type:uuid;index"`
@@ -51,12 +54,54 @@ func GenerateReferralCode(id uuid.UUID) string {
 	return "WR" + clean
 }
 
+// ConsumeQuery descuenta 1 consulta priorizando: 1) Diarias, 2) Bono de bienvenida, 3) Recargas por anuncios
+func (user *User) ConsumeQuery() bool {
+	if user.AvailableQueries <= 0 {
+		return false
+	}
+	if user.DailyQueries > 0 {
+		user.DailyQueries--
+	} else if user.BonusQueries > 0 {
+		user.BonusQueries--
+	} else if user.AdQueries > 0 {
+		user.AdQueries--
+	}
+	user.AvailableQueries = user.DailyQueries + user.BonusQueries + user.AdQueries
+	if user.AvailableQueries < 0 {
+		user.AvailableQueries = 0
+	}
+	return true
+}
+
+// AddAdQueries suma consultas por ver anuncios o logros de referidos (crece infinitamente sin tope)
+func (user *User) AddAdQueries(amount int) {
+	user.AdQueries += amount
+	user.AvailableQueries = user.DailyQueries + user.BonusQueries + user.AdQueries
+}
+
+// RefreshDailyQueries restablece las consultas diarias a 3 (máximo 3, NUNCA acumula más allá de 3)
+func (user *User) RefreshDailyQueries(today string) bool {
+	if user.LastDailyRewardDate != today {
+		user.DailyQueries = 3 // Tope estricto de 3
+		user.LastDailyRewardDate = today
+		user.AvailableQueries = user.DailyQueries + user.BonusQueries + user.AdQueries
+		return true
+	}
+	return false
+}
+
 func (user *User) BeforeCreate(tx *gorm.DB) (err error) {
 	if user.ID == uuid.Nil {
 		user.ID = uuid.New()
 	}
-	if user.AvailableQueries == 0 {
-		user.AvailableQueries = 10
+	if user.BonusQueries == 0 && user.AvailableQueries == 0 {
+		user.BonusQueries = 10
+		user.DailyQueries = 3
+		user.AdQueries = 0
+		user.AvailableQueries = 13
+		user.LastDailyRewardDate = time.Now().UTC().Format("2006-01-02")
+	} else if user.AvailableQueries == 0 {
+		user.AvailableQueries = user.DailyQueries + user.BonusQueries + user.AdQueries
 	}
 	if user.ReferralCode == "" {
 		user.ReferralCode = GenerateReferralCode(user.ID)

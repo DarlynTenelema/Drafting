@@ -216,57 +216,19 @@
                 android:src="@drawable/ic_drag_handle"
                 android:contentDescription="Arrastrar" />
             
-            <!-- Botones de Captura (Autofill, OTP, In-Game) -->
-            <LinearLayout
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:orientation="horizontal"
-                android:gravity="center">
-
-                <!-- Botón Autofill -->
-                <ImageButton
-                    android:id="@+id/btnCaptureAutofill"
-                    android:layout_width="48dp"
-                    android:layout_height="48dp"
-                    android:layout_marginEnd="8dp"
-                    android:background="@drawable/bg_hextech_button"
-                    android:src="@drawable/ic_general"
-                    android:tint="#C89B3C"
-                    android:scaleType="fitCenter"
-                    android:padding="10dp"
-                    android:cropToPadding="true"
-                    android:elevation="6dp"
-                    android:contentDescription="Autofill" />
-
-                <!-- Botón OTP -->
-                <ImageButton
-                    android:id="@+id/btnCaptureOTP"
-                    android:layout_width="48dp"
-                    android:layout_height="48dp"
-                    android:layout_marginEnd="8dp"
-                    android:background="@drawable/bg_hextech_button"
-                    android:src="@drawable/ic_otp"
-                    android:tint="#C89B3C"
-                    android:scaleType="fitCenter"
-                    android:padding="10dp"
-                    android:cropToPadding="true"
-                    android:elevation="6dp"
-                    android:contentDescription="OTP" />
-
-                <!-- Botón In-Game -->
-                <ImageButton
-                    android:id="@+id/btnCaptureInGame"
-                    android:layout_width="48dp"
-                    android:layout_height="48dp"
-                    android:background="@drawable/bg_hextech_button"
-                    android:src="@drawable/ic_in_game"
-                    android:tint="#C89B3C"
-                    android:scaleType="fitCenter"
-                    android:padding="10dp"
-                    android:cropToPadding="true"
-                    android:elevation="6dp"
-                    android:contentDescription="En Partida" />
-            </LinearLayout>
+            <!-- Botón Único de Captura (General Draft) -->
+            <ImageButton
+                android:id="@+id/btnCaptureGeneral"
+                android:layout_width="52dp"
+                android:layout_height="52dp"
+                android:background="@drawable/bg_hextech_button"
+                android:src="@drawable/ic_general"
+                android:tint="#C89B3C"
+                android:scaleType="fitCenter"
+                android:padding="11dp"
+                android:cropToPadding="true"
+                android:elevation="8dp"
+                android:contentDescription="Analizar Draft" />
                 
             <!-- Controles Adicionales Inferiores -->
             <LinearLayout

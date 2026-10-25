@@ -33,7 +33,17 @@ class _IndexScreenState extends State<IndexScreen> {
   late String _sessionToken;
 
   bool _isActive = false;
-  int _availableQueries = 10;
+  int _availableQueries = 13;
+  int _dailyQueries = 3;
+  int _bonusQueries = 10;
+  int _adQueries = 0;
+
+  String _mainRole = 'Auto';
+  String _secondaryRole = 'Auto';
+  String _otpChampion = '';
+  String _main1Champion = '';
+  String _main2Champion = '';
+
   bool _isLoadingQueries = false;
   String? _userName;
   String? _userPhotoUrl;
@@ -67,7 +77,15 @@ class _IndexScreenState extends State<IndexScreen> {
     final prefs = await SharedPreferences.getInstance();
     if (mounted) {
       setState(() {
-        _availableQueries = prefs.getInt('available_queries') ?? 10;
+        _availableQueries = prefs.getInt('available_queries') ?? 13;
+        _dailyQueries = prefs.getInt('daily_queries') ?? 3;
+        _bonusQueries = prefs.getInt('bonus_queries') ?? 10;
+        _adQueries = prefs.getInt('ad_queries') ?? 0;
+        _mainRole = prefs.getString('pref_main_role') ?? 'Auto';
+        _secondaryRole = prefs.getString('pref_secondary_role') ?? 'Auto';
+        _otpChampion = prefs.getString('pref_otp_champion') ?? '';
+        _main1Champion = prefs.getString('pref_main1_champion') ?? '';
+        _main2Champion = prefs.getString('pref_main2_champion') ?? '';
       });
     }
   }
@@ -102,8 +120,18 @@ class _IndexScreenState extends State<IndexScreen> {
       if (_availableQueries > 0) {
         _availableQueries--;
       }
+      if (_dailyQueries > 0) {
+        _dailyQueries--;
+      } else if (_bonusQueries > 0) {
+        _bonusQueries--;
+      } else if (_adQueries > 0) {
+        _adQueries--;
+      }
     });
     await prefs.setInt('available_queries', _availableQueries);
+    await prefs.setInt('daily_queries', _dailyQueries);
+    await prefs.setInt('bonus_queries', _bonusQueries);
+    await prefs.setInt('ad_queries', _adQueries);
   }
 
   Future<void> _fetchUserData() async {
@@ -126,6 +154,18 @@ class _IndexScreenState extends State<IndexScreen> {
               _availableQueries = serverQueries;
               prefs.setInt('available_queries', serverQueries);
             }
+            if (data['daily_queries'] is int) {
+              _dailyQueries = data['daily_queries'];
+              prefs.setInt('daily_queries', _dailyQueries);
+            }
+            if (data['bonus_queries'] is int) {
+              _bonusQueries = data['bonus_queries'];
+              prefs.setInt('bonus_queries', _bonusQueries);
+            }
+            if (data['ad_queries'] is int) {
+              _adQueries = data['ad_queries'];
+              prefs.setInt('ad_queries', _adQueries);
+            }
           });
 
           if (dailyGranted && mounted) {
@@ -140,7 +180,7 @@ class _IndexScreenState extends State<IndexScreen> {
                     SizedBox(width: 12),
                     Expanded(
                       child: Text(
-                        '🎁 ¡Bono Diario Reclamado! +3 consultas gratis para hoy.',
+                        '🎁 ¡Bono Diario Activo! Tus 3 consultas diarias están listas para hoy.',
                         style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
                       ),
                     ),
@@ -171,6 +211,473 @@ class _IndexScreenState extends State<IndexScreen> {
           hasRedeemedReferral: _hasRedeemedReferral,
           onDataChanged: _fetchUserData,
         ),
+      ),
+    );
+  }
+
+  void _showRolesAndOtpDialog() {
+    final otpController = TextEditingController(text: _otpChampion);
+    final main1Controller = TextEditingController(text: _main1Champion);
+    final main2Controller = TextEditingController(text: _main2Champion);
+    String tempMainRole = _mainRole;
+    String tempSecondaryRole = _secondaryRole;
+
+    final roles = ['Auto', 'Barón (Top)', 'Jungla', 'Mid', 'Tirador (ADC)', 'Soporte'];
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: const Color(0xFF0F172A),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return Padding(
+              padding: EdgeInsets.only(
+                bottom: MediaQuery.of(context).viewInsets.bottom + 20,
+                left: 20,
+                right: 20,
+                top: 20,
+              ),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Center(
+                      child: Container(
+                        width: 40,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: Colors.white24,
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        const Icon(Icons.tune_rounded, color: Color(0xFFC89B3C), size: 24),
+                        const SizedBox(width: 10),
+                        Text(
+                          'Mis Roles y Campeones',
+                          style: GoogleFonts.outfit(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      'La IA priorizará recomendaciones adaptadas a tus líneas y campeones favoritos.',
+                      style: TextStyle(color: Colors.white.withValues(alpha: 0.6), fontSize: 13),
+                    ),
+                    const SizedBox(height: 18),
+
+                    // Línea Principal
+                    Text(
+                      'Línea Principal (Rol 1)',
+                      style: GoogleFonts.outfit(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        color: const Color(0xFF00E5FF),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: roles.map((role) {
+                        final isSelected = tempMainRole == role;
+                        return ChoiceChip(
+                          label: Text(role),
+                          selected: isSelected,
+                          onSelected: (val) {
+                            if (val) setModalState(() => tempMainRole = role);
+                          },
+                          selectedColor: const Color(0xFF00E5FF).withValues(alpha: 0.25),
+                          backgroundColor: Colors.white.withValues(alpha: 0.05),
+                          labelStyle: TextStyle(
+                            color: isSelected ? const Color(0xFF00E5FF) : Colors.white70,
+                            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                            fontSize: 12,
+                          ),
+                          side: BorderSide(
+                            color: isSelected ? const Color(0xFF00E5FF) : Colors.white12,
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Línea Secundaria
+                    Text(
+                      'Línea Secundaria (Rol 2)',
+                      style: GoogleFonts.outfit(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        color: const Color(0xFFC89B3C),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: roles.map((role) {
+                        final isSelected = tempSecondaryRole == role;
+                        return ChoiceChip(
+                          label: Text(role),
+                          selected: isSelected,
+                          onSelected: (val) {
+                            if (val) setModalState(() => tempSecondaryRole = role);
+                          },
+                          selectedColor: const Color(0xFFC89B3C).withValues(alpha: 0.25),
+                          backgroundColor: Colors.white.withValues(alpha: 0.05),
+                          labelStyle: TextStyle(
+                            color: isSelected ? const Color(0xFFC89B3C) : Colors.white70,
+                            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                            fontSize: 12,
+                          ),
+                          side: BorderSide(
+                            color: isSelected ? const Color(0xFFC89B3C) : Colors.white12,
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                    const SizedBox(height: 18),
+
+                    // Campeón OTP
+                    Text(
+                      'Campeón OTP (Tu Especialidad)',
+                      style: GoogleFonts.outfit(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    TextField(
+                      controller: otpController,
+                      style: const TextStyle(color: Colors.white),
+                      decoration: InputDecoration(
+                        hintText: 'Ej: Yasuo, Zed, Kai\'Sa, Thresh...',
+                        hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.3)),
+                        filled: true,
+                        fillColor: Colors.white.withValues(alpha: 0.05),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(color: Colors.white12),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(color: Colors.white12),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(color: Color(0xFFC89B3C)),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+
+                    // Mains Secundarios
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Main 1 (Opcional)',
+                                style: GoogleFonts.outfit(fontSize: 12, color: Colors.white70),
+                              ),
+                              const SizedBox(height: 6),
+                              TextField(
+                                controller: main1Controller,
+                                style: const TextStyle(color: Colors.white, fontSize: 13),
+                                decoration: InputDecoration(
+                                  hintText: 'Ej: Lee Sin',
+                                  hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.3), fontSize: 13),
+                                  filled: true,
+                                  fillColor: Colors.white.withValues(alpha: 0.05),
+                                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                    borderSide: const BorderSide(color: Colors.white12),
+                                  ),
+                                  enabledBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                    borderSide: const BorderSide(color: Colors.white12),
+                                  ),
+                                  focusedBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                    borderSide: const BorderSide(color: Color(0xFF00E5FF)),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Main 2 (Opcional)',
+                                style: GoogleFonts.outfit(fontSize: 12, color: Colors.white70),
+                              ),
+                              const SizedBox(height: 6),
+                              TextField(
+                                controller: main2Controller,
+                                style: const TextStyle(color: Colors.white, fontSize: 13),
+                                decoration: InputDecoration(
+                                  hintText: 'Ej: Nautilus',
+                                  hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.3), fontSize: 13),
+                                  filled: true,
+                                  fillColor: Colors.white.withValues(alpha: 0.05),
+                                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                    borderSide: const BorderSide(color: Colors.white12),
+                                  ),
+                                  enabledBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                    borderSide: const BorderSide(color: Colors.white12),
+                                  ),
+                                  focusedBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                    borderSide: const BorderSide(color: Color(0xFF00E5FF)),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 22),
+
+                    // Botón Guardar
+                    SizedBox(
+                      width: double.infinity,
+                      height: 48,
+                      child: ElevatedButton(
+                        onPressed: () async {
+                          final prefs = await SharedPreferences.getInstance();
+                          setState(() {
+                            _mainRole = tempMainRole;
+                            _secondaryRole = tempSecondaryRole;
+                            _otpChampion = otpController.text.trim();
+                            _main1Champion = main1Controller.text.trim();
+                            _main2Champion = main2Controller.text.trim();
+                          });
+                          await prefs.setString('pref_main_role', _mainRole);
+                          await prefs.setString('pref_secondary_role', _secondaryRole);
+                          await prefs.setString('pref_otp_champion', _otpChampion);
+                          await prefs.setString('pref_main1_champion', _main1Champion);
+                          await prefs.setString('pref_main2_champion', _main2Champion);
+                          if (context.mounted) {
+                            Navigator.pop(context);
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('✅ Preferencias guardadas correctamente'),
+                                duration: Duration(seconds: 2),
+                              ),
+                            );
+                          }
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFFC89B3C),
+                          foregroundColor: Colors.black,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                          elevation: 0,
+                        ),
+                        child: Text(
+                          'Guardar Preferencias',
+                          style: GoogleFonts.outfit(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void _showQueriesBreakdownDialog() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF0F172A),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (context) {
+        return Padding(
+          padding: const EdgeInsets.all(22.0),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.white24,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  const Icon(Icons.bolt_rounded, color: Color(0xFF00E5FF), size: 26),
+                  const SizedBox(width: 10),
+                  Text(
+                    '$_availableQueries Consultas Disponibles',
+                    style: GoogleFonts.outfit(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Cada captura de pantalla en draft consume 1 consulta. Tu saldo se compone de:',
+                style: TextStyle(color: Colors.white.withValues(alpha: 0.6), fontSize: 13),
+              ),
+              const SizedBox(height: 16),
+
+              // Item 1: Consultas Diarias
+              _buildQueryItem(
+                icon: Icons.calendar_today_rounded,
+                iconColor: const Color(0xFF00E5FF),
+                title: 'Consultas Diarias',
+                value: '$_dailyQueries / 3 máx',
+                description: 'Se renuevan cada día (tope de 3 acumuladas).',
+              ),
+              const SizedBox(height: 12),
+
+              // Item 2: Bono de Bienvenida
+              _buildQueryItem(
+                icon: Icons.card_giftcard_rounded,
+                iconColor: const Color(0xFFC89B3C),
+                title: 'Bono de Bienvenida',
+                value: '$_bonusQueries / 10 máx',
+                description: 'Consultas iniciales para explorar la app.',
+              ),
+              const SizedBox(height: 12),
+
+              // Item 3: Consultas por Recarga
+              _buildQueryItem(
+                icon: Icons.all_inclusive_rounded,
+                iconColor: const Color(0xFF10B981),
+                title: 'Consultas por Recarga',
+                value: '$_adQueries acumuladas',
+                description: 'Por ver anuncios o invitar amigos. ¡Crecen sin límite!',
+              ),
+              const SizedBox(height: 20),
+
+              SizedBox(
+                width: double.infinity,
+                height: 46,
+                child: ElevatedButton.icon(
+                  onPressed: () {
+                    Navigator.pop(context);
+                    _obtainQueries();
+                  },
+                  icon: const Icon(Icons.add_circle_outline_rounded),
+                  label: const Text('Obtener +5 Consultas Gratis'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF10B981),
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildQueryItem({
+    required IconData icon,
+    required Color iconColor,
+    required String title,
+    required String value,
+    required String description,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.04),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: iconColor.withValues(alpha: 0.15),
+            ),
+            child: Icon(icon, color: iconColor, size: 18),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      title,
+                      style: GoogleFonts.outfit(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                    Text(
+                      value,
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: iconColor,
+                      ),
+                    ),
+                  ],
+                ),
+                Text(
+                  description,
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: Colors.white.withValues(alpha: 0.5),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -241,13 +748,28 @@ class _IndexScreenState extends State<IndexScreen> {
         } else {
           _availableQueries += added;
         }
+        if (data['ad_queries'] is int) {
+          _adQueries = data['ad_queries'];
+        } else {
+          _adQueries += added;
+        }
+        if (data['daily_queries'] is int) {
+          _dailyQueries = data['daily_queries'];
+        }
+        if (data['bonus_queries'] is int) {
+          _bonusQueries = data['bonus_queries'];
+        }
       } else {
         // Modo offline / respaldo local
         _availableQueries += added;
+        _adQueries += added;
       }
 
       final prefs = await SharedPreferences.getInstance();
       await prefs.setInt('available_queries', _availableQueries);
+      await prefs.setInt('ad_queries', _adQueries);
+      await prefs.setInt('daily_queries', _dailyQueries);
+      await prefs.setInt('bonus_queries', _bonusQueries);
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -274,8 +796,10 @@ class _IndexScreenState extends State<IndexScreen> {
     } catch (e) {
       // Si falla la red, otorgamos igualmente para no bloquear al usuario
       _availableQueries += 5;
+      _adQueries += 5;
       final prefs = await SharedPreferences.getInstance();
       await prefs.setInt('available_queries', _availableQueries);
+      await prefs.setInt('ad_queries', _adQueries);
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -410,15 +934,21 @@ class _IndexScreenState extends State<IndexScreen> {
       final hasPermission = await _checkAndShowDisclosure();
       if (!hasPermission) return;
 
+      final otpCombined = [
+        _otpChampion,
+        _main1Champion,
+        _main2Champion,
+      ].where((s) => s.trim().isNotEmpty).join(', ');
+
       bool started = await NativeService.startCaptureService(
         baseUrl: AppConfig.apiBaseUrl,
         sessionToken: _sessionToken,
-        mainRole: "Auto",
-        secondaryRole: "Auto",
+        mainRole: _mainRole,
+        secondaryRole: _secondaryRole,
         autofillRole: "Auto",
         isPremium: true,
         planTier: "plus",
-        otpChampions: "",
+        otpChampions: otpCombined,
         activeCreatorId: "",
       );
 
@@ -604,26 +1134,36 @@ class _IndexScreenState extends State<IndexScreen> {
                       ),
                       const SizedBox(width: 12),
                       Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              '$_availableQueries ${_availableQueries == 1 ? "Consulta" : "Consultas"}',
-                              style: GoogleFonts.outfit(
-                                fontSize: 17,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.white,
+                        child: InkWell(
+                          onTap: _showQueriesBreakdownDialog,
+                          borderRadius: BorderRadius.circular(8),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Row(
+                                children: [
+                                  Text(
+                                    '$_availableQueries ${_availableQueries == 1 ? "Consulta" : "Consultas"}',
+                                    style: GoogleFonts.outfit(
+                                      fontSize: 17,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 4),
+                                  const Icon(Icons.info_outline_rounded, size: 14, color: Colors.white38),
+                                ],
                               ),
-                            ),
-                            Text(
-                              '1 por captura en Wild Rift',
-                              style: TextStyle(
-                                fontSize: 11,
-                                color: Colors.white.withValues(alpha: 0.5),
+                              Text(
+                                'Toca para ver desglose',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: Colors.white.withValues(alpha: 0.5),
+                                ),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
                       ),
                       // Botón Recarga Rápida
@@ -720,7 +1260,65 @@ class _IndexScreenState extends State<IndexScreen> {
 
               const Spacer(flex: 2),
 
-              // --- 4. ACCESO A LA PANTALLA EXCLUSIVA DE LOGROS Y RECOMPENSAS ---
+              // --- 4. ACCESO A CONFIGURACIÓN DE ROLES Y CAMPEONES ---
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20.0),
+                child: InkWell(
+                  onTap: _showRolesAndOtpDialog,
+                  borderRadius: BorderRadius.circular(16),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.04),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: const Color(0xFF00E5FF).withValues(alpha: 0.15),
+                          ),
+                          child: const Icon(Icons.tune_rounded, color: Color(0xFF00E5FF), size: 20),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                'Mis Roles y Campeones OTP',
+                                style: GoogleFonts.outfit(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                ),
+                              ),
+                              Text(
+                                '$_mainRole / $_secondaryRole${_otpChampion.isNotEmpty ? " • OTP: $_otpChampion" : ""}',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: Colors.white.withValues(alpha: 0.5),
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ],
+                          ),
+                        ),
+                        const Icon(Icons.arrow_forward_ios_rounded, color: Colors.white38, size: 12),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 10),
+
+              // --- 5. ACCESO A LA PANTALLA EXCLUSIVA DE LOGROS Y RECOMPENSAS ---
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20.0),
                 child: InkWell(

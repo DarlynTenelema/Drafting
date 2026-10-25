@@ -204,23 +204,13 @@ class CaptureService : Service() {
         val btnCollapsedBubble = floatingView.findViewById<ImageButton>(R.id.btnCollapsedBubble)
         val btnMinimize = floatingView.findViewById<ImageButton>(R.id.btnMinimize)
 
-        val btnCaptureAutofill = floatingView.findViewById<ImageButton>(R.id.btnCaptureAutofill)
-        val btnCaptureOTP = floatingView.findViewById<ImageButton>(R.id.btnCaptureOTP)
-        val btnCaptureInGame = floatingView.findViewById<ImageButton>(R.id.btnCaptureInGame)
+        val btnCaptureGeneral = floatingView.findViewById<ImageButton>(R.id.btnCaptureGeneral)
         val btnClose = floatingView.findViewById<ImageButton>(R.id.btnClose)
         val btnCloseMessage = floatingView.findViewById<ImageButton>(R.id.btnCloseMessage)
         val btnCopyMessage = floatingView.findViewById<ImageButton>(R.id.btnCopyMessage)
 
-        btnCaptureAutofill.setOnClickListener {
-            captureScreenAndSend("autofill", 0)
-        }
-        
-        btnCaptureOTP.setOnClickListener {
-            captureScreenAndSend("otp", 0)
-        }
-        
-        btnCaptureInGame.setOnClickListener {
-            captureScreenAndSend("in_game", 0)
+        btnCaptureGeneral?.setOnClickListener {
+            captureScreenAndSend("draft", 0)
         }
         
         btnMinimize.setOnClickListener {

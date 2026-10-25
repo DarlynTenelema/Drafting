@@ -76,9 +76,10 @@ func RedeemReferral(w http.ResponseWriter, r *http.Request) {
 		// Actualizar al usuario actual (invitado)
 		currentUser.ReferredByID = &referrer.ID
 		const welcomeBonus = 2 // Bono de bienvenida para el invitado
-		currentUser.AvailableQueries += welcomeBonus
+		currentUser.AddAdQueries(welcomeBonus)
 		if err := tx.Model(currentUser).Updates(map[string]interface{}{
 			"referred_by_id":    currentUser.ReferredByID,
+			"ad_queries":        currentUser.AdQueries,
 			"available_queries": currentUser.AvailableQueries,
 		}).Error; err != nil {
 			return err
@@ -93,13 +94,14 @@ func RedeemReferral(w http.ResponseWriter, r *http.Request) {
 		// Milestones: al llegar a 2, 4, 6, 8, 10 amigos
 		if referrer.ReferralCount/2 > referrer.ReferralRewardsClaimed && referrer.ReferralRewardsClaimed < 5 {
 			referrer.ReferralRewardsClaimed++
-			referrer.AvailableQueries += 5
+			referrer.AddAdQueries(5)
 			milestoneEarned = true
 		}
 
 		if err := tx.Model(&referrer).Updates(map[string]interface{}{
 			"referral_count":           referrer.ReferralCount,
 			"referral_rewards_claimed": referrer.ReferralRewardsClaimed,
+			"ad_queries":               referrer.AdQueries,
 			"available_queries":        referrer.AvailableQueries,
 		}).Error; err != nil {
 			return err
