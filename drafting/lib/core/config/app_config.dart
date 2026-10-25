@@ -11,15 +11,6 @@ class AppConfig {
     defaultValue: 'https://drafting-production-0963.up.railway.app',
   );
 
-  static const String supabaseUrl = String.fromEnvironment(
-    'SUPABASE_URL',
-    defaultValue: 'https://ufkoozwxlvlaujziojpe.supabase.co',
-  );
-
-  static const String supabaseAnonKey = String.fromEnvironment(
-    'SUPABASE_ANON_KEY',
-    defaultValue: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVma29vend4bHZsYXVqemlvanBlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg2NDMxMjIsImV4cCI6MjEwNDIxOTEyMn0.5waLwgnU5U9fsCUwWZUWgfiCN8_3zSzL35Iy50unICM',
-  );
 
   static String get apiBaseUrl => _apiBaseUrl.replaceAll(RegExp(r'/+$'), '');
 

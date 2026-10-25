@@ -40,44 +40,18 @@ func Connect() {
 
 	log.Println("Connected to the database successfully.")
 
-	// Temporary manual migration for column types that GORM AutoMigrate skips in production
-	db.Exec(`ALTER TABLE video_embeds ALTER COLUMN title TYPE text`)
-	db.Exec(`ALTER TABLE video_embeds ALTER COLUMN description TYPE text`)
-	db.Exec(`ALTER TABLE video_embeds ALTER COLUMN tags TYPE text`)
-	db.Exec(`ALTER TABLE fanarts ALTER COLUMN tags TYPE text`)
-	db.Exec(`ALTER TABLE payment_transactions ALTER COLUMN purchase_token TYPE text`)
-	
-	// Drop strict foreign key constraints for dynamic Google Play product IDs
-	db.Exec(`ALTER TABLE payment_transactions DROP CONSTRAINT IF EXISTS payment_transactions_plan_id_fkey`)
-	db.Exec(`ALTER TABLE payment_transactions DROP CONSTRAINT IF EXISTS fk_payment_transactions_plan`)
-	db.Exec(`ALTER TABLE payment_transactions DROP CONSTRAINT IF EXISTS payment_transactions_product_id_fkey`)
+	db.Exec(`ALTER TABLE users ADD COLUMN IF NOT EXISTS available_queries integer DEFAULT 10`)
+	db.Exec(`ALTER TABLE users ADD COLUMN IF NOT EXISTS last_daily_reward_date varchar(10) DEFAULT ''`)
+	db.Exec(`ALTER TABLE users ADD COLUMN IF NOT EXISTS referral_code varchar(16) DEFAULT ''`)
+	db.Exec(`ALTER TABLE users ADD COLUMN IF NOT EXISTS referred_by_id uuid`)
+	db.Exec(`ALTER TABLE users ADD COLUMN IF NOT EXISTS referral_count integer DEFAULT 0`)
+	db.Exec(`ALTER TABLE users ADD COLUMN IF NOT EXISTS referral_rewards_claimed integer DEFAULT 0`)
 
 	// Auto Migrate the schema conditionally for production safety
 	if config.GetEnv("DB_AUTO_MIGRATE", "false") == "true" || config.GetEnv("ENV", "development") != "production" {
 		err = db.AutoMigrate(
 			&models.User{},
-			&models.SubscriptionPlan{},
-			&models.PaymentTransaction{},
 			&models.ApiUsage{},
-			&models.Group{},
-			&models.OTPProfile{},
-			&models.Wallet{},
-			&models.Transaction{},
-			&models.Channel{},
-			&models.VideoEmbed{},
-			&models.CreatorProfile{},
-			&models.Fanart{},
-			&models.Report{},
-			&models.IdentityVerification{},
-			&models.ContentReport{},
-			&models.Comment{},
-			&models.VideoLike{},
-			&models.Subscription{},
-			&models.AIModel{},
-			&models.MatchSession{},
-			&models.MatchScreenshot{},
-			&models.MatchChatThread{},
-			&models.MatchChatMessage{},
 		)
 		if err != nil {
 			log.Fatalf("Failed to auto migrate database: %v", err)
@@ -87,6 +61,4 @@ func Connect() {
 	}
 
 	DB = db
-
-	seedSubscriptionPlans()
 }

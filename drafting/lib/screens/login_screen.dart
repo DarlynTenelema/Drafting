@@ -6,7 +6,7 @@ import 'package:google_sign_in/google_sign_in.dart';
 import '../core/services/api_client.dart';
 import '../core/services/session_service.dart';
 import '../theme/app_theme.dart';
-import 'main_layout.dart';
+import 'index_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -34,16 +34,12 @@ class _LoginScreenState extends State<LoginScreen> {
     });
 
     try {
-      // Limpieza profunda de sesión para evitar caché de cuentas previas
-      try { await _googleSignIn.disconnect(); } catch (_) {}
-      try { await _googleSignIn.signOut(); } catch (_) {}
+      await _googleSignIn.initialize(
+        serverClientId: '373092520666-e4ltfq0ed1b3scgcc2v3hj7aqno7rkut.apps.googleusercontent.com',
+      );
 
       final googleUser = await _googleSignIn.authenticate();
-      if (googleUser == null) {
-        throw Exception('canceled'); // User canceled sign in
-      }
-
-      final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
+      final GoogleSignInAuthentication googleAuth = googleUser.authentication;
       final String? idToken = googleAuth.idToken;
 
       if (idToken != null) {
@@ -61,7 +57,7 @@ class _LoginScreenState extends State<LoginScreen> {
           if (!mounted) return;
           Navigator.of(context).pushReplacement(
             MaterialPageRoute(
-              builder: (_) => MainLayoutScreen(sessionToken: sessionToken),
+              builder: (_) => IndexScreen(sessionToken: sessionToken),
             ),
           );
         } else {
@@ -69,22 +65,20 @@ class _LoginScreenState extends State<LoginScreen> {
           debugPrint('Backend auth error: ${response.statusCode} - ${response.body}');
         }
       } else {
-        _showError('No se pudo obtener el token de Google.');
+        _showError('Google no devolvió un idToken válido. Verifica tu cuenta de Google.');
       }
     } on PlatformException catch (e) {
       if (e.code == 'network_error') {
         _showError('No se pudo conectar. Verifica tu internet e inténtalo de nuevo.');
-      } else if (e.code != 'sign_in_canceled' && !e.toString().contains('canceled')) {
-        _showError('Fallo en Google SignIn: código ${e.code}, mensaje: ${e.message}');
+      } else {
+        _showError('Error de Google Play: [${e.code}] ${e.message}');
       }
       debugPrint('PlatformException: ${e.toString()}');
     } on ApiException catch (e) {
-      _showError(e.message);
+      _showError('Error de API: ${e.message}');
       debugPrint('ApiException: ${e.message}');
     } catch (error) {
-      if (!error.toString().contains('canceled')) {
-        _showError('Excepción inesperada: $error');
-      }
+      _showError('Error al iniciar sesión: $error');
       debugPrint('Unexpected error: ${error.toString()}');
     } finally {
       if (mounted) {

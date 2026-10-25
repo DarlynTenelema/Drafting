@@ -8,7 +8,7 @@ plugins {
 
 val apiBaseUrl: String = (
     project.findProperty("API_BASE_URL") as String?
-        ?: "https://api.example.com"
+        ?: "https://drafting-production-0963.up.railway.app"
 ).trimEnd('/')
 
 android {

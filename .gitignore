@@ -18,6 +18,9 @@ backend/.env
 # Go compiled binary (should never be committed)
 backend/golang/server
 backend/golang/*.exe
+backend/golang/out
+backend/golang/bin/
+*.exe
 
 # Android build reports and artifacts
 drafting/android/build/

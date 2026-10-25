@@ -37,24 +37,11 @@ func main() {
 
 		log.Printf("Resetting tester account: %s (ID: %s)\n", email, user.ID)
 
-		// Delete all financial transactions and wallet
-		db.Where("user_id = ?", user.ID).Delete(&models.Transaction{})
-		db.Where("user_id = ?", user.ID).Delete(&models.PaymentTransaction{})
-		db.Where("user_id = ?", user.ID).Delete(&models.Wallet{})
-		db.Where("user_id = ?", user.ID).Delete(&models.Subscription{})
 		db.Where("user_id = ?", user.ID).Delete(&models.ApiUsage{})
-
-		// Delete associated profiles or groups if any
-		db.Where("owner_id = ?", user.ID).Delete(&models.OTPProfile{})
-		db.Where("owner_id = ?", user.ID).Delete(&models.CreatorProfile{})
-		db.Where("owner_id = ?", user.ID).Delete(&models.Group{})
-		
-		// Reset active subscription flags
-		user.ActiveGroupID = nil
-		user.StripeCustomerID = nil // If using Stripe, you might want to wipe this out too
+		user.AvailableQueries = 5
 		db.Save(&user)
 
-		log.Printf("Successfully reset financial data and subscriptions for: %s\n", email)
+		log.Printf("Successfully reset queries to 5 for: %s\n", email)
 	}
 
 	log.Println("Done resetting tester accounts! They are now basically fresh for new purchases.")

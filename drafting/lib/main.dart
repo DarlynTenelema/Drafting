@@ -1,13 +1,10 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:google_sign_in/google_sign_in.dart';
-import 'package:flutter/foundation.dart' show kIsWeb, kReleaseMode, PlatformDispatcher, FlutterError, FlutterErrorDetails;
-import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'theme/app_theme.dart';
 import 'screens/splash_screen.dart';
-import 'core/state/active_product_state.dart';
-import 'core/config/app_config.dart';
 import 'core/services/api_client.dart';
 void main() async {
   if (kReleaseMode) {
@@ -28,33 +25,15 @@ void main() async {
       return true; // Previene que la app crashee o se ponga gris
     };
 
-    // Inicializar Supabase si la llave anónima está configurada
-    if (AppConfig.supabaseAnonKey.isNotEmpty) {
-      try {
-        await Supabase.initialize(
-          url: AppConfig.supabaseUrl,
-          anonKey: AppConfig.supabaseAnonKey,
-        );
-        debugPrint("Supabase inicializado correctamente.");
-      } catch (e) {
-        debugPrint("Advertencia: Supabase initialization failed: $e");
-      }
-    } else {
-      debugPrint("Advertencia: SUPABASE_ANON_KEY no está definida. La subida de archivos fallará.");
-    }
-
     await GoogleSignIn.instance.initialize(
       clientId: kIsWeb ? '373092520666-n6h8cn0tpllr3tacqu2vh4o2efnjf8v9.apps.googleusercontent.com' : null,
       serverClientId: '373092520666-n6h8cn0tpllr3tacqu2vh4o2efnjf8v9.apps.googleusercontent.com',
     );
 
-    await ActiveProductState().init();
-
     // Pre-calentar el backend en segundo plano para evitar Cold Starts
-    ApiClient.get('/').catchError((_) {
-      // Ignoramos errores, solo queremos despertar el servidor
-      return null;
-    });
+    try {
+      ApiClient.get('/').then((_) {}, onError: (_) {});
+    } catch (_) {}
 
     runApp(const DraftingApp());
   }, (error, stack) {

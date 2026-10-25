@@ -48,11 +48,12 @@ func GoogleLogin(w http.ResponseWriter, r *http.Request) {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 			// User does not exist, create new.
 			user = models.User{
-				GoogleID:     &claims.GoogleID,
-				Email:        claims.Email,
-				Username:     claims.Name,
-				ProfilePic:   claims.Picture,
-				SessionToken: jti,
+				GoogleID:         &claims.GoogleID,
+				Email:            claims.Email,
+				Username:         claims.Name,
+				ProfilePic:       claims.Picture,
+				SessionToken:     jti,
+				AvailableQueries: 10,
 			}
 			if err := database.DB.Create(&user).Error; err != nil {
 				http.Error(w, "Internal server error: failed to create user", http.StatusInternalServerError)
@@ -77,13 +78,27 @@ func GoogleLogin(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(resp)
 }
 
-// Me returns the current authenticated user's details
+// Me returns the current authenticated user's details and grants daily free queries
 func Me(w http.ResponseWriter, r *http.Request) {
 	// The Auth middleware already validates the token and attaches the user to the context
 	user, ok := r.Context().Value(middleware.UserContextKey).(*models.User)
 	if !ok || user == nil {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
+	}
+
+	// Sistema de 3 consultas gratis cada día (Daily Bonus)
+	today := time.Now().UTC().Format("2006-01-02")
+	dailyGranted := false
+	if user.LastDailyRewardDate != today {
+		const dailyBonus = 3
+		user.AvailableQueries += dailyBonus
+		user.LastDailyRewardDate = today
+		database.DB.Model(user).Updates(map[string]interface{}{
+			"available_queries":      user.AvailableQueries,
+			"last_daily_reward_date": user.LastDailyRewardDate,
+		})
+		dailyGranted = true
 	}
 
 	isPremium := user.SubscriptionEndsAt != nil && user.SubscriptionEndsAt.After(time.Now())
@@ -98,36 +113,26 @@ func Me(w http.ResponseWriter, r *http.Request) {
 		activePlan = "plus"
 	}
 
-	// Check if user has an active group (as owner)
-	var ownedGroup models.Group
-	hasGroup := false
-	var groupID string
-	if err := database.DB.Where("owner_id = ? AND status = 'active'", user.ID).First(&ownedGroup).Error; err == nil {
-		hasGroup = true
-		groupID = ownedGroup.ID.String()
-	} else {
-		// Check if user has accepted an invitation
-		var invitation models.GroupInvitation
-		if err := database.DB.Where("email = ? AND status = 'accepted'", user.Email).First(&invitation).Error; err == nil {
-			hasGroup = true
-			groupID = invitation.GroupID.String()
-		}
+	if user.ReferralCode == "" {
+		user.ReferralCode = models.GenerateReferralCode(user.ID)
+		database.DB.Model(user).Update("referral_code", user.ReferralCode)
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
-		"id": user.ID,
-		"email": user.Email,
-		"username": user.Username,
-		"profile_pic": user.ProfilePic,
-		"role": user.Role,
-		"is_pending_ban": user.IsPendingBan,
-		"banned": user.Banned,
-		"strikes": user.Strikes,
-		"is_premium": isPremium,
-		"plan_tier": activePlan,
-		"has_group": hasGroup,
-		"group_id": groupID,
+		"id":                       user.ID,
+		"email":                    user.Email,
+		"username":                 user.Username,
+		"profile_pic":              user.ProfilePic,
+		"role":                     user.Role,
+		"is_premium":               isPremium,
+		"plan_tier":                activePlan,
+		"available_queries":        user.AvailableQueries,
+		"daily_reward_granted":     dailyGranted,
+		"referral_code":            user.ReferralCode,
+		"referral_count":           user.ReferralCount,
+		"referral_rewards_claimed": user.ReferralRewardsClaimed,
+		"has_redeemed_referral":    user.ReferredByID != nil,
 	})
 }
 
@@ -152,14 +157,9 @@ func UpdateProfile(w http.ResponseWriter, r *http.Request) {
 
 	if req.Username != "" {
 		user.Username = req.Username
-		// Sync with Channel and CreatorProfile
-		database.DB.Model(&models.Channel{}).Where("owner_id = ?", user.ID).Update("name", req.Username)
-		database.DB.Model(&models.CreatorProfile{}).Where("user_id = ?", user.ID).Update("artist_name", req.Username)
 	}
 	if req.ProfilePic != "" {
 		user.ProfilePic = req.ProfilePic
-		// Sync with Channel logo
-		database.DB.Model(&models.Channel{}).Where("owner_id = ?", user.ID).Update("logo_url", req.ProfilePic)
 	}
 
 	if err := database.DB.Save(user).Error; err != nil {
@@ -169,22 +169,32 @@ func UpdateProfile(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
-		"message": "Profile updated successfully",
-		"username": user.Username,
+		"message":     "Profile updated successfully",
+		"username":    user.Username,
 		"profile_pic": user.ProfilePic,
 	})
 }
 
-// GetCreatorTrialStatus returns whether the user is eligible for the creator free trial
-func GetCreatorTrialStatus(w http.ResponseWriter, r *http.Request) {
+// ObtainQueries adds reward queries to the user (e.g. from watching an ad or pressing Obtain Queries)
+func ObtainQueries(w http.ResponseWriter, r *http.Request) {
 	user, ok := r.Context().Value(middleware.UserContextKey).(*models.User)
-	if !ok {
+	if !ok || user == nil {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
 
+	const queriesToAdd = 5
+	user.AvailableQueries += queriesToAdd
+
+	if err := database.DB.Model(user).Update("available_queries", user.AvailableQueries).Error; err != nil {
+		http.Error(w, "Failed to update queries", http.StatusInternalServerError)
+		return
+	}
+
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]bool{
-		"is_eligible": !user.HasUsedCreatorTrial,
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"available_queries": user.AvailableQueries,
+		"added":             queriesToAdd,
+		"message":           "¡Has obtenido 5 consultas!",
 	})
 }

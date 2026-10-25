@@ -65,9 +65,10 @@ func ManualRegister(w http.ResponseWriter, r *http.Request) {
 
 	// Create user
 	user := models.User{
-		Email:        req.Email,
-		PasswordHash: string(hashedPassword),
-		DeviceID:     req.DeviceID,
+		Email:            req.Email,
+		PasswordHash:     string(hashedPassword),
+		DeviceID:         req.DeviceID,
+		AvailableQueries: 10,
 	}
 
 	if err := database.DB.Create(&user).Error; err != nil {

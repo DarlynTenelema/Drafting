@@ -30,70 +30,135 @@
         android:padding="8dp"
         android:alpha="0.85">
 
-        <!-- Contenedor del Mensaje de la IA (Izquierda) -->
+        <!-- Contenedor del Mensaje de la IA (Izquierda) - Ampliado para cómoda lectura -->
         <FrameLayout
             android:id="@+id/messageContainer"
-            android:layout_width="250dp"
-            android:layout_height="120dp"
+            android:layout_width="340dp"
+            android:layout_height="230dp"
             android:layout_marginEnd="12dp"
             android:layout_gravity="center_vertical"
             android:background="@drawable/bg_hextech_panel"
             android:visibility="gone">
 
-            <!-- Estado de Carga -->
             <LinearLayout
-                android:id="@+id/loadingLayout"
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
-                android:orientation="vertical"
-                android:gravity="center"
-                android:visibility="gone">
-                
-                <ProgressBar
-                    android:layout_width="32dp"
-                    android:layout_height="32dp"
-                    android:indeterminateTint="#3B82F6" />
-                    
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="8dp"
-                    android:text="Cargando..."
-                    android:textColor="#FFFFFF"
-                    android:textSize="14sp"
-                    android:textStyle="bold" />
-            </LinearLayout>
+                android:orientation="vertical">
 
-            <!-- Estado de Resultado -->
-            <ScrollView
-                android:id="@+id/resultScrollView"
-                android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                android:padding="12dp"
-                android:visibility="gone">
-                
+                <!-- Barra Superior: Título y Botón Cerrar Mensaje -->
                 <LinearLayout
+                    android:id="@+id/messageHeader"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:orientation="vertical">
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:paddingStart="12dp"
+                    android:paddingEnd="6dp"
+                    android:paddingTop="6dp"
+                    android:paddingBottom="4dp"
+                    android:background="#151A23">
+
+                    <ImageView
+                        android:layout_width="16dp"
+                        android:layout_height="16dp"
+                        android:src="@drawable/ic_general"
+                        android:tint="#00E5FF"
+                        android:contentDescription="Drafting" />
 
                     <TextView
-                        android:id="@+id/resultTextView"
-                        android:layout_width="match_parent"
+                        android:layout_width="0dp"
                         android:layout_height="wrap_content"
-                        android:textColor="#00E5FF"
+                        android:layout_weight="1"
+                        android:layout_marginStart="8dp"
+                        android:text="RECOMENDACIÓN AI"
+                        android:textColor="#C89B3C"
+                        android:textSize="11sp"
                         android:textStyle="bold"
-                        android:textSize="18sp" />
+                        android:letterSpacing="0.08" />
 
-                    <FrameLayout
-                        android:id="@+id/adContainer"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_gravity="center_horizontal"
-                        android:layout_marginTop="8dp"
-                        android:visibility="gone" />
+                    <ImageButton
+                        android:id="@+id/btnCopyMessage"
+                        android:layout_width="28dp"
+                        android:layout_height="28dp"
+                        android:layout_marginEnd="4dp"
+                        android:background="?android:attr/selectableItemBackgroundBorderless"
+                        android:src="@drawable/ic_copy"
+                        android:tint="#CBD5E1"
+                        android:scaleType="fitCenter"
+                        android:padding="5dp"
+                        android:contentDescription="Copiar recomendación" />
+
+                    <ImageButton
+                        android:id="@+id/btnCloseMessage"
+                        android:layout_width="28dp"
+                        android:layout_height="28dp"
+                        android:background="?android:attr/selectableItemBackgroundBorderless"
+                        android:src="@android:drawable/ic_menu_close_clear_cancel"
+                        android:tint="#CBD5E1"
+                        android:scaleType="fitCenter"
+                        android:padding="5dp"
+                        android:contentDescription="Cerrar recomendación" />
                 </LinearLayout>
-            </ScrollView>
+
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="1dp"
+                    android:background="#2D3748" />
+
+                <!-- Contenido Principal: Loading / Scrollable Result -->
+                <FrameLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="0dp"
+                    android:layout_weight="1">
+
+                    <!-- Estado de Carga -->
+                    <LinearLayout
+                        android:id="@+id/loadingLayout"
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        android:orientation="vertical"
+                        android:gravity="center"
+                        android:visibility="gone">
+                        
+                        <ProgressBar
+                            android:layout_width="36dp"
+                            android:layout_height="36dp"
+                            android:indeterminateTint="#00E5FF" />
+                            
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="10dp"
+                            android:text="Analizando partida..."
+                            android:textColor="#FFFFFF"
+                            android:textSize="14sp"
+                            android:textStyle="bold" />
+                    </LinearLayout>
+
+                    <!-- Estado de Resultado -->
+                    <ScrollView
+                        android:id="@+id/resultScrollView"
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        android:paddingStart="14dp"
+                        android:paddingEnd="14dp"
+                        android:paddingTop="10dp"
+                        android:paddingBottom="12dp"
+                        android:scrollbars="vertical"
+                        android:fadeScrollbars="false"
+                        android:visibility="gone">
+                        
+                        <TextView
+                            android:id="@+id/resultTextView"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:textColor="#FFFFFF"
+                            android:textStyle="normal"
+                            android:lineSpacingExtra="4dp"
+                            android:textSize="14.5sp" />
+                    </ScrollView>
+                </FrameLayout>
+            </LinearLayout>
         </FrameLayout>
 
         <!-- Controles (Derecha) -->

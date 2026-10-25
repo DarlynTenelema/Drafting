@@ -5,16 +5,12 @@ import (
 	"log"
 	"net/http"
 	"regexp"
-	"strings"
 	"time"
 
-	"backend/internal/chatcoach"
 	"backend/internal/database"
 	"backend/internal/gemini"
 	"backend/internal/middleware"
 	"backend/internal/models"
-
-	"github.com/google/uuid"
 )
 
 type DraftRequest struct {
@@ -66,71 +62,14 @@ func AnalyzeDraft(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// --- Rate Limiting & Quota Logic ---
-	plan, ok := r.Context().Value("active_plan").(string)
-	if !ok {
-		plan = "freemium"
-	}
-
-	isPremium := plan != "freemium"
-
-	if !isPremium {
-		var count int64
-		oneHourAgo := time.Now().Add(-1 * time.Hour)
-		database.DB.Model(&models.ApiUsage{}).Where("user_id = ? AND created_at > ?", user.ID, oneHourAgo).Count(&count)
-		
-		if count >= 2 {
-			http.Error(w, "Límite de consultas gratuitas alcanzado. Puedes realizar 2 consultas por hora.", http.StatusForbidden)
-			return
-		}
-	}
-
-	// Enforce Pro/Ultra only features
-	if req.QueryType == "otp" || req.QueryType == "in_game" {
-		if !strings.Contains(plan, "pro") && !strings.Contains(plan, "ultra") {
-			http.Error(w, "Se requiere suscripción Pro o Ultra para esta función.", http.StatusForbidden)
-			return
-		}
+	// --- Quota & Consultation Logic ---
+	if user.AvailableQueries <= 0 {
+		http.Error(w, "Sin consultas disponibles. Abre Drafting y toca 'Obtener consultas'.", http.StatusPaymentRequired)
+		return
 	}
 	// -----------------------------------
 
-	// Fetch Group Private Rules if user is subscribed to a group
 	privateRulesJSON := ""
-	if user.ActiveGroupID != nil {
-		var group models.Group
-		if err := database.DB.First(&group, *user.ActiveGroupID).Error; err == nil {
-			privateRulesJSON = group.PrivateJSONData
-		}
-	}
-	
-	// Check if active_creator_id is provided and fetch custom rules (Group or CreatorProfile)
-	if req.ActiveCreatorID != "" {
-		var creatorUserID uuid.UUID
-		foundCreator := false
-
-		var profile models.CreatorProfile
-		if err := database.DB.Where("id = ?", req.ActiveCreatorID).First(&profile).Error; err == nil {
-			creatorUserID = profile.UserID
-			foundCreator = true
-		} else {
-			var group models.Group
-			if err := database.DB.Where("id = ?", req.ActiveCreatorID).First(&group).Error; err == nil {
-				creatorUserID = group.OwnerID
-				foundCreator = true
-				if group.PrivateJSONData != "" {
-					privateRulesJSON += "\n\nREGLAS DEL GRUPO:\n" + group.PrivateJSONData
-				}
-			}
-		}
-
-		if foundCreator {
-			var aiModels []models.AIModel
-			if err := database.DB.Where("creator_id = ?", creatorUserID).Find(&aiModels).Error; err == nil && len(aiModels) > 0 {
-				customRules, _ := json.Marshal(aiModels)
-				privateRulesJSON += "\n\nREGLAS PERSONALIZADAS DEL CREADOR ACTIVO:\n" + string(customRules)
-			}
-		}
-	}
 
 	// Call Gemini API
 	recommendation, tokens, err := gemini.AnalyzeDraft(r.Context(), req.ImageBase64, req.MainRole, req.SecondaryRole, req.AutofillRole, privateRulesJSON, req.QueryType, req.OTPChampions)
@@ -143,14 +82,13 @@ func AnalyzeDraft(w http.ResponseWriter, r *http.Request) {
 	// Record successful API usage with tokens for cost tracking
 	database.DB.Create(&models.ApiUsage{UserID: user.ID, TokensUsed: int(tokens), CreatedAt: time.Now()})
 
-	// Update user's LastDraftAt only if successful
+	// Decrement query count and update user's LastDraftAt only if successful
+	user.AvailableQueries--
 	user.LastDraftAt = time.Now()
-	database.DB.Save(user)
-
-	// Trigger Chat Coach processing asynchronously only for ultra users
-	if strings.Contains(plan, "ultra") {
-		go chatcoach.ProcessCapturedImage(user.ID.String(), req.ImageBase64, req.QueryType)
-	}
+	database.DB.Model(user).Updates(map[string]interface{}{
+		"available_queries": user.AvailableQueries,
+		"last_draft_at":     user.LastDraftAt,
+	})
 
 	// Send Response
 	resp := DraftResponse{Recommendation: recommendation}

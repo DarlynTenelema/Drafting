@@ -8,6 +8,8 @@ import android.app.NotificationManager
 import android.app.Service
 import android.content.Context
 import android.content.Intent
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.graphics.Bitmap
 import android.graphics.PixelFormat
 import android.hardware.display.DisplayManager
@@ -40,10 +42,6 @@ import java.io.OutputStreamWriter
 import java.net.HttpURLConnection
 import java.net.URL
 import kotlin.concurrent.thread
-import com.google.android.gms.ads.AdRequest
-import com.google.android.gms.ads.AdSize
-import com.google.android.gms.ads.AdView
-import com.google.android.gms.ads.MobileAds
 
 class CaptureService : Service() {
     private val NOTIFICATION_ID = 101
@@ -70,7 +68,6 @@ class CaptureService : Service() {
 
     override fun onCreate() {
         super.onCreate()
-        MobileAds.initialize(this) {}
         createNotificationChannel()
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             startForeground(
@@ -203,34 +200,19 @@ class CaptureService : Service() {
         val btnCaptureOTP = floatingView.findViewById<ImageButton>(R.id.btnCaptureOTP)
         val btnCaptureInGame = floatingView.findViewById<ImageButton>(R.id.btnCaptureInGame)
         val btnClose = floatingView.findViewById<ImageButton>(R.id.btnClose)
-
-        val hasProOrUltra = planTier.contains("pro") || planTier.contains("ultra")
-
-        if (!hasProOrUltra) {
-            btnCaptureOTP.setImageResource(android.R.drawable.ic_secure)
-            btnCaptureInGame.setImageResource(android.R.drawable.ic_secure)
-        }
+        val btnCloseMessage = floatingView.findViewById<ImageButton>(R.id.btnCloseMessage)
+        val btnCopyMessage = floatingView.findViewById<ImageButton>(R.id.btnCopyMessage)
 
         btnCaptureAutofill.setOnClickListener {
             captureScreenAndSend("autofill", 0)
         }
         
         btnCaptureOTP.setOnClickListener {
-            if (hasProOrUltra) {
-                captureScreenAndSend("otp", 0)
-            } else {
-                sendResultToActivity("PAYMENT_REQUIRED", 402, "Premium required")
-                Toast.makeText(this, "Requiere plan Pro o Ultra", Toast.LENGTH_SHORT).show()
-            }
+            captureScreenAndSend("otp", 0)
         }
         
         btnCaptureInGame.setOnClickListener {
-            if (hasProOrUltra) {
-                captureScreenAndSend("in_game", 0)
-            } else {
-                sendResultToActivity("PAYMENT_REQUIRED", 402, "Premium required")
-                Toast.makeText(this, "Requiere plan Pro o Ultra", Toast.LENGTH_SHORT).show()
-            }
+            captureScreenAndSend("in_game", 0)
         }
         
         btnMinimize.setOnClickListener {
@@ -244,6 +226,22 @@ class CaptureService : Service() {
             // Muestra el contenedor expandido y oculta la burbuja
             btnCollapsedBubble.visibility = View.GONE
             expandedContainer.visibility = View.VISIBLE
+        }
+
+        btnCopyMessage?.setOnClickListener {
+            val resultTextView = floatingView.findViewById<TextView>(R.id.resultTextView)
+            val textToCopy = resultTextView?.text?.toString()?.trim() ?: ""
+            if (textToCopy.isNotEmpty()) {
+                val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                val clip = ClipData.newPlainText("Recomendación Drafting", textToCopy)
+                clipboard.setPrimaryClip(clip)
+                Toast.makeText(applicationContext, "¡Recomendación copiada al portapapeles!", Toast.LENGTH_SHORT).show()
+            }
+        }
+
+        btnCloseMessage?.setOnClickListener {
+            // Cierra únicamente el panel de recomendación sin ocultar los controles
+            floatingView.findViewById<FrameLayout>(R.id.messageContainer).visibility = View.GONE
         }
 
         btnClose.setOnClickListener {
@@ -270,10 +268,12 @@ class CaptureService : Service() {
         params.y = 100
 
         val dragHandle = floatingView.findViewById<ImageView>(R.id.dragHandle)
-        val messageContainer = floatingView.findViewById<FrameLayout>(R.id.messageContainer)
+        val messageHeader = floatingView.findViewById<LinearLayout>(R.id.messageHeader)
         
         setupDrag(dragHandle, params)
-        setupDrag(messageContainer, params)
+        if (messageHeader != null) {
+            setupDrag(messageHeader, params)
+        }
 
         try {
             windowManager.addView(floatingView, params)
@@ -371,9 +371,9 @@ class CaptureService : Service() {
         // Enviar la imagen en su resolución original (sin escalar) para no perder los textos diminutos.
         val finalBitmap = croppedBitmap
 
-        // Compress and encode
+        // Compress and encode at 100% maximum quality
         val stream = ByteArrayOutputStream()
-        finalBitmap.compress(Bitmap.CompressFormat.JPEG, 60, stream)
+        finalBitmap.compress(Bitmap.CompressFormat.JPEG, 100, stream)
         val byteArray = stream.toByteArray()
         val base64Image = Base64.encodeToString(byteArray, Base64.NO_WRAP)
         
@@ -454,11 +454,11 @@ class CaptureService : Service() {
                     showResultOnUI(rec)
                     sendResultToActivity("success", 200, rec)
                 } else if (responseCode == 429) {
-                    showResultOnUI("Debes esperar 20 minutos para otra consulta.")
-                    sendResultToActivity("error", 429, "Debes esperar 20 minutos.")
+                    showResultOnUI("Has alcanzado el límite temporal. Espera unos minutos.")
+                    sendResultToActivity("error", 429, "Límite temporal alcanzado.")
                 } else if (responseCode == 402) {
-                    showResultOnUI("Tu suscripción o prueba ha expirado.")
-                    sendResultToActivity("error", 402, "Suscripción o prueba agotada.")
+                    showResultOnUI("Sin consultas disponibles. Abre Drafting y toca 'Obtener consultas'.")
+                    sendResultToActivity("error", 402, "Sin consultas disponibles.")
                 } else {
                     val errorResponse = try {
                         conn.errorStream?.bufferedReader()?.use { it.readText() } ?: ""
@@ -484,19 +484,6 @@ class CaptureService : Service() {
             floatingView.findViewById<LinearLayout>(R.id.loadingLayout).visibility = View.GONE
             floatingView.findViewById<ScrollView>(R.id.resultScrollView).visibility = View.VISIBLE
             floatingView.findViewById<TextView>(R.id.resultTextView).text = text
-            
-            if (!isPremium) {
-                val adContainer = floatingView.findViewById<FrameLayout>(R.id.adContainer)
-                adContainer.visibility = View.VISIBLE
-                if (adContainer.childCount == 0) {
-                    val adView = AdView(this)
-                    adView.setAdSize(AdSize.MEDIUM_RECTANGLE)
-                    adView.adUnitId = "ca-app-pub-3940256099942544/6300978111" // Test ID
-                    adContainer.addView(adView)
-                    val adRequest = AdRequest.Builder().build()
-                    adView.loadAd(adRequest)
-                }
-            }
         }
     }
 
