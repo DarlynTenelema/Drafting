@@ -86,52 +86,63 @@ func AnalyzeDraft(ctx context.Context, base64Image string, mainRole, secondaryRo
 	var prompt string
 
 	if queryType == "otp" {
-		prompt = fmt.Sprintf(`Eres un Analista Experto de Wild Rift.
-El usuario es un OTP y domina a: %s.
-
-Recomienda el mejor campeón OTP o adapta el ya elegido.
+		prompt = fmt.Sprintf(`Eres un Analista Maestro de Wild Rift.
+El usuario es OTP y juega con: %s.
+Adapta su campeón al draft enemigo visible en pantalla.
 
 Reglas CRÍTICAS:
 - IDIOMA: Español.
-- FORMATO: PROHIBIDO USAR MARKDOWN. Texto limpio.
-- RESPONDE ÚNICAMENTE CON LA ESTRUCTURA EXACTA (sin charla, sin incluir el título de la estructura).
+- FORMATO: PROHIBIDO USAR ASTERISCOS (**) O MARKDOWN. Texto limpio.
+- CONCISO Y DIRECTO: El jugador tiene pocos segundos.
 
-ESTRUCTURA (Ya eligió):
-Tu Campeón: [Nombre]
-Hechizos: [Hechizo 1], [Hechizo 2]
-Runas: [Runa 1], [Runa 2], [Runa 3]
-Build Core: [Objeto 1], [Objeto 2], [Objeto 3]
-Situacional: [Objeto 4], [Objeto 5]
+ESTRUCTURA EXACTA:
+Campeón OTP: [Nombre]
+• Estrategia: [Qué aportar o qué priorizar contra su equipo en 1 frase]
+• Hechizos: [Hechizo 1], [Hechizo 2]
+• Runas: [Runa Clave] + [Secundaria recomendada]
+• Build Core: [Objeto 1], [Objeto 2], [Objeto 3]
+• Situacional: [Objeto clave para contrarrestar a su mayor amenaza]
 
 %s`, otpChampions, privateRulesContext)
 	} else if queryType == "in_game" {
-		prompt = fmt.Sprintf(`Eres un Analista Experto de Wild Rift.
-Partida en curso.
+		prompt = fmt.Sprintf(`Eres un Analista Maestro de Wild Rift.
+Partida en curso (tabulador / estado actual).
 
 Reglas CRÍTICAS:
 - IDIOMA: Español.
-- FORMATO: PROHIBIDO USAR MARKDOWN.
-- RESPONDE ÚNICAMENTE CON LA ESTRUCTURA EXACTA.
+- FORMATO: PROHIBIDO USAR ASTERISCOS (**) O MARKDOWN. Texto limpio.
 
-ESTRUCTURA:
-Análisis: [5 palabras máximo de quién gana]
-Objetos Recomendados: [Objeto 1], [Objeto 2], [Objeto 3]
+ESTRUCTURA EXACTA:
+• Situación: [Quién tiene ventaja y por qué en 1 frase]
+• Prioridad: [A quién enfocar o qué objetivo asegurar]
+• Objetos Clave: [2 o 3 ítems indispensables para esta fase de juego]
 
 %s`, privateRulesContext)
 	} else {
-		prompt = fmt.Sprintf(`Eres un Analista Experto de Wild Rift.
-Roles preferidos: %s, %s, %s.
+		prompt = fmt.Sprintf(`Eres un Analista Maestro de League of Legends: Wild Rift.
+Analiza la pantalla de selección de campeones (draft) considerando los roles preferidos: %s, %s, %s.
+
+Recomienda los 3 mejores campeones explicando brevemente su aporte y qué runas llevar.
 
 Reglas CRÍTICAS:
 - IDIOMA: Español.
-- FORMATO: PROHIBIDO USAR MARKDOWN para estilos, solo viñetas.
-- RESPUESTAS DIRECTAS Y CORTAS.
+- FORMATO: PROHIBIDO USAR ASTERISCOS (**) O ESTILOS MARKDOWN. Solo viñetas limpias (•).
+- CONCISIÓN: El jugador solo tiene 30 segundos. Sé claro, directo y accionable sin rodeos ni texto de relleno.
 
 ESTRUCTURA EXACTA:
-[Explica un porqué muy corto, máx 15 palabras. Ej: Hay mucho CC del lado enemigo, usa:]
-- [Campeón 1]
-- [Campeón 2]
-- [Campeón 3]
+Situación: [Diagnóstico en 1 frase corta del draft rival]
+
+1. [Campeón 1]
+• Aporte: [Por qué elegirlo o qué aportará contra ellos en 1 sola frase]
+• Runas: [Runa Clave] + [Secundaria recomendada]
+
+2. [Campeón 2]
+• Aporte: [Por qué elegirlo o qué aportará contra ellos en 1 sola frase]
+• Runas: [Runa Clave] + [Secundaria recomendada]
+
+3. [Campeón 3]
+• Aporte: [Por qué elegirlo o qué aportará contra ellos en 1 sola frase]
+• Runas: [Runa Clave] + [Secundaria recomendada]
 
 %s`, mainRole, secondaryRole, autofillRole, privateRulesContext)
 	}

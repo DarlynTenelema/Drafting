@@ -256,6 +256,23 @@ class CaptureService : Service() {
             stopSelf()
         }
 
+        val messageContainer = floatingView.findViewById<FrameLayout>(R.id.messageContainer)
+        val btnToggleOpacity = floatingView.findViewById<ImageButton>(R.id.btnToggleOpacity)
+        val btnToggleSize = floatingView.findViewById<ImageButton>(R.id.btnToggleSize)
+        val btnResizeCorner = floatingView.findViewById<ImageView>(R.id.btnResizeCorner)
+        val prefs = getSharedPreferences("drafting_prefs", Context.MODE_PRIVATE)
+
+        // 1. Restaurar Opacidad guardada
+        var isLowOpacity = prefs.getBoolean("overlay_low_opacity", false)
+        messageContainer?.alpha = if (isLowOpacity) 0.65f else 0.94f
+
+        btnToggleOpacity?.setOnClickListener {
+            isLowOpacity = !isLowOpacity
+            messageContainer?.alpha = if (isLowOpacity) 0.65f else 0.94f
+            prefs.edit().putBoolean("overlay_low_opacity", isLowOpacity).apply()
+            showToast(if (isLowOpacity) "Vista: Traslúcida (65%)" else "Vista: Sólida (94%)")
+        }
+
         val layoutFlag: Int = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
         } else {
@@ -272,16 +289,103 @@ class CaptureService : Service() {
         )
 
         params.gravity = Gravity.TOP or Gravity.START
-        params.x = 0
-        params.y = 100
+        params.x = prefs.getInt("overlay_pos_x", 0)
+        params.y = prefs.getInt("overlay_pos_y", 100)
+
+        // 2. Restaurar y controlar Tamaño
+        fun applyContainerSize(widthPx: Int, heightPx: Int) {
+            if (messageContainer == null) return
+            val lp = messageContainer.layoutParams
+            lp.width = widthPx
+            lp.height = heightPx
+            messageContainer.layoutParams = lp
+            try {
+                if (floatingView.isAttachedToWindow) {
+                    windowManager.updateViewLayout(floatingView, params)
+                }
+            } catch (e: Exception) {
+                // Ignore
+            }
+        }
+
+        var sizeIndex = prefs.getInt("overlay_size_index", 1)
+        val savedCustomWidth = prefs.getInt("overlay_custom_width", 0)
+        val savedCustomHeight = prefs.getInt("overlay_custom_height", 0)
+
+        if (savedCustomWidth > 0 && savedCustomHeight > 0) {
+            applyContainerSize(savedCustomWidth, savedCustomHeight)
+        } else {
+            val (wDp, hDp) = when (sizeIndex) {
+                0 -> Pair(280, 170)
+                2 -> Pair(420, 310)
+                else -> Pair(340, 230)
+            }
+            applyContainerSize(dpToPx(wDp), dpToPx(hDp))
+        }
+
+        btnToggleSize?.setOnClickListener {
+            sizeIndex = (sizeIndex + 1) % 3
+            prefs.edit().putInt("overlay_size_index", sizeIndex)
+                .remove("overlay_custom_width")
+                .remove("overlay_custom_height").apply()
+            val (wDp, hDp, label) = when (sizeIndex) {
+                0 -> Triple(280, 170, "Compacto")
+                2 -> Triple(420, 310, "Amplio")
+                else -> Triple(340, 230, "Estándar")
+            }
+            applyContainerSize(dpToPx(wDp), dpToPx(hDp))
+            showToast("Tamaño: $label")
+        }
+
+        // 3. Redimensionar libremente arrastrando con el dedo desde la esquina
+        btnResizeCorner?.setOnTouchListener(object : View.OnTouchListener {
+            private var initW: Int = 0
+            private var initH: Int = 0
+            private var touchX: Float = 0f
+            private var touchY: Float = 0f
+
+            override fun onTouch(v: View, event: MotionEvent): Boolean {
+                if (messageContainer == null) return false
+                when (event.action) {
+                    MotionEvent.ACTION_DOWN -> {
+                        initW = messageContainer.width
+                        initH = messageContainer.height
+                        touchX = event.rawX
+                        touchY = event.rawY
+                        return true
+                    }
+                    MotionEvent.ACTION_MOVE -> {
+                        val dx = (event.rawX - touchX).toInt()
+                        val dy = (event.rawY - touchY).toInt()
+                        val minW = dpToPx(240)
+                        val minH = dpToPx(140)
+                        val maxW = dpToPx(550)
+                        val maxH = dpToPx(420)
+
+                        val newW = (initW + dx).coerceIn(minW, maxW)
+                        val newH = (initH + dy).coerceIn(minH, maxH)
+
+                        applyContainerSize(newW, newH)
+                        return true
+                    }
+                    MotionEvent.ACTION_UP -> {
+                        prefs.edit().putInt("overlay_custom_width", messageContainer.width)
+                            .putInt("overlay_custom_height", messageContainer.height).apply()
+                        return true
+                    }
+                }
+                return false
+            }
+        })
 
         val dragHandle = floatingView.findViewById<ImageView>(R.id.dragHandle)
-        val messageHeader = floatingView.findViewById<LinearLayout>(R.id.messageHeader)
+        val messageTitle = floatingView.findViewById<TextView>(R.id.messageTitle)
         
         setupDrag(dragHandle, params)
-        if (messageHeader != null) {
-            setupDrag(messageHeader, params)
+        if (messageTitle != null) {
+            setupDrag(messageTitle, params)
         }
+        setupDrag(btnCollapsedBubble, params)
 
         try {
             windowManager.addView(floatingView, params)
@@ -289,6 +393,10 @@ class CaptureService : Service() {
             notifyCaptureError("Overlay view could not be displayed: ${e.message}")
             stopSelf()
         }
+    }
+
+    private fun dpToPx(dp: Int): Int {
+        return (dp * resources.displayMetrics.density).toInt()
     }
 
     private fun setupDrag(view: View, params: WindowManager.LayoutParams) {
@@ -313,13 +421,21 @@ class CaptureService : Service() {
                         val dy = event.rawY - initialTouchY
                         if (Math.abs(dx) < CLICK_DRAG_TOLERANCE && Math.abs(dy) < CLICK_DRAG_TOLERANCE) {
                             v.performClick()
+                        } else {
+                            getSharedPreferences("drafting_prefs", Context.MODE_PRIVATE).edit()
+                                .putInt("overlay_pos_x", params.x)
+                                .putInt("overlay_pos_y", params.y).apply()
                         }
                         return true
                     }
                     MotionEvent.ACTION_MOVE -> {
                         params.x = initialX + (event.rawX - initialTouchX).toInt()
                         params.y = initialY + (event.rawY - initialTouchY).toInt()
-                        windowManager.updateViewLayout(floatingView, params)
+                        try {
+                            windowManager.updateViewLayout(floatingView, params)
+                        } catch (e: Exception) {
+                            // Ignore
+                        }
                         return true
                     }
                 }

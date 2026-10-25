@@ -66,6 +66,7 @@
                         android:contentDescription="Drafting" />
 
                     <TextView
+                        android:id="@+id/messageTitle"
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
@@ -75,6 +76,30 @@
                         android:textSize="11sp"
                         android:textStyle="bold"
                         android:letterSpacing="0.08" />
+
+                    <ImageButton
+                        android:id="@+id/btnToggleOpacity"
+                        android:layout_width="28dp"
+                        android:layout_height="28dp"
+                        android:layout_marginEnd="4dp"
+                        android:background="?android:attr/selectableItemBackgroundBorderless"
+                        android:src="@drawable/ic_opacity"
+                        android:tint="#CBD5E1"
+                        android:scaleType="fitCenter"
+                        android:padding="5dp"
+                        android:contentDescription="Transparencia" />
+
+                    <ImageButton
+                        android:id="@+id/btnToggleSize"
+                        android:layout_width="28dp"
+                        android:layout_height="28dp"
+                        android:layout_marginEnd="4dp"
+                        android:background="?android:attr/selectableItemBackgroundBorderless"
+                        android:src="@drawable/ic_resize"
+                        android:tint="#CBD5E1"
+                        android:scaleType="fitCenter"
+                        android:padding="5dp"
+                        android:contentDescription="Cambiar tamaño" />
 
                     <ImageButton
                         android:id="@+id/btnCopyMessage"
@@ -159,6 +184,19 @@
                     </ScrollView>
                 </FrameLayout>
             </LinearLayout>
+
+            <!-- Grip táctil para redimensionar arrastrando con el dedo libremente -->
+            <ImageView
+                android:id="@+id/btnResizeCorner"
+                android:layout_width="22dp"
+                android:layout_height="22dp"
+                android:layout_gravity="bottom|end"
+                android:layout_margin="3dp"
+                android:padding="2dp"
+                android:src="@drawable/ic_resize_corner"
+                android:tint="#A0C89B3C"
+                android:alpha="0.8"
+                android:contentDescription="Ajustar tamaño arrastrando" />
         </FrameLayout>
 
         <!-- Controles (Derecha) -->
