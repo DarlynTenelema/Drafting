@@ -150,10 +150,21 @@ ESTRUCTURA EXACTA:
 	config := &genai.GenerateContentConfig{
 		MaxOutputTokens: maxTokens,
 	}
-	resp, err := aiClient.Models.GenerateContent(ctx, "gemini-2.0-flash", contents, config)
-	
-	if err != nil {
-		return "", 0, fmt.Errorf("failed to generate content: %w", err)
+
+	models := []string{"gemini-2.5-flash-lite", "gemini-2.0-flash", "gemini-1.5-flash"}
+	var lastErr error
+	var resp *genai.GenerateContentResponse
+
+	for _, model := range models {
+		resp, lastErr = aiClient.Models.GenerateContent(ctx, model, contents, config)
+		if lastErr == nil && resp != nil {
+			break
+		}
+		log.Printf("⚠️ Modelo '%s' falló: %v. Intentando siguiente modelo...", model, lastErr)
+	}
+
+	if lastErr != nil || resp == nil {
+		return "", 0, fmt.Errorf("falló generación con modelos IA: %w", lastErr)
 	}
 
 	if resp.Text() != "" {

@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 	"regexp"
@@ -75,7 +76,7 @@ func AnalyzeDraft(w http.ResponseWriter, r *http.Request) {
 	recommendation, tokens, err := gemini.AnalyzeDraft(r.Context(), req.ImageBase64, req.MainRole, req.SecondaryRole, req.AutofillRole, privateRulesJSON, req.QueryType, req.OTPChampions)
 	if err != nil {
 		log.Printf("AnalyzeDraft Error: %v", err)
-		http.Error(w, "Ups, el sistema está saturado. No se pudo generar la recomendación. Intenta de nuevo.", http.StatusInternalServerError)
+		http.Error(w, fmt.Sprintf("Error al generar recomendación: %v", err), http.StatusInternalServerError)
 		return
 	}
 
