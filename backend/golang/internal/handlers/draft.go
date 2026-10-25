@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"regexp"
 	"time"
 
 	"backend/internal/database"
@@ -19,8 +18,6 @@ type DraftRequest struct {
 	MainRole      string `json:"main_role"`
 	SecondaryRole string `json:"secondary_role"`
 	AutofillRole  string `json:"autofill_role"`
-	QueryType     string `json:"query_type"`
-	OTPChampions  string `json:"otp_champions"`
 }
 
 type DraftResponse struct {
@@ -39,22 +36,6 @@ func AnalyzeDraft(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Strict validation for text fields to prevent prompt injection and token abuse
-	if len(req.OTPChampions) > 100 {
-		http.Error(w, "OTPChampions field is too long", http.StatusBadRequest)
-		return
-	}
-	urlRegex := regexp.MustCompile(`(?i)(http|https|www|\.com|\.net|\.org|\.io|\.gg)`)
-	if urlRegex.MatchString(req.OTPChampions) {
-		http.Error(w, "URLs are not allowed in text fields", http.StatusBadRequest)
-		return
-	}
-	injectionKeywords := regexp.MustCompile(`(?i)(ignora|instrucciones|prompt|system)`)
-	if injectionKeywords.MatchString(req.OTPChampions) {
-		http.Error(w, "Invalid keywords in text fields", http.StatusBadRequest)
-		return
-	}
-
 	// Retrieve user from context
 	user, ok := r.Context().Value(middleware.UserContextKey).(*models.User)
 	if !ok {
@@ -70,7 +51,7 @@ func AnalyzeDraft(w http.ResponseWriter, r *http.Request) {
 	// -----------------------------------
 
 	// Call Gemini API
-	recommendation, tokens, err := gemini.AnalyzeDraft(r.Context(), req.ImageBase64, req.MainRole, req.SecondaryRole, req.AutofillRole, req.QueryType, req.OTPChampions)
+	recommendation, tokens, err := gemini.AnalyzeDraft(r.Context(), req.ImageBase64, req.MainRole, req.SecondaryRole, req.AutofillRole)
 	if err != nil {
 		log.Printf("AnalyzeDraft Error: %v", err)
 		http.Error(w, fmt.Sprintf("Error al generar recomendación: %v", err), http.StatusInternalServerError)

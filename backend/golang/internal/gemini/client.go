@@ -57,7 +57,7 @@ func InitVertexClient() error {
 	return nil
 }
 
-func AnalyzeDraft(ctx context.Context, base64Image string, mainRole, secondaryRole, autofillRole string, queryType string, otpChampions string) (string, int32, error) {
+func AnalyzeDraft(ctx context.Context, base64Image string, mainRole, secondaryRole, autofillRole string) (string, int32, error) {
 	if aiClient == nil {
 		return "", 0, fmt.Errorf("el cliente de IA no ha sido inicializado")
 	}
@@ -69,39 +69,7 @@ func AnalyzeDraft(ctx context.Context, base64Image string, mainRole, secondaryRo
 		return "", 0, fmt.Errorf("invalid image format")
 	}
 
-	var prompt string
-
-	if queryType == "otp" {
-		prompt = fmt.Sprintf(`Eres un Analista Maestro de Wild Rift.
-El usuario es OTP y juega con: %s.
-Adapta su campeón al draft enemigo visible en pantalla.
-
-Reglas CRÍTICAS:
-- IDIOMA: Español.
-- FORMATO: PROHIBIDO USAR ASTERISCOS (**) O MARKDOWN. Texto limpio.
-- CONCISO Y DIRECTO: El jugador tiene pocos segundos.
-
-ESTRUCTURA EXACTA:
-Campeón OTP: [Nombre]
-• Estrategia: [Qué aportar o qué priorizar contra su equipo en 1 frase]
-• Hechizos: [Hechizo 1], [Hechizo 2]
-• Runas: [Runa Clave] + [Secundaria recomendada]
-• Build Core: [Objeto 1], [Objeto 2], [Objeto 3]
-• Situacional: [Objeto clave para contrarrestar a su mayor amenaza]`, otpChampions)
-	} else if queryType == "in_game" {
-		prompt = `Eres un Analista Maestro de Wild Rift.
-Partida en curso (tabulador / estado actual).
-
-Reglas CRÍTICAS:
-- IDIOMA: Español.
-- FORMATO: PROHIBIDO USAR ASTERISCOS (**) O MARKDOWN. Texto limpio.
-
-ESTRUCTURA EXACTA:
-• Situación: [Quién tiene ventaja y por qué en 1 frase]
-• Prioridad: [A quién enfocar o qué objetivo asegurar]
-• Objetos Clave: [2 o 3 ítems indispensables para esta fase de juego]`
-	} else {
-		prompt = fmt.Sprintf(`Eres un Analista Maestro y Challenger de League of Legends: Wild Rift.
+	prompt := fmt.Sprintf(`Eres un Analista Maestro y Challenger de League of Legends: Wild Rift.
 Analiza la pantalla de selección de campeones (draft) considerando los roles preferidos: %s, %s, %s.
 
 Tu objetivo es recomendar los 3 mejores campeones ideales para contrarrestar al equipo rival y complementar al equipo aliado.
@@ -126,7 +94,6 @@ Situación: [Diagnóstico en 1 frase corta del draft rival y qué necesita tu eq
 3. [Campeón 3]
 • Aporte: [Por qué contrarresta al rival o sinergiza con tu equipo en 1 sola frase]
 • Runas y Hechizos: [Runa Clave + Secundaria] | [Hechizo 1 y 2]`, mainRole, secondaryRole, autofillRole)
-	}
 
 	contents := []*genai.Content{
 		{
