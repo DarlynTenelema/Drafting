@@ -69,32 +69,65 @@ func Connect() {
 	// Tablas de Tienda, Transacciones y Transferencias (Garantizadas en Producción)
 	db.Exec(`CREATE TABLE IF NOT EXISTS transactions (
 		id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-		user_id uuid NOT NULL,
-		type varchar(50) NOT NULL,
-		item_key varchar(50) NOT NULL,
-		amount_usd decimal(10,2) NOT NULL,
-		queries_added integer NOT NULL,
+		user_id uuid,
+		type varchar(50) NOT NULL DEFAULT 'pack',
+		item_key varchar(50) NOT NULL DEFAULT '',
+		amount_usd decimal(10,2) NOT NULL DEFAULT 0.00,
+		queries_added integer NOT NULL DEFAULT 0,
 		provider varchar(50) DEFAULT 'google_play',
 		provider_transaction_id varchar(255),
 		status varchar(50) DEFAULT 'completed',
 		created_at timestamp with time zone,
 		deleted_at timestamp with time zone
 	)`)
+	db.Exec(`ALTER TABLE transactions ADD COLUMN IF NOT EXISTS user_id uuid`)
+	db.Exec(`ALTER TABLE transactions ADD COLUMN IF NOT EXISTS type varchar(50) DEFAULT 'pack'`)
+	db.Exec(`ALTER TABLE transactions ADD COLUMN IF NOT EXISTS item_key varchar(50) DEFAULT ''`)
+	db.Exec(`ALTER TABLE transactions ADD COLUMN IF NOT EXISTS amount_usd decimal(10,2) DEFAULT 0.00`)
+	db.Exec(`ALTER TABLE transactions ADD COLUMN IF NOT EXISTS queries_added integer DEFAULT 0`)
+	db.Exec(`ALTER TABLE transactions ADD COLUMN IF NOT EXISTS provider varchar(50) DEFAULT 'google_play'`)
+	db.Exec(`ALTER TABLE transactions ADD COLUMN IF NOT EXISTS provider_transaction_id varchar(255)`)
+	db.Exec(`ALTER TABLE transactions ADD COLUMN IF NOT EXISTS status varchar(50) DEFAULT 'completed'`)
+	db.Exec(`ALTER TABLE transactions ADD COLUMN IF NOT EXISTS created_at timestamp with time zone`)
+	db.Exec(`ALTER TABLE transactions ADD COLUMN IF NOT EXISTS deleted_at timestamp with time zone`)
+
 	db.Exec(`CREATE INDEX IF NOT EXISTS idx_transactions_user_id ON transactions(user_id)`)
 	db.Exec(`CREATE INDEX IF NOT EXISTS idx_transactions_provider_tx_id ON transactions(provider_transaction_id)`)
 
 	db.Exec(`CREATE TABLE IF NOT EXISTS query_transfers (
 		id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-		sender_id uuid NOT NULL,
+		from_user_id uuid,
 		from_referral_code varchar(16),
-		receiver_id uuid NOT NULL,
+		to_user_id uuid,
 		to_referral_code varchar(16),
-		amount integer NOT NULL,
+		amount integer NOT NULL DEFAULT 0,
 		created_at timestamp with time zone,
 		deleted_at timestamp with time zone
 	)`)
-	db.Exec(`CREATE INDEX IF NOT EXISTS idx_query_transfers_sender ON query_transfers(sender_id)`)
-	db.Exec(`CREATE INDEX IF NOT EXISTS idx_query_transfers_receiver ON query_transfers(receiver_id)`)
+	db.Exec(`ALTER TABLE query_transfers ADD COLUMN IF NOT EXISTS sender_id uuid`)
+	db.Exec(`ALTER TABLE query_transfers ADD COLUMN IF NOT EXISTS from_user_id uuid`)
+	db.Exec(`ALTER TABLE query_transfers ADD COLUMN IF NOT EXISTS from_referral_code varchar(16)`)
+	db.Exec(`ALTER TABLE query_transfers ADD COLUMN IF NOT EXISTS receiver_id uuid`)
+	db.Exec(`ALTER TABLE query_transfers ADD COLUMN IF NOT EXISTS to_user_id uuid`)
+	db.Exec(`ALTER TABLE query_transfers ADD COLUMN IF NOT EXISTS to_referral_code varchar(16)`)
+	db.Exec(`ALTER TABLE query_transfers ADD COLUMN IF NOT EXISTS amount integer DEFAULT 0`)
+	db.Exec(`ALTER TABLE query_transfers ADD COLUMN IF NOT EXISTS created_at timestamp with time zone`)
+	db.Exec(`ALTER TABLE query_transfers ADD COLUMN IF NOT EXISTS deleted_at timestamp with time zone`)
+
+	db.Exec(`CREATE INDEX IF NOT EXISTS idx_query_transfers_sender ON query_transfers(from_user_id)`)
+	db.Exec(`CREATE INDEX IF NOT EXISTS idx_query_transfers_receiver ON query_transfers(to_user_id)`)
+
+	// Acreditación y reparación para la compra del Pack Starter (Orden GPA.3372-9089-9136-22405)
+	db.Exec(`UPDATE users 
+		SET available_queries = available_queries + 50, 
+		    purchased_queries = purchased_queries + 50, 
+		    has_purchased_starter = true 
+		WHERE id = '527e0507-28ea-4548-b51e-a3458871cd1b' 
+		  AND has_purchased_starter = false`)
+
+	db.Exec(`INSERT INTO transactions (id, user_id, type, item_key, amount_usd, queries_added, provider, provider_transaction_id, status, created_at)
+		VALUES (gen_random_uuid(), '527e0507-28ea-4548-b51e-a3458871cd1b', 'pack', 'pack_starter', 0.19, 50, 'google_play', 'GPA.3372-9089-9136-22405', 'completed', NOW())
+		ON CONFLICT DO NOTHING`)
 
 	// Auto Migrate seguro para sincronizar modelos
 	err = db.AutoMigrate(

@@ -282,16 +282,13 @@ func PurchasePack(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Transacción en base de datos
-	tx := database.DB.Begin()
-
 	if pack.IsStarter {
 		user.HasPurchasedStarter = true
 	}
 	user.AddPurchasedQueries(pack.TotalQueries)
 
-	if err := tx.Save(user).Error; err != nil {
-		tx.Rollback()
+	// Persistir directamente el saldo del usuario para asegurar su acreditación
+	if err := database.DB.Save(user).Error; err != nil {
 		log.Printf("[STORE] Error actualizando usuario tras compra: %v", err)
 		http.Error(w, fmt.Sprintf("Error actualizando saldo de consultas: %v", err), http.StatusInternalServerError)
 		return
@@ -309,11 +306,9 @@ func PurchasePack(w http.ResponseWriter, r *http.Request) {
 		CreatedAt:             time.Now().UTC(),
 	}
 
-	if err := tx.Create(&transactionRecord).Error; err != nil {
+	if err := database.DB.Create(&transactionRecord).Error; err != nil {
 		log.Printf("[STORE] Warning: no se pudo guardar registro de transacción: %v", err)
 	}
-
-	tx.Commit()
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
@@ -377,8 +372,6 @@ func Subscribe(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	tx := database.DB.Begin()
-
 	// Las consultas de suscripción reemplazan a las anteriores (no se acumulan con meses pasados)
 	expiryDate := time.Now().UTC().AddDate(0, 1, 0)
 	user.SubscriptionPlan = plan.ID
@@ -386,8 +379,8 @@ func Subscribe(w http.ResponseWriter, r *http.Request) {
 	user.SubscriptionEndsAt = &expiryDate
 	user.RecalculateAvailableQueries()
 
-	if err := tx.Save(user).Error; err != nil {
-		tx.Rollback()
+	// Persistir directamente la suscripción del usuario para garantizar su activación
+	if err := database.DB.Save(user).Error; err != nil {
 		log.Printf("[STORE] Error actualizando usuario tras suscripción: %v", err)
 		http.Error(w, fmt.Sprintf("Error actualizando la suscripción: %v", err), http.StatusInternalServerError)
 		return
@@ -405,11 +398,9 @@ func Subscribe(w http.ResponseWriter, r *http.Request) {
 		CreatedAt:             time.Now().UTC(),
 	}
 
-	if err := tx.Create(&transactionRecord).Error; err != nil {
+	if err := database.DB.Create(&transactionRecord).Error; err != nil {
 		log.Printf("[STORE] Warning: no se pudo guardar registro de suscripción: %v", err)
 	}
-
-	tx.Commit()
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
