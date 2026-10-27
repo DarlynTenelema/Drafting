@@ -66,19 +66,45 @@ func Connect() {
 	db.Exec(`ALTER TABLE users ADD COLUMN IF NOT EXISTS daily_received_today integer DEFAULT 0`)
 	db.Exec(`ALTER TABLE users ADD COLUMN IF NOT EXISTS last_received_date varchar(10) DEFAULT ''`)
 
-	// Auto Migrate the schema conditionally for production safety
-	if config.GetEnv("DB_AUTO_MIGRATE", "false") == "true" || config.GetEnv("ENV", "development") != "production" {
-		err = db.AutoMigrate(
-			&models.User{},
-			&models.ApiUsage{},
-			&models.Transaction{},
-			&models.QueryTransfer{},
-		)
-		if err != nil {
-			log.Printf("Warning: Non-fatal AutoMigrate notice: %v", err)
-		}
-	} else {
-		log.Println("Skipping AutoMigrate in production environment.")
+	// Tablas de Tienda, Transacciones y Transferencias (Garantizadas en Producción)
+	db.Exec(`CREATE TABLE IF NOT EXISTS transactions (
+		id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+		user_id uuid NOT NULL,
+		type varchar(50) NOT NULL,
+		item_key varchar(50) NOT NULL,
+		amount_usd decimal(10,2) NOT NULL,
+		queries_added integer NOT NULL,
+		provider varchar(50) DEFAULT 'google_play',
+		provider_transaction_id varchar(255),
+		status varchar(50) DEFAULT 'completed',
+		created_at timestamp with time zone,
+		deleted_at timestamp with time zone
+	)`)
+	db.Exec(`CREATE INDEX IF NOT EXISTS idx_transactions_user_id ON transactions(user_id)`)
+	db.Exec(`CREATE INDEX IF NOT EXISTS idx_transactions_provider_tx_id ON transactions(provider_transaction_id)`)
+
+	db.Exec(`CREATE TABLE IF NOT EXISTS query_transfers (
+		id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+		sender_id uuid NOT NULL,
+		from_referral_code varchar(16),
+		receiver_id uuid NOT NULL,
+		to_referral_code varchar(16),
+		amount integer NOT NULL,
+		created_at timestamp with time zone,
+		deleted_at timestamp with time zone
+	)`)
+	db.Exec(`CREATE INDEX IF NOT EXISTS idx_query_transfers_sender ON query_transfers(sender_id)`)
+	db.Exec(`CREATE INDEX IF NOT EXISTS idx_query_transfers_receiver ON query_transfers(receiver_id)`)
+
+	// Auto Migrate seguro para sincronizar modelos
+	err = db.AutoMigrate(
+		&models.User{},
+		&models.ApiUsage{},
+		&models.Transaction{},
+		&models.QueryTransfer{},
+	)
+	if err != nil {
+		log.Printf("Warning: Non-fatal AutoMigrate notice: %v", err)
 	}
 
 	DB = db

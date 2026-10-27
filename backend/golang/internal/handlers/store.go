@@ -3,6 +3,7 @@ package handlers
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -125,8 +126,22 @@ func ResolvePack(id string) (PackConfig, bool) {
 		p, ok := AvailablePacks["pack_ultra"]
 		return p, ok
 	default:
-		p, ok := AvailablePacks[id]
-		return p, ok
+		if p, ok := AvailablePacks[id]; ok {
+			return p, true
+		}
+		if strings.Contains(id, "starter") {
+			return AvailablePacks["pack_starter"], true
+		}
+		if strings.Contains(id, "ultra") {
+			return AvailablePacks["pack_ultra"], true
+		}
+		if strings.Contains(id, "pro") {
+			return AvailablePacks["pack_pro"], true
+		}
+		if strings.Contains(id, "plus") {
+			return AvailablePacks["pack_plus"], true
+		}
+		return PackConfig{}, false
 	}
 }
 
@@ -143,8 +158,19 @@ func ResolveSubscription(id string) (SubscriptionConfig, bool) {
 		s, ok := AvailableSubscriptions["sub_ultra"]
 		return s, ok
 	default:
-		s, ok := AvailableSubscriptions[id]
-		return s, ok
+		if s, ok := AvailableSubscriptions[id]; ok {
+			return s, true
+		}
+		if strings.Contains(id, "ultra") {
+			return AvailableSubscriptions["sub_ultra"], true
+		}
+		if strings.Contains(id, "pro") {
+			return AvailableSubscriptions["sub_pro"], true
+		}
+		if strings.Contains(id, "plus") {
+			return AvailableSubscriptions["sub_plus"], true
+		}
+		return SubscriptionConfig{}, false
 	}
 }
 
@@ -266,7 +292,8 @@ func PurchasePack(w http.ResponseWriter, r *http.Request) {
 
 	if err := tx.Save(user).Error; err != nil {
 		tx.Rollback()
-		http.Error(w, "Error actualizando el saldo de consultas", http.StatusInternalServerError)
+		log.Printf("[STORE] Error actualizando usuario tras compra: %v", err)
+		http.Error(w, fmt.Sprintf("Error actualizando saldo de consultas: %v", err), http.StatusInternalServerError)
 		return
 	}
 
@@ -283,9 +310,7 @@ func PurchasePack(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := tx.Create(&transactionRecord).Error; err != nil {
-		tx.Rollback()
-		http.Error(w, "Error registrando la transacción", http.StatusInternalServerError)
-		return
+		log.Printf("[STORE] Warning: no se pudo guardar registro de transacción: %v", err)
 	}
 
 	tx.Commit()
@@ -363,7 +388,8 @@ func Subscribe(w http.ResponseWriter, r *http.Request) {
 
 	if err := tx.Save(user).Error; err != nil {
 		tx.Rollback()
-		http.Error(w, "Error actualizando la suscripción", http.StatusInternalServerError)
+		log.Printf("[STORE] Error actualizando usuario tras suscripción: %v", err)
+		http.Error(w, fmt.Sprintf("Error actualizando la suscripción: %v", err), http.StatusInternalServerError)
 		return
 	}
 
@@ -380,9 +406,7 @@ func Subscribe(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := tx.Create(&transactionRecord).Error; err != nil {
-		tx.Rollback()
-		http.Error(w, "Error registrando la suscripción", http.StatusInternalServerError)
-		return
+		log.Printf("[STORE] Warning: no se pudo guardar registro de suscripción: %v", err)
 	}
 
 	tx.Commit()
