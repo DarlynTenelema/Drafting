@@ -28,10 +28,11 @@ android {
     defaultConfig {
         // Change applicationId before Play Store release (see PRODUCTION_GUIDE.md).
         applicationId = "com.drafting.app"
-        minSdk = flutter.minSdkVersion
+        minSdk = maxOf(flutter.minSdkVersion, 24)
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+        multiDexEnabled = true
     }
 
     signingConfigs {

@@ -14,3 +14,9 @@
 -keepattributes *Annotation*
 
 -dontwarn com.google.android.play.core.**
+
+# Appodeal SDK Keep rules
+-keep class com.appodeal.** { *; }
+-keep class com.explorestack.** { *; }
+-dontwarn com.appodeal.**
+-dontwarn com.explorestack.**

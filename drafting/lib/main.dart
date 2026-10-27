@@ -5,6 +5,7 @@ import 'package:google_sign_in/google_sign_in.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'theme/app_theme.dart';
 import 'screens/splash_screen.dart';
+import 'core/services/ad_service.dart';
 import 'core/services/api_client.dart';
 import 'core/services/iap_service.dart';
 void main() async {
@@ -15,6 +16,11 @@ void main() async {
   runZonedGuarded(() async {
     WidgetsFlutterBinding.ensureInitialized();
     await MobileAds.instance.initialize();
+    
+    // Inicializar Appodeal en segundo plano
+    try {
+      unawaited(AdService.initialize());
+    } catch (_) {}
 
     FlutterError.onError = (FlutterErrorDetails details) {
       FlutterError.presentError(details);
