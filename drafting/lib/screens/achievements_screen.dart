@@ -12,6 +12,7 @@ class AchievementsScreen extends StatefulWidget {
   final int referralRewardsClaimed;
   final bool hasRedeemedReferral;
   final VoidCallback onDataChanged;
+  final bool isTab;
 
   const AchievementsScreen({
     super.key,
@@ -20,6 +21,7 @@ class AchievementsScreen extends StatefulWidget {
     required this.referralRewardsClaimed,
     required this.hasRedeemedReferral,
     required this.onDataChanged,
+    this.isTab = false,
   });
 
   @override
@@ -43,6 +45,20 @@ class _AchievementsScreenState extends State<AchievementsScreen> {
     _claimed = widget.referralRewardsClaimed;
     _hasRedeemed = widget.hasRedeemedReferral;
     _checkClipboardForCode();
+  }
+
+  @override
+  void didUpdateWidget(covariant AchievementsScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.referralCount != widget.referralCount ||
+        oldWidget.referralRewardsClaimed != widget.referralRewardsClaimed ||
+        oldWidget.hasRedeemedReferral != widget.hasRedeemedReferral) {
+      setState(() {
+        _count = widget.referralCount;
+        _claimed = widget.referralRewardsClaimed;
+        _hasRedeemed = widget.hasRedeemedReferral;
+      });
+    }
   }
 
   Future<void> _checkClipboardForCode() async {
@@ -85,6 +101,7 @@ class _AchievementsScreenState extends State<AchievementsScreen> {
       final deviceId = await SessionService.getDeviceId();
       final response = await ApiClient.post(
         '/api/v1/user/redeem-referral',
+        authenticated: true,
         body: {
           'referral_code': code,
           'device_id': deviceId,
@@ -155,17 +172,27 @@ class _AchievementsScreenState extends State<AchievementsScreen> {
       appBar: AppBar(
         backgroundColor: const Color(0xFF0F172A),
         elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 20),
-          onPressed: () => Navigator.of(context).pop(),
-        ),
-        title: Text(
-          'Logros y Recompensas',
-          style: GoogleFonts.outfit(
-            fontSize: 20,
-            fontWeight: FontWeight.bold,
-            color: Colors.white,
-          ),
+        automaticallyImplyLeading: !widget.isTab,
+        leading: widget.isTab
+            ? null
+            : IconButton(
+                icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 20),
+                onPressed: () => Navigator.of(context).pop(),
+              ),
+        title: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.emoji_events_rounded, color: Color(0xFF10B981), size: 22),
+            const SizedBox(width: 8),
+            Text(
+              'Logros & Referidos',
+              style: GoogleFonts.outfit(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+              ),
+            ),
+          ],
         ),
         centerTitle: true,
       ),
@@ -294,13 +321,88 @@ class _AchievementsScreenState extends State<AchievementsScreen> {
                             ),
                           ),
                           Text(
-                            '$_count/10 invitados',
+                            '$_count/10 amigos',
                             style: TextStyle(
                               fontSize: 11,
                               color: Colors.white.withValues(alpha: 0.5),
                             ),
                           ),
                         ],
+                      ),
+                      const SizedBox(height: 16),
+                      // 5 Hitos con Íconos Gamificados
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: List.generate(5, (index) {
+                          final tier = index + 1;
+                          final reqFriends = tier * 2;
+                          final isClaimed = _claimed >= tier;
+                          final isCurrent = _claimed == index;
+
+                          Color iconColor = Colors.white24;
+                          Color bgColor = Colors.white.withValues(alpha: 0.04);
+                          Color borderColor = Colors.white.withValues(alpha: 0.08);
+
+                          if (isClaimed) {
+                            iconColor = const Color(0xFF10B981);
+                            bgColor = const Color(0xFF10B981).withValues(alpha: 0.15);
+                            borderColor = const Color(0xFF10B981).withValues(alpha: 0.4);
+                          } else if (isCurrent) {
+                            iconColor = const Color(0xFF00E5FF);
+                            bgColor = const Color(0xFF00E5FF).withValues(alpha: 0.15);
+                            borderColor = const Color(0xFF00E5FF).withValues(alpha: 0.5);
+                          }
+
+                          return Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Container(
+                                width: 44,
+                                height: 44,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: bgColor,
+                                  border: Border.all(color: borderColor, width: isCurrent ? 1.5 : 1.0),
+                                  boxShadow: isCurrent || isClaimed
+                                      ? [
+                                          BoxShadow(
+                                            color: iconColor.withValues(alpha: 0.25),
+                                            blurRadius: 8,
+                                          )
+                                        ]
+                                      : null,
+                                ),
+                                child: Center(
+                                  child: Icon(
+                                    isClaimed
+                                        ? Icons.check_circle_rounded
+                                        : isCurrent
+                                            ? Icons.stars_rounded
+                                            : Icons.lock_outline_rounded,
+                                    color: iconColor,
+                                    size: 20,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 6),
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(Icons.group_rounded, size: 10, color: Colors.white54),
+                                  const SizedBox(width: 2),
+                                  Text(
+                                    '$reqFriends',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.bold,
+                                      color: isClaimed || isCurrent ? Colors.white : Colors.white38,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          );
+                        }),
                       ),
                     ],
                   ),
@@ -546,7 +648,7 @@ class _AchievementsScreenState extends State<AchievementsScreen> {
                 _buildUpcomingAchievement('Racha Diaria', 'Inicia sesión 7 días seguidos para bonus especial', Icons.local_fire_department_rounded),
                 const SizedBox(height: 10),
                 _buildUpcomingAchievement('Estratega Maestro', 'Completa 25 análisis de draft en partidas clasificatorias', Icons.shield_rounded),
-                const SizedBox(height: 16),
+                const SizedBox(height: 100),
               ],
             ),
           ),

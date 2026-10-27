@@ -1,1 +1,12 @@
+# Backend Golang .gitignore
+*.env
+*.env.*
+!.env.example
 .env
+api.exe
+server
+*.exe
+bin/
+*.db
+*.sqlite
+*.log

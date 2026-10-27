@@ -6,6 +6,7 @@ import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'theme/app_theme.dart';
 import 'screens/splash_screen.dart';
 import 'core/services/api_client.dart';
+import 'core/services/iap_service.dart';
 void main() async {
   if (kReleaseMode) {
     debugPrint = (String? message, {int? wrapWidth}) {};
@@ -29,6 +30,11 @@ void main() async {
       clientId: kIsWeb ? '373092520666-n6h8cn0tpllr3tacqu2vh4o2efnjf8v9.apps.googleusercontent.com' : null,
       serverClientId: '373092520666-n6h8cn0tpllr3tacqu2vh4o2efnjf8v9.apps.googleusercontent.com',
     );
+
+    // Inicializar pasarela de compras Google Play Billing de forma temprana
+    try {
+      unawaited(InAppPurchaseService.instance.initialize());
+    } catch (_) {}
 
     // Pre-calentar el backend en segundo plano para evitar Cold Starts
     try {

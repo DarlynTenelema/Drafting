@@ -1,36 +1,85 @@
-# Root .gitignore for the project
+# ==============================================================================
+# Root .gitignore - Drafting Project Security & Hygiene
+# ==============================================================================
 
-# Ignore backend environment file (do not commit secrets)
-backend/.env
-
-# Generic env files
+# --- 1. Environment & Sensitive Configuration Files ---
 *.env
+*.env.*
+!.env.example
 .env
-# Markdown files (User requested to ignore)
-*.md
+backend/.env
+backend/golang/.env
 
-# Flutter build outputs and generated files (minimal)
-/drafting/build/
-/drafting/.dart_tool/
-/drafting/.flutter-plugins
-/drafting/.flutter-plugins-dependencies
-
-# Go compiled binary (should never be committed)
-backend/golang/server
-backend/golang/*.exe
-backend/golang/out
-backend/golang/bin/
-*.exe
-
-# Android build reports and artifacts
-drafting/android/build/
-*.apk
-
-# Global Secrets and Keys (Catch-all)
+# --- 2. Keys, Certificates & Keystores ---
 *.keystore
 *.jks
+*.pem
+*.key
+*.crt
+*.cer
+*.p12
+*.pfx
 key.properties
+!key.properties.example
+upload-keystore.jks
+upload_certificate.pem
+
+# --- 3. Cloud & Service Credentials ---
 google-services.json
 GoogleService-Info.plist
 *service-account*.json
 *credentials*.json
+gcp-credentials*.json
+
+# --- 4. Database Files & Backups ---
+*.db
+*.sqlite
+*.sqlite3
+*.db-journal
+*.sql.gz
+
+# --- 5. Compiled Binaries & Executables ---
+*.exe
+backend/golang/server
+backend/golang/*.exe
+backend/golang/bin/
+backend/golang/out
+**/bin/
+*.dll
+*.so
+*.dylib
+
+# --- 6. Flutter & Mobile Build Artifacts ---
+/drafting/build/
+/drafting/.dart_tool/
+/drafting/.flutter-plugins
+/drafting/.flutter-plugins-dependencies
+/drafting/.pub-cache/
+/drafting/.pub/
+drafting/android/build/
+drafting/android/.gradle/
+drafting/android/local.properties
+drafting/android/gradle/wrapper/gradle-wrapper.jar
+drafting/android/gradlew
+drafting/android/gradlew.bat
+*.apk
+*.aab
+
+# --- 7. Logs & Temporary Files ---
+*.log
+*.tmp
+*.bak
+*.swp
+
+# --- 8. IDE & Operating System ---
+.DS_Store
+Thumbs.db
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+
+# --- 9. Documentation (per repository configuration) ---
+*.md
+!README.md

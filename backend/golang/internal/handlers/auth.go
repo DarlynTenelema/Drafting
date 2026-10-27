@@ -115,10 +115,14 @@ func Me(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 
-	isPremium := user.SubscriptionEndsAt != nil && user.SubscriptionEndsAt.After(time.Now())
-	
+	user.CheckSubscriptionExpiry()
+	user.ResetDailyLimitsIfNewDay(today)
+
+	isPremium := user.IsSubscribed()
 	activePlan := "freemium"
-	if isPremium && user.ActivePlan != nil {
+	if isPremium && user.SubscriptionPlan != "" && user.SubscriptionPlan != "none" {
+		activePlan = user.SubscriptionPlan
+	} else if user.ActivePlan != nil && *user.ActivePlan != "freemium" {
 		activePlan = *user.ActivePlan
 	}
 
@@ -130,6 +134,11 @@ func Me(w http.ResponseWriter, r *http.Request) {
 	if user.ReferralCode == "" {
 		user.ReferralCode = models.GenerateReferralCode(user.ID)
 		database.DB.Model(user).Update("referral_code", user.ReferralCode)
+	}
+
+	remainingTransfer := 10 - user.DailyTransferredToday
+	if remainingTransfer < 0 {
+		remainingTransfer = 0
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -145,6 +154,14 @@ func Me(w http.ResponseWriter, r *http.Request) {
 		"daily_queries":            user.DailyQueries,
 		"bonus_queries":            user.BonusQueries,
 		"ad_queries":               user.AdQueries,
+		"purchased_queries":        user.PurchasedQueries,
+		"subscription_queries":     user.SubscriptionQueries,
+		"subscription_plan":        user.SubscriptionPlan,
+		"subscription_ends_at":     user.SubscriptionEndsAt,
+		"has_purchased_starter":    user.HasPurchasedStarter,
+		"daily_transferred_today":  user.DailyTransferredToday,
+		"remaining_transfer_today": remainingTransfer,
+		"can_transfer":             isPremium && remainingTransfer > 0,
 		"daily_reward_granted":     dailyGranted,
 		"referral_code":            user.ReferralCode,
 		"referral_count":           user.ReferralCount,

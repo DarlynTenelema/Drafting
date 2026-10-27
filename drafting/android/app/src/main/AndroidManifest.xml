@@ -9,6 +9,9 @@
     <!-- Permission for internet access to send data to Golang backend -->
     <uses-permission android:name="android.permission.INTERNET"/>
 
+    <!-- Google Play In-App Billing -->
+    <uses-permission android:name="com.android.vending.BILLING"/>
+
     <application
         android:label="Drafting"
         android:name="${applicationName}"

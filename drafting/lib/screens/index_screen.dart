@@ -16,6 +16,7 @@ import '../theme/app_theme.dart';
 import '../widgets/tutorial_dialog.dart';
 import 'achievements_screen.dart';
 import 'login_screen.dart';
+import 'store_screen.dart';
 
 class IndexScreen extends StatefulWidget {
   final String sessionToken;
@@ -38,6 +39,10 @@ class _IndexScreenState extends State<IndexScreen> {
   int _dailyQueries = 3;
   int _bonusQueries = 10;
   int _adQueries = 0;
+  int _purchasedQueries = 0;
+  int _subscriptionQueries = 0;
+  String _subscriptionPlan = 'none';
+  bool _isSubscribed = false;
 
   bool _isLoadingQueries = false;
   String? _userName;
@@ -46,6 +51,8 @@ class _IndexScreenState extends State<IndexScreen> {
   int _referralCount = 0;
   int _referralRewardsClaimed = 0;
   bool _hasRedeemedReferral = false;
+
+  int _currentTab = 1; // 0: Logros, 1: Home, 2: Tienda
 
   @override
   void initState() {
@@ -77,6 +84,10 @@ class _IndexScreenState extends State<IndexScreen> {
         _dailyQueries = prefs.getInt('daily_queries') ?? 3;
         _bonusQueries = prefs.getInt('bonus_queries') ?? 10;
         _adQueries = prefs.getInt('ad_queries') ?? 0;
+        _purchasedQueries = prefs.getInt('purchased_queries') ?? 0;
+        _subscriptionQueries = prefs.getInt('subscription_queries') ?? 0;
+        _subscriptionPlan = prefs.getString('subscription_plan') ?? 'none';
+        _isSubscribed = prefs.getBool('is_subscribed') ?? false;
       });
     }
   }
@@ -167,6 +178,20 @@ class _IndexScreenState extends State<IndexScreen> {
               _adQueries = data['ad_queries'];
               prefs.setInt('ad_queries', _adQueries);
             }
+            if (data['purchased_queries'] is int) {
+              _purchasedQueries = data['purchased_queries'];
+              prefs.setInt('purchased_queries', _purchasedQueries);
+            }
+            if (data['subscription_queries'] is int) {
+              _subscriptionQueries = data['subscription_queries'];
+              prefs.setInt('subscription_queries', _subscriptionQueries);
+            }
+            if (data['subscription_plan'] is String) {
+              _subscriptionPlan = data['subscription_plan'];
+              prefs.setString('subscription_plan', _subscriptionPlan);
+            }
+            _isSubscribed = data['is_premium'] == true || data['is_subscribed'] == true;
+            prefs.setBool('is_subscribed', _isSubscribed);
           });
 
           if (dailyGranted && mounted) {
@@ -202,18 +227,9 @@ class _IndexScreenState extends State<IndexScreen> {
     }
   }
 
-  void _openAchievementsScreen() {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => AchievementsScreen(
-          referralCode: _referralCode ?? '',
-          referralCount: _referralCount,
-          referralRewardsClaimed: _referralRewardsClaimed,
-          hasRedeemedReferral: _hasRedeemedReferral,
-          onDataChanged: _fetchUserData,
-        ),
-      ),
-    );
+  void _openStoreScreen() {
+    HapticFeedback.selectionClick();
+    setState(() => _currentTab = 2);
   }
 
   void _showQueriesBreakdownDialog() {
@@ -290,24 +306,68 @@ class _IndexScreenState extends State<IndexScreen> {
                 value: '$_adQueries acumuladas',
                 description: 'Por ver anuncios o invitar amigos. ¡Crecen sin límite!',
               ),
+              if (_purchasedQueries > 0) ...[
+                const SizedBox(height: 12),
+                _buildQueryItem(
+                  icon: Icons.shopping_bag_rounded,
+                  iconColor: const Color(0xFF00E5FF),
+                  title: 'Consultas Compradas',
+                  value: '$_purchasedQueries permanentes',
+                  description: 'Adquiridas en paquetes. Nunca vencen.',
+                ),
+              ],
+              if (_isSubscribed) ...[
+                const SizedBox(height: 12),
+                _buildQueryItem(
+                  icon: Icons.workspace_premium_rounded,
+                  iconColor: const Color(0xFFC89B3C),
+                  title: 'Pase ${_subscriptionPlan.toUpperCase()}',
+                  value: '$_subscriptionQueries del mes',
+                  description: 'Se renuevan cada mes de suscripción activa.',
+                ),
+              ],
               const SizedBox(height: 20),
 
-              SizedBox(
-                width: double.infinity,
-                height: 46,
-                child: ElevatedButton.icon(
-                  onPressed: () {
-                    Navigator.pop(context);
-                    _obtainQueries();
-                  },
-                  icon: const Icon(Icons.add_circle_outline_rounded),
-                  label: const Text('Obtener +3 Consultas Gratis'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF10B981),
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+              Row(
+                children: [
+                  Expanded(
+                    child: SizedBox(
+                      height: 46,
+                      child: ElevatedButton.icon(
+                        onPressed: () {
+                          Navigator.pop(context);
+                          _obtainQueries();
+                        },
+                        icon: const Icon(Icons.play_circle_outline_rounded, size: 18),
+                        label: const Text('+3 Gratis'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF10B981),
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                        ),
+                      ),
+                    ),
                   ),
-                ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: SizedBox(
+                      height: 46,
+                      child: ElevatedButton.icon(
+                        onPressed: () {
+                          Navigator.pop(context);
+                          _openStoreScreen();
+                        },
+                        icon: const Icon(Icons.storefront_rounded, size: 18),
+                        label: const Text('Tienda (\$0.19)'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF00E5FF),
+                          foregroundColor: Colors.black,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
@@ -425,7 +485,7 @@ class _IndexScreenState extends State<IndexScreen> {
     AdService.showRewardedAd(
       onUserEarnedReward: () async {
         try {
-          final response = await ApiClient.post('/api/v1/user/obtain-queries');
+          final response = await ApiClient.post('/api/v1/user/obtain-queries', authenticated: true);
           int added = 3;
 
           if (response.statusCode == 200) {
@@ -680,7 +740,31 @@ class _IndexScreenState extends State<IndexScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFF0B0E14),
-      body: Container(
+      extendBody: false,
+      body: IndexedStack(
+        index: _currentTab,
+        children: [
+          AchievementsScreen(
+            referralCode: _referralCode ?? '',
+            referralCount: _referralCount,
+            referralRewardsClaimed: _referralRewardsClaimed,
+            hasRedeemedReferral: _hasRedeemedReferral,
+            onDataChanged: _fetchUserData,
+            isTab: true,
+          ),
+          _buildHomeContent(),
+          StoreScreen(
+            onDataChanged: _fetchUserData,
+            isTab: true,
+          ),
+        ],
+      ),
+      bottomNavigationBar: _buildBottomNav(),
+    );
+  }
+
+  Widget _buildHomeContent() {
+    return Container(
         width: double.infinity,
         height: double.infinity,
         decoration: const BoxDecoration(
@@ -950,81 +1034,9 @@ class _IndexScreenState extends State<IndexScreen> {
 
               const Spacer(flex: 2),
 
-              // --- 4. ACCESO A LA PANTALLA EXCLUSIVA DE LOGROS Y RECOMPENSAS ---
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20.0),
-                child: InkWell(
-                  onTap: _openAchievementsScreen,
-                  borderRadius: BorderRadius.circular(16),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.04),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
-                    ),
-                    child: Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: const Color(0xFF10B981).withValues(alpha: 0.15),
-                          ),
-                          child: const Icon(Icons.emoji_events_rounded, color: Color(0xFF10B981), size: 20),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(
-                                'Logros y Recompensas',
-                                style: GoogleFonts.outfit(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.white,
-                                ),
-                              ),
-                              Text(
-                                'Invita a 2 amigos y gana +5 consultas',
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  color: Colors.white.withValues(alpha: 0.5),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF10B981).withValues(alpha: 0.2),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Text(
-                            '$_referralRewardsClaimed/5',
-                            style: const TextStyle(
-                              color: Color(0xFF10B981),
-                              fontSize: 11,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 6),
-                        const Icon(Icons.arrow_forward_ios_rounded, color: Colors.white38, size: 12),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-
-              const SizedBox(height: 12),
-
               // Bottom footer hint
               Padding(
-                padding: const EdgeInsets.only(bottom: 12.0),
+                padding: const EdgeInsets.only(bottom: 20.0),
                 child: Text(
                   'Abre tu juego después de activar. La burbuja flotará en pantalla.',
                   textAlign: TextAlign.center,
@@ -1032,6 +1044,111 @@ class _IndexScreenState extends State<IndexScreen> {
                     fontSize: 11,
                     color: Colors.white.withValues(alpha: 0.35),
                   ),
+                ),
+              ),
+            ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBottomNav() {
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFF090D16),
+        border: Border(
+          top: BorderSide(
+            color: Colors.white.withValues(alpha: 0.08),
+            width: 0.8,
+          ),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.4),
+            blurRadius: 10,
+            offset: const Offset(0, -2),
+          ),
+        ],
+      ),
+      child: SafeArea(
+        top: false,
+        child: SizedBox(
+          height: 54,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: [
+              _buildNavItem(
+                index: 0,
+                icon: Icons.emoji_events_rounded,
+                activeColor: const Color(0xFF10B981),
+                tooltip: 'Logros',
+              ),
+              _buildNavItem(
+                index: 1,
+                icon: Icons.bolt_rounded,
+                activeColor: const Color(0xFF00E5FF),
+                tooltip: 'Home',
+              ),
+              _buildNavItem(
+                index: 2,
+                icon: Icons.storefront_rounded,
+                activeColor: const Color(0xFFC89B3C),
+                tooltip: 'Tienda',
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildNavItem({
+    required int index,
+    required IconData icon,
+    required Color activeColor,
+    required String tooltip,
+  }) {
+    final isSelected = _currentTab == index;
+    return Expanded(
+      child: Tooltip(
+        message: tooltip,
+        child: InkWell(
+          onTap: () {
+            HapticFeedback.selectionClick();
+            setState(() => _currentTab = index);
+          },
+          splashColor: activeColor.withValues(alpha: 0.08),
+          highlightColor: Colors.transparent,
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              AnimatedScale(
+                scale: isSelected ? 1.15 : 1.0,
+                duration: const Duration(milliseconds: 200),
+                curve: Curves.easeOutCubic,
+                child: Icon(
+                  icon,
+                  color: isSelected ? activeColor : Colors.white.withValues(alpha: 0.4),
+                  size: 25,
+                ),
+              ),
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                curve: Curves.easeOutCubic,
+                width: isSelected ? 16 : 0,
+                height: 3,
+                margin: const EdgeInsets.only(top: 4),
+                decoration: BoxDecoration(
+                  color: isSelected ? activeColor : Colors.transparent,
+                  borderRadius: BorderRadius.circular(2),
+                  boxShadow: isSelected
+                      ? [
+                          BoxShadow(
+                            color: activeColor.withValues(alpha: 0.7),
+                            blurRadius: 6,
+                          ),
+                        ]
+                      : null,
                 ),
               ),
             ],

@@ -108,7 +108,7 @@ Situación: [Diagnóstico en 1 frase corta del draft rival y qué necesita tu eq
 	maxTokens := int32(2500)
 	thinkingBudget := int32(0) // Desactiva tokens de razonamiento interno: respuesta ultra rápida (1-2s), sin consumir tokens ocultos y sin truncar
 
-	models := []string{"gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"}
+	models := []string{"gemini-2.5-flash"}
 	var lastErr error
 	var resp *genai.GenerateContentResponse
 	var usedModel string

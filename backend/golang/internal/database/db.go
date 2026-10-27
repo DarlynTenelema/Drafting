@@ -56,11 +56,23 @@ func Connect() {
 	// Backfill para usuarios existentes: garantizar que daily_queries tenga tope 3 y el resto en ad/bonus
 	db.Exec(`UPDATE users SET daily_queries = 3, bonus_queries = LEAST(10, GREATEST(0, available_queries - 3)), ad_queries = GREATEST(0, available_queries - 13) WHERE daily_queries IS NULL OR daily_queries = 0`)
 
+	db.Exec(`ALTER TABLE users ADD COLUMN IF NOT EXISTS purchased_queries integer DEFAULT 0`)
+	db.Exec(`ALTER TABLE users ADD COLUMN IF NOT EXISTS subscription_queries integer DEFAULT 0`)
+	db.Exec(`ALTER TABLE users ADD COLUMN IF NOT EXISTS subscription_plan varchar(50) DEFAULT 'none'`)
+	db.Exec(`ALTER TABLE users ADD COLUMN IF NOT EXISTS subscription_ends_at timestamp with time zone`)
+	db.Exec(`ALTER TABLE users ADD COLUMN IF NOT EXISTS has_purchased_starter boolean DEFAULT false`)
+	db.Exec(`ALTER TABLE users ADD COLUMN IF NOT EXISTS daily_transferred_today integer DEFAULT 0`)
+	db.Exec(`ALTER TABLE users ADD COLUMN IF NOT EXISTS last_transfer_date varchar(10) DEFAULT ''`)
+	db.Exec(`ALTER TABLE users ADD COLUMN IF NOT EXISTS daily_received_today integer DEFAULT 0`)
+	db.Exec(`ALTER TABLE users ADD COLUMN IF NOT EXISTS last_received_date varchar(10) DEFAULT ''`)
+
 	// Auto Migrate the schema conditionally for production safety
 	if config.GetEnv("DB_AUTO_MIGRATE", "false") == "true" || config.GetEnv("ENV", "development") != "production" {
 		err = db.AutoMigrate(
 			&models.User{},
 			&models.ApiUsage{},
+			&models.Transaction{},
+			&models.QueryTransfer{},
 		)
 		if err != nil {
 			log.Printf("Warning: Non-fatal AutoMigrate notice: %v", err)
