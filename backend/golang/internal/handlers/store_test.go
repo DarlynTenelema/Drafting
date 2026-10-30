@@ -16,12 +16,12 @@ func TestPackResolutionAndEconomics(t *testing.T) {
 	}{
 		{"pack_starter", "pack_starter", 0.19, 50, 0, true},
 		{"starter", "pack_starter", 0.19, 50, 0, true},
-		{"pack_plus", "pack_plus", 0.49, 50, 0, false},
-		{"plus", "pack_plus", 0.49, 50, 0, false},
-		{"pack_pro", "pack_pro", 0.99, 150, 50, false},
-		{"pro", "pack_pro", 0.99, 150, 50, false},
-		{"pack_ultra", "pack_ultra", 2.99, 400, 100, false},
-		{"ultra", "pack_ultra", 2.99, 400, 100, false},
+		{"pack_plus", "pack_plus", 0.19, 20, 0, false},
+		{"plus", "pack_plus", 0.19, 20, 0, false},
+		{"pack_pro", "pack_pro", 0.49, 50, 0, false},
+		{"pro", "pack_pro", 0.49, 50, 0, false},
+		{"pack_ultra", "pack_ultra", 0.99, 100, 0, false},
+		{"ultra", "pack_ultra", 0.99, 100, 0, false},
 	}
 
 	for _, tc := range testCases {
@@ -56,12 +56,12 @@ func TestSubscriptionResolutionAndEconomics(t *testing.T) {
 		expectedPrice float64
 		expectedMonth int
 	}{
-		{"sub_plus", "sub_plus", 0.99, 200},
-		{"plus", "sub_plus", 0.99, 200},
+		{"sub_plus", "sub_plus", 0.99, 150},
+		{"plus", "sub_plus", 0.99, 150},
 		{"sub_pro", "sub_pro", 1.99, 300},
 		{"pro", "sub_pro", 1.99, 300},
-		{"sub_ultra", "sub_ultra", 2.99, 500},
-		{"ultra", "sub_ultra", 2.99, 500},
+		{"sub_ultra", "sub_ultra", 2.99, 450},
+		{"ultra", "sub_ultra", 2.99, 450},
 	}
 
 	for _, tc := range testCases {

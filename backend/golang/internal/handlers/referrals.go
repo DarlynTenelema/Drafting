@@ -18,7 +18,7 @@ type RedeemReferralRequest struct {
 }
 
 // RedeemReferral processes an invitation code with strict anti-fraud checks.
-// Rule: Invite 2 friends = +5 queries for referrer (repeatable up to 5 times / 10 friends).
+// Rule: Each invited friend = +5 queries for referrer (up to 10 friends = 50 queries max).
 // The invited friend gets +2 welcome queries.
 func RedeemReferral(w http.ResponseWriter, r *http.Request) {
 	currentUser, ok := r.Context().Value(middleware.UserContextKey).(*models.User)
@@ -115,8 +115,8 @@ func RedeemReferral(w http.ResponseWriter, r *http.Request) {
 		// Actualizar al anfitrión
 		lockedReferrer.ReferralCount++
 
-		// Verificar si desbloqueó un hito (cada 2 amigos = +5 consultas, hasta 5 veces)
-		if lockedReferrer.ReferralCount/2 > lockedReferrer.ReferralRewardsClaimed && lockedReferrer.ReferralRewardsClaimed < 5 {
+		// Recompensa: Cada nuevo amigo = +5 consultas hasta un máximo de 10 amigos (50 consultas)
+		if lockedReferrer.ReferralRewardsClaimed < 10 {
 			lockedReferrer.ReferralRewardsClaimed++
 			lockedReferrer.AddAdQueries(5)
 			milestoneEarned = true

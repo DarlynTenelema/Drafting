@@ -65,12 +65,14 @@ class MainActivity : FlutterActivity() {
             awaitingOverlayPermission = it.getBoolean("awaitingOverlayPermission", false)
         }
 
-        val filter = IntentFilter("com.drafting.app.RESULT_ACTION")
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            registerReceiver(resultReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
-        } else {
-            registerReceiver(resultReceiver, filter)
-        }
+        try {
+            val filter = IntentFilter("com.drafting.app.RESULT_ACTION")
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                registerReceiver(resultReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
+            } else {
+                registerReceiver(resultReceiver, filter)
+            }
+        } catch (_: Exception) {}
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
@@ -88,8 +90,10 @@ class MainActivity : FlutterActivity() {
     }
 
     override fun onDestroy() {
+        try {
+            unregisterReceiver(resultReceiver)
+        } catch (_: Exception) {}
         super.onDestroy()
-        unregisterReceiver(resultReceiver)
     }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {

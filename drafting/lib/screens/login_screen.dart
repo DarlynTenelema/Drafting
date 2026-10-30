@@ -22,10 +22,15 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   void initState() {
     super.initState();
-    // En google_sign_in 7.2.0, el ID se pasa al inicializar la instancia
-    _googleSignIn.initialize(
-      serverClientId: '373092520666-e4ltfq0ed1b3scgcc2v3hj7aqno7rkut.apps.googleusercontent.com',
-    );
+    _initGoogleSignInSafely();
+  }
+
+  Future<void> _initGoogleSignInSafely() async {
+    try {
+      await _googleSignIn.initialize(
+        serverClientId: '373092520666-e4ltfq0ed1b3scgcc2v3hj7aqno7rkut.apps.googleusercontent.com',
+      );
+    } catch (_) {}
   }
 
   Future<void> _handleGoogleSignIn() async {

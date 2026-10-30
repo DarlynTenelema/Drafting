@@ -22,8 +22,8 @@ type User struct {
 	ActivePlan             *string        `gorm:"type:varchar(50);default:'freemium'" json:"active_plan"` // 'freemium', 'plus', 'pro'
 
 	// Consultas disponibles y sus fuentes
-	AvailableQueries       int            `gorm:"default:13" json:"available_queries"`
-	BonusQueries           int            `gorm:"default:10" json:"bonus_queries"`           // Consultas por ser nuevo (máximo 10)
+	AvailableQueries       int            `gorm:"default:8" json:"available_queries"`
+	BonusQueries           int            `gorm:"default:5" json:"bonus_queries"`           // Consultas por ser nuevo (5)
 	DailyQueries           int            `gorm:"default:3" json:"daily_queries"`             // Consultas diarias (tope máximo de 3)
 	AdQueries              int            `gorm:"default:0" json:"ad_queries"`               // Consultas por recarga de anuncios / recompensas
 	PurchasedQueries       int            `gorm:"default:0" json:"purchased_queries"`        // Consultas compradas en paquetes (permanentes)
@@ -59,11 +59,11 @@ func GenerateReferralCode(id uuid.UUID) string {
 	return "WR" + clean
 }
 
-// CheckSubscriptionExpiry verifica y expira la suscripción si ya venció la fecha
+// CheckSubscriptionExpiry verifica y actualiza el plan si ya venció el ciclo de suscripción
 func (user *User) CheckSubscriptionExpiry() bool {
 	if user.SubscriptionEndsAt != nil && time.Now().After(*user.SubscriptionEndsAt) {
 		user.SubscriptionPlan = "none"
-		user.SubscriptionQueries = 0
+		// Las consultas no caducan al acabar el mes; se conservan y acumulan
 		user.SubscriptionEndsAt = nil
 		user.RecalculateAvailableQueries()
 		return true
@@ -152,13 +152,13 @@ func (user *User) BeforeCreate(tx *gorm.DB) (err error) {
 		user.ID = uuid.New()
 	}
 	if user.BonusQueries == 0 && user.AvailableQueries == 0 {
-		user.BonusQueries = 10
+		user.BonusQueries = 5
 		user.DailyQueries = 3
 		user.AdQueries = 0
 		user.PurchasedQueries = 0
 		user.SubscriptionQueries = 0
 		user.SubscriptionPlan = "none"
-		user.AvailableQueries = 13
+		user.AvailableQueries = 8
 		user.LastDailyRewardDate = time.Now().UTC().Format("2006-01-02")
 	} else if user.AvailableQueries == 0 {
 		user.RecalculateAvailableQueries()

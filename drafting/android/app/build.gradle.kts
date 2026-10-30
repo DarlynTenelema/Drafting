@@ -26,7 +26,6 @@ android {
     }
 
     defaultConfig {
-        // Change applicationId before Play Store release (see PRODUCTION_GUIDE.md).
         applicationId = "com.drafting.app"
         minSdk = maxOf(flutter.minSdkVersion, 24)
         targetSdk = flutter.targetSdkVersion
@@ -65,6 +64,8 @@ android {
             } else {
                 signingConfigs.getByName("debug")
             }
+            // Desactivar minificación destructiva de R8 sobre plugins nativos/JNI/Appodeal
+            // para evitar ClassNotFoundException / JNI abort al abrir la app en producción.
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")

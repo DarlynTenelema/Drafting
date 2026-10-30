@@ -20,13 +20,18 @@ class _SplashScreenState extends State<SplashScreen> {
   }
 
   Future<void> _bootstrap() async {
-    final sessionToken = await SessionService.getSessionToken();
+    String? sessionToken;
+    try {
+      sessionToken = await SessionService.getSessionToken();
+    } catch (_) {
+      sessionToken = null;
+    }
 
     if (!mounted) return;
 
     if (sessionToken != null && sessionToken.isNotEmpty) {
       Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => IndexScreen(sessionToken: sessionToken)),
+        MaterialPageRoute(builder: (_) => IndexScreen(sessionToken: sessionToken!)),
       );
       return;
     }

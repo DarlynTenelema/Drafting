@@ -9,6 +9,7 @@ class AdService {
   static String appKey = _prodAppKey;
 
   static bool _isInitialized = false;
+  static bool _isInitializing = false;
   static bool get isInitialized => _isInitialized;
 
   /// Callbacks activos para la sesión actual del anuncio bonificado
@@ -17,7 +18,8 @@ class AdService {
 
   /// Inicializa el SDK de mediación Appodeal
   static Future<void> initialize({String? customAppKey}) async {
-    if (_isInitialized) return;
+    if (_isInitialized || _isInitializing) return;
+    _isInitializing = true;
 
     if (customAppKey != null && customAppKey.isNotEmpty) {
       appKey = customAppKey;
@@ -48,16 +50,16 @@ class AdService {
         ],
         onInitializationFinished: (errors) {
           _isInitialized = true;
+          _isInitializing = false;
           if (errors != null && errors.isNotEmpty) {
             debugPrint('⚠️ [Appodeal] Inicializado con avisos: $errors');
           } else {
             debugPrint('✅ [Appodeal] Inicializado con éxito.');
           }
-          // Precargar el primer video de recompensa
-          loadRewardedAd();
         },
       );
     } catch (e) {
+      _isInitializing = false;
       debugPrint('🔴 [Appodeal] Error durante la inicialización: $e');
     }
   }
@@ -102,6 +104,10 @@ class AdService {
 
   /// Precarga un video recompensado para que esté listo al instante
   static void loadRewardedAd() {
+    if (!_isInitialized) {
+      initialize();
+      return;
+    }
     try {
       Appodeal.cache(AppodealAdType.RewardedVideo);
     } catch (e) {

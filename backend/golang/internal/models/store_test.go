@@ -53,22 +53,22 @@ func TestStoreEconomyAccounting(t *testing.T) {
 		t.Errorf("Expected BonusQueries to remain 10, got %d", user.BonusQueries)
 	}
 
-	// 3. Subscription Expiry test: When subscription expires, subscription queries wipe out but permanent queries remain
+	// 3. Subscription Expiry test: When subscription expires, subscription queries accumulate and do NOT wipe out
 	pastDate := time.Now().UTC().Add(-1 * time.Hour)
 	user.SubscriptionEndsAt = &pastDate
 	expired := user.CheckSubscriptionExpiry()
 	if !expired {
 		t.Errorf("Expected CheckSubscriptionExpiry to return true")
 	}
-	if user.SubscriptionQueries != 0 {
-		t.Errorf("Expected SubscriptionQueries to be reset to 0 after expiry, got %d", user.SubscriptionQueries)
+	if user.SubscriptionQueries != 290 {
+		t.Errorf("Expected SubscriptionQueries to be retained (290) after expiry, got %d", user.SubscriptionQueries)
 	}
 	if user.SubscriptionPlan != "none" {
 		t.Errorf("Expected SubscriptionPlan to be 'none', got %s", user.SubscriptionPlan)
 	}
-	// Available should now be 0 (daily) + 0 (sub) + 10 (bonus) + 5 (ad) + 100 (purchased) = 115
-	if user.AvailableQueries != 115 {
-		t.Errorf("Expected AvailableQueries to be 115 after subscription expiry, got %d", user.AvailableQueries)
+	// Available should remain 0 (daily) + 290 (sub) + 10 (bonus) + 5 (ad) + 100 (purchased) = 405
+	if user.AvailableQueries != 405 {
+		t.Errorf("Expected AvailableQueries to be 405 after subscription expiry, got %d", user.AvailableQueries)
 	}
 }
 

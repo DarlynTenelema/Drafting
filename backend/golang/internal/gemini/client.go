@@ -85,15 +85,12 @@ Situación: [Diagnóstico en 1 frase corta del draft rival y qué necesita tu eq
 
 1. [Campeón 1]
 • Aporte: [Por qué contrarresta al rival o sinergiza con tu equipo en 1 sola frase]
-• Runas y Hechizos: [Runa Clave + Secundaria] | [Hechizo 1 y 2]
 
 2. [Campeón 2]
 • Aporte: [Por qué contrarresta al rival o sinergiza con tu equipo en 1 sola frase]
-• Runas y Hechizos: [Runa Clave + Secundaria] | [Hechizo 1 y 2]
 
 3. [Campeón 3]
-• Aporte: [Por qué contrarresta al rival o sinergiza con tu equipo en 1 sola frase]
-• Runas y Hechizos: [Runa Clave + Secundaria] | [Hechizo 1 y 2]`, mainRole, secondaryRole, autofillRole)
+• Aporte: [Por qué contrarresta al rival o sinergiza con tu equipo en 1 sola frase]`, mainRole, secondaryRole, autofillRole)
 
 	contents := []*genai.Content{
 		{

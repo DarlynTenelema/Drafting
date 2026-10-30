@@ -8,18 +8,18 @@ import (
 )
 
 // TestReferralMilestoneLogic verifies that the referral reward milestone rules work exactly as designed:
-// - Every 2 friends invited gives +5 ad queries (unlimited/stacked)
-// - Can be earned up to 5 times (10 friends maximum = +25 queries total)
+// - Each friend invited gives +5 ad queries
+// - Up to 10 friends maximum = +50 queries total
 func TestReferralMilestoneLogic(t *testing.T) {
 	referrer := models.User{
 		ID:                     uuid.New(),
 		Email:                  "host@drafting.gg",
 		ReferralCount:          0,
 		ReferralRewardsClaimed: 0,
-		BonusQueries:           10,
+		BonusQueries:           5,
 		DailyQueries:           3,
 		AdQueries:              0,
-		AvailableQueries:       13,
+		AvailableQueries:       8,
 	}
 
 	totalMilestonesEarned := 0
@@ -28,37 +28,31 @@ func TestReferralMilestoneLogic(t *testing.T) {
 		referrer.ReferralCount++
 
 		milestoneEarned := false
-		if referrer.ReferralCount/2 > referrer.ReferralRewardsClaimed && referrer.ReferralRewardsClaimed < 5 {
+		if referrer.ReferralRewardsClaimed < 10 {
 			referrer.ReferralRewardsClaimed++
 			referrer.AddAdQueries(5)
 			milestoneEarned = true
 			totalMilestonesEarned++
 		}
 
-		if friend%2 == 0 {
-			if !milestoneEarned {
-				t.Fatalf("Expected milestone on friend #%d", friend)
-			}
-		} else {
-			if milestoneEarned {
-				t.Fatalf("Did not expect milestone on friend #%d (odd friend)", friend)
-			}
+		if !milestoneEarned {
+			t.Fatalf("Expected milestone on friend #%d", friend)
 		}
 	}
 
-	if totalMilestonesEarned != 5 {
-		t.Fatalf("Expected exactly 5 milestones earned, got %d", totalMilestonesEarned)
+	if totalMilestonesEarned != 10 {
+		t.Fatalf("Expected exactly 10 milestones earned, got %d", totalMilestonesEarned)
 	}
 
-	if referrer.ReferralRewardsClaimed != 5 {
-		t.Fatalf("Expected ReferralRewardsClaimed to be 5, got %d", referrer.ReferralRewardsClaimed)
+	if referrer.ReferralRewardsClaimed != 10 {
+		t.Fatalf("Expected ReferralRewardsClaimed to be 10, got %d", referrer.ReferralRewardsClaimed)
 	}
 
-	if referrer.AdQueries != 25 {
-		t.Fatalf("Expected 25 AdQueries earned from 10 friends, got %d", referrer.AdQueries)
+	if referrer.AdQueries != 50 {
+		t.Fatalf("Expected 50 AdQueries earned from 10 friends, got %d", referrer.AdQueries)
 	}
 
-	if referrer.AvailableQueries != 38 { // 3 daily + 10 bonus + 25 ad = 38
-		t.Fatalf("Expected 38 AvailableQueries, got %d", referrer.AvailableQueries)
+	if referrer.AvailableQueries != 58 { // 3 daily + 5 bonus + 50 ad = 58
+		t.Fatalf("Expected 58 AvailableQueries, got %d", referrer.AvailableQueries)
 	}
 }

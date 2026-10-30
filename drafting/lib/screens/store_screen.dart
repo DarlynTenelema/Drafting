@@ -343,7 +343,7 @@ class _StoreScreenState extends State<StoreScreen> {
             const Icon(Icons.lock_person_rounded, size: 44, color: Color(0xFF00E5FF)),
             const SizedBox(height: 14),
             Text(
-              'Beneficio de Suscriptor',
+              'Comparte con tu Dúo',
               style: GoogleFonts.outfit(
                 fontSize: 20,
                 fontWeight: FontWeight.bold,
@@ -352,7 +352,7 @@ class _StoreScreenState extends State<StoreScreen> {
             ),
             const SizedBox(height: 8),
             Text(
-              'La función de compartir hasta 10 consultas por día con tus amigos está disponible exclusivamente para suscriptores de los planes Plus, Pro o Ultra.\n\n¡Apoya a tu dúo por solo \$0.99/mes!',
+              'La función de compartir hasta 10 consultas por día con tus amigos está disponible para suscriptores y usuarios con Pack Starter.\n\n¡Apoya a tu compañero desde solo \$0.19!',
               textAlign: TextAlign.center,
               style: TextStyle(fontSize: 13, color: Colors.white.withValues(alpha: 0.75)),
             ),

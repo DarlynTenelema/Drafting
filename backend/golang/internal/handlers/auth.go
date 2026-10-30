@@ -64,10 +64,10 @@ func GoogleLogin(w http.ResponseWriter, r *http.Request) {
 				ProfilePic:          claims.Picture,
 				DeviceID:            req.DeviceID,
 				SessionToken:        jti,
-				BonusQueries:        10,
+				BonusQueries:        5,
 				DailyQueries:        3,
 				AdQueries:           0,
-				AvailableQueries:    13,
+				AvailableQueries:    8,
 				LastDailyRewardDate: time.Now().UTC().Format("2006-01-02"),
 			}
 			if err := database.DB.Create(&user).Error; err != nil {

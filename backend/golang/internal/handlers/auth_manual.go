@@ -68,10 +68,10 @@ func ManualRegister(w http.ResponseWriter, r *http.Request) {
 		Email:               req.Email,
 		PasswordHash:        string(hashedPassword),
 		DeviceID:            req.DeviceID,
-		BonusQueries:        10,
+		BonusQueries:        5,
 		DailyQueries:        3,
 		AdQueries:           0,
-		AvailableQueries:    13,
+		AvailableQueries:    8,
 		LastDailyRewardDate: time.Now().UTC().Format("2006-01-02"),
 	}
 

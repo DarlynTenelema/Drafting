@@ -46,40 +46,40 @@ var AvailablePacks = map[string]PackConfig{
 		BonusQueries: 0,
 		Tag:          "Solo una vez",
 		IsStarter:    true,
-		Description:  "50 consultas exclusivas para nuevos reclutas",
+		Description:  "50 consultas para ti + 25 para regalar a amigos",
 	},
 	"pack_plus": {
 		ID:           "pack_plus",
 		Name:         "Pack Plus",
-		PriceUSD:     0.49,
-		TotalQueries: 50,
-		BaseQueries:  50,
+		PriceUSD:     0.19,
+		TotalQueries: 20,
+		BaseQueries:  20,
 		BonusQueries: 0,
 		Tag:          "Económico",
 		IsStarter:    false,
-		Description:  "50 consultas permanentes sin fecha de vencimiento",
+		Description:  "20 consultas permanentes sin fecha de vencimiento",
 	},
 	"pack_pro": {
 		ID:           "pack_pro",
 		Name:         "Pack Pro",
-		PriceUSD:     0.99,
-		TotalQueries: 150,
-		BaseQueries:  100,
-		BonusQueries: 50,
+		PriceUSD:     0.49,
+		TotalQueries: 50,
+		BaseQueries:  50,
+		BonusQueries: 0,
 		Tag:          "Más Popular",
 		IsStarter:    false,
-		Description:  "100 consultas + 50 de regalo",
+		Description:  "50 consultas permanentes sin fecha de vencimiento",
 	},
 	"pack_ultra": {
 		ID:           "pack_ultra",
 		Name:         "Pack Ultra",
-		PriceUSD:     2.99,
-		TotalQueries: 400,
-		BaseQueries:  300,
-		BonusQueries: 100,
+		PriceUSD:     0.99,
+		TotalQueries: 100,
+		BaseQueries:  100,
+		BonusQueries: 0,
 		Tag:          "Mejor Valor",
 		IsStarter:    false,
-		Description:  "300 consultas + 100 de regalo",
+		Description:  "100 consultas permanentes sin fecha de vencimiento",
 	},
 }
 
@@ -88,9 +88,9 @@ var AvailableSubscriptions = map[string]SubscriptionConfig{
 		ID:              "sub_plus",
 		Name:            "Plan Plus",
 		PriceUSD:        0.99,
-		QueriesPerMonth: 200,
+		QueriesPerMonth: 150,
 		Tag:             "Básico Mensual",
-		Description:     "200 consultas/mes + Enviar hasta 10/día a amigos",
+		Description:     "150 consultas/mes acumulables + Enviar hasta 10/día a amigos",
 	},
 	"sub_pro": {
 		ID:              "sub_pro",
@@ -98,15 +98,15 @@ var AvailableSubscriptions = map[string]SubscriptionConfig{
 		PriceUSD:        1.99,
 		QueriesPerMonth: 300,
 		Tag:             "Avanzado",
-		Description:     "300 consultas/mes + Enviar hasta 10/día a amigos",
+		Description:     "300 consultas/mes acumulables + Enviar hasta 10/día a amigos",
 	},
 	"sub_ultra": {
 		ID:              "sub_ultra",
 		Name:            "Plan Ultra",
 		PriceUSD:        2.99,
-		QueriesPerMonth: 500,
+		QueriesPerMonth: 450,
 		Tag:             "Challenger",
-		Description:     "500 consultas/mes + Enviar hasta 10/día a amigos",
+		Description:     "450 consultas/mes acumulables + Enviar hasta 10/día a amigos",
 	},
 }
 
@@ -219,7 +219,7 @@ func GetStoreCatalog(w http.ResponseWriter, r *http.Request) {
 		"available_queries":        user.AvailableQueries,
 		"daily_transferred_today":  user.DailyTransferredToday,
 		"remaining_transfer_quota": remainingTransferQuota,
-		"can_transfer":             user.IsSubscribed() && remainingTransferQuota > 0,
+		"can_transfer":             (user.IsSubscribed() || user.HasPurchasedStarter) && remainingTransferQuota > 0,
 		"packs":                    packsList,
 		"subscriptions":            subsList,
 	})
@@ -372,10 +372,10 @@ func Subscribe(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Las consultas de suscripción reemplazan a las anteriores (no se acumulan con meses pasados)
+	// Las consultas de suscripción se acumulan
 	expiryDate := time.Now().UTC().AddDate(0, 1, 0)
 	user.SubscriptionPlan = plan.ID
-	user.SubscriptionQueries = plan.QueriesPerMonth
+	user.SubscriptionQueries += plan.QueriesPerMonth
 	user.SubscriptionEndsAt = &expiryDate
 	user.RecalculateAvailableQueries()
 
@@ -435,9 +435,9 @@ func TransferQueries(w http.ResponseWriter, r *http.Request) {
 	today := time.Now().UTC().Format("2006-01-02")
 	user.ResetDailyLimitsIfNewDay(today)
 
-	// Regla 1: Solo usuarios con suscripción activa pueden transferir
-	if !user.IsSubscribed() {
-		http.Error(w, "Solo los usuarios con una suscripción activa pueden compartir consultas con amigos.", http.StatusForbidden)
+	// Regla 1: Usuarios con suscripción activa o con Pack Starter pueden transferir
+	if !user.IsSubscribed() && !user.HasPurchasedStarter {
+		http.Error(w, "La función de compartir consultas con amigos está disponible para suscriptores y usuarios con Pack Starter.", http.StatusForbidden)
 		return
 	}
 
