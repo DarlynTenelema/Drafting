@@ -668,6 +668,60 @@ class _IndexScreenState extends State<IndexScreen> {
     return false;
   }
 
+  Future<void> _showBatteryOptimizationDialog() async {
+    final prefs = await SharedPreferences.getInstance();
+    final bool alreadyAsked = prefs.getBool('hasAskedBatteryOptimization') ?? false;
+    if (alreadyAsked) return;
+
+    if (!mounted) return;
+    final proceed = await showDialog<bool>(
+      context: context,
+      barrierDismissible: true,
+      builder: (BuildContext ctx) {
+        return AlertDialog(
+          backgroundColor: AppTheme.surface,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: Row(
+            children: const [
+              Icon(Icons.bolt, color: Colors.amber, size: 28),
+              SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Optimización de Red y Juego',
+                  style: TextStyle(color: AppTheme.textLight, fontWeight: FontWeight.bold, fontSize: 18),
+                ),
+              ),
+            ],
+          ),
+          content: const Text(
+            'Para que Drafting funcione en segundo plano sin que el Modo Juego corte la conexión a internet de la burbuja flotante, recomendamos desactivar la restricción de batería.\n\n'
+            'Toca "Permitir" en la siguiente ventana del sistema.',
+            style: TextStyle(color: AppTheme.textMuted, height: 1.4, fontSize: 14),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(false),
+              child: const Text('Ahora no', style: TextStyle(color: AppTheme.textMuted)),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppTheme.primary,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+              onPressed: () => Navigator.of(ctx).pop(true),
+              child: const Text('Permitir', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+            ),
+          ],
+        );
+      },
+    );
+
+    await prefs.setBool('hasAskedBatteryOptimization', true);
+    if (proceed == true) {
+      await NativeService.requestIgnoreBatteryOptimizations();
+    }
+  }
+
   Future<void> _toggleService() async {
     if (_isActive) {
       await NativeService.stopCaptureService();
@@ -689,6 +743,11 @@ class _IndexScreenState extends State<IndexScreen> {
 
       final hasPermission = await _checkAndShowDisclosure();
       if (!hasPermission) return;
+
+      final isOptimized = await NativeService.isIgnoringBatteryOptimizations();
+      if (!isOptimized) {
+        await _showBatteryOptimizationDialog();
+      }
 
       bool started = await NativeService.startCaptureService(
         baseUrl: AppConfig.apiBaseUrl,

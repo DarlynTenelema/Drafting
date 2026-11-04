@@ -1,127 +1,118 @@
 import 'package:flutter/foundation.dart';
-import 'package:stack_appodeal_flutter/stack_appodeal_flutter.dart';
+import 'package:google_mobile_ads/google_mobile_ads.dart';
 
+/// Servicio de monetización y anuncios bonificados mediante Google AdMob oficial.
 class AdService {
   AdService._();
 
-  /// Tu App Key oficial de Appodeal para Drafting (com.drafting.app)
-  static const String _prodAppKey = 'cf548729025e1d9f171009314a857329861b064c46f7ca20';
-  static String appKey = _prodAppKey;
+  /// ID oficial de prueba de Google para Anuncios Recompensados en Android.
+  /// Garantiza tasa de llenado (fill rate) del 100% en modo debug sin riesgo para la cuenta.
+  static const String _testRewardedAdUnitId = 'ca-app-pub-3940256099942544/5224354917';
+
+  /// ID de producción de tu unidad de anuncios bonificados creada en Google AdMob.
+  /// Formato esperado: ca-app-pub-6984024121811101/XXXXXXXXXX
+  static const String _defaultProdRewardedAdUnitId = 'ca-app-pub-6984024121811101/4356757298';
+
+  static String _customAdUnitId = const String.fromEnvironment(
+    'ADMOB_REWARDED_AD_UNIT_ID',
+    defaultValue: _defaultProdRewardedAdUnitId,
+  );
+
+  /// Permite configurar o actualizar el ID de la unidad en tiempo de ejecución
+  static set rewardedAdUnitId(String id) {
+    if (id.trim().isNotEmpty) {
+      _customAdUnitId = id.trim();
+    }
+  }
+
+  /// Retorna el ID correspondiente según el entorno (Pruebas en Debug / Producción en Release)
+  static String get rewardedAdUnitId {
+    if (kDebugMode) {
+      return _testRewardedAdUnitId;
+    }
+    return _customAdUnitId;
+  }
 
   static bool _isInitialized = false;
   static bool _isInitializing = false;
   static bool get isInitialized => _isInitialized;
 
-  /// Callbacks activos para la sesión actual del anuncio bonificado
-  static VoidCallback? _onUserEarnedRewardCallback;
-  static Function(String error)? _onAdFailedCallback;
+  static RewardedAd? _rewardedAd;
+  static bool _isLoadingAd = false;
+  static int _retryAttempt = 0;
 
-  /// Inicializa el SDK de mediación Appodeal
-  static Future<void> initialize({String? customAppKey}) async {
+  /// Inicializa el SDK nativo de Google Mobile Ads
+  static Future<void> initialize({String? adUnitId}) async {
     if (_isInitialized || _isInitializing) return;
     _isInitializing = true;
 
-    if (customAppKey != null && customAppKey.isNotEmpty) {
-      appKey = customAppKey;
+    if (adUnitId != null && adUnitId.isNotEmpty) {
+      _customAdUnitId = adUnitId;
     }
 
     try {
-      // Modo de pruebas automático en desarrollo para no arriesgar la cuenta
-      if (kDebugMode) {
-        await Appodeal.setTesting(true);
-        Appodeal.setLogLevel(Appodeal.LogLevelVerbose);
-        debugPrint('🛠️ [Appodeal] Modo de pruebas (Testing) activado.');
-      } else {
-        await Appodeal.setTesting(false);
-        Appodeal.setLogLevel(Appodeal.LogLevelNone);
-      }
+      debugPrint('🚀 [AdMob] Inicializando Google Mobile Ads SDK...');
+      final initStatus = await MobileAds.instance.initialize();
+      _isInitialized = true;
+      _isInitializing = false;
 
-      // Habilitar caché automático de videos recompensados
-      Appodeal.setAutoCache(AppodealAdType.RewardedVideo, true);
+      debugPrint('✅ [AdMob] SDK inicializado con éxito: ${initStatus.adapterStatuses}');
 
-      // Registrar los escuchadores globales de eventos para Rewarded Video
-      _setupCallbacks();
-
-      // Inicializar el SDK con soporte para Rewarded Video
-      Appodeal.initialize(
-        appKey: appKey,
-        adTypes: [
-          AppodealAdType.RewardedVideo,
-        ],
-        onInitializationFinished: (errors) {
-          _isInitialized = true;
-          _isInitializing = false;
-          if (errors != null && errors.isNotEmpty) {
-            debugPrint('⚠️ [Appodeal] Inicializado con avisos: $errors');
-          } else {
-            debugPrint('✅ [Appodeal] Inicializado con éxito.');
-          }
-        },
-      );
+      // Precargar de inmediato el primer video bonificado
+      loadRewardedAd();
     } catch (e) {
       _isInitializing = false;
-      debugPrint('🔴 [Appodeal] Error durante la inicialización: $e');
+      debugPrint('🔴 [AdMob] Error durante la inicialización: $e');
     }
   }
 
-  /// Configura los eventos nativos del ciclo de vida del video bonificado
-  static void _setupCallbacks() {
-    Appodeal.setRewardedVideoCallbacks(
-      onRewardedVideoLoaded: (bool isPrecache) {
-        debugPrint('✅ [Appodeal] Video recompensado cargado y listo (isPrecache: $isPrecache)');
-      },
-      onRewardedVideoFailedToLoad: () {
-        debugPrint('⚠️ [Appodeal] Falló la carga del video recompensado.');
-      },
-      onRewardedVideoShown: () {
-        debugPrint('🎬 [Appodeal] Video recompensado en pantalla.');
-      },
-      onRewardedVideoShowFailed: () {
-        debugPrint('🔴 [Appodeal] Error al mostrar el video recompensado.');
-        _onAdFailedCallback?.call('No se pudo reproducir el anuncio. Inténtalo en unos segundos.');
-        _clearActiveCallbacks();
-      },
-      onRewardedVideoFinished: (double amount, String reward) {
-        debugPrint('🎁 [Appodeal] Usuario completó el video. Acreditando recompensa ($amount $reward).');
-        _onUserEarnedRewardCallback?.call();
-      },
-      onRewardedVideoClosed: (bool isFinished) {
-        debugPrint('🚪 [Appodeal] Video cerrado por el usuario (completado: $isFinished).');
-        _clearActiveCallbacks();
-        // Cargar inmediatamente el siguiente video para tenerlo listo
-        loadRewardedAd();
-      },
-      onRewardedVideoClicked: () {
-        debugPrint('👆 [Appodeal] Clic en el anuncio.');
-      },
-    );
-  }
-
-  static void _clearActiveCallbacks() {
-    _onUserEarnedRewardCallback = null;
-    _onAdFailedCallback = null;
-  }
-
-  /// Precarga un video recompensado para que esté listo al instante
+  /// Precarga un anuncio bonificado en memoria para que se reproduzca al instante
   static void loadRewardedAd() {
+    if (_rewardedAd != null || _isLoadingAd) {
+      return;
+    }
+
     if (!_isInitialized) {
       initialize();
       return;
     }
-    try {
-      Appodeal.cache(AppodealAdType.RewardedVideo);
-    } catch (e) {
-      debugPrint('⚠️ [Appodeal] Error precargando anuncio: $e');
-    }
+
+    _isLoadingAd = true;
+    final unitId = rewardedAdUnitId;
+    debugPrint('⏳ [AdMob] Cargando video recompensado con unidad: $unitId (Debug: $kDebugMode)');
+
+    RewardedAd.load(
+      adUnitId: unitId,
+      request: const AdRequest(),
+      rewardedAdLoadCallback: RewardedAdLoadCallback(
+        onAdLoaded: (RewardedAd ad) {
+          debugPrint('✅ [AdMob] Video recompensado cargado y listo para mostrarse.');
+          _rewardedAd = ad;
+          _isLoadingAd = false;
+          _retryAttempt = 0;
+        },
+        onAdFailedToLoad: (LoadAdError error) {
+          debugPrint('⚠️ [AdMob] Falló la carga del video recompensado: $error (código: ${error.code})');
+          _rewardedAd = null;
+          _isLoadingAd = false;
+
+          // Reintento con retraso exponencial progresivo (máx 3 reintentos)
+          _retryAttempt++;
+          if (_retryAttempt <= 3) {
+            final delaySeconds = _retryAttempt * 5;
+            debugPrint('🔄 [AdMob] Reintentando carga de anuncio en $delaySeconds segundos...');
+            Future.delayed(Duration(seconds: delaySeconds), () {
+              loadRewardedAd();
+            });
+          }
+        },
+      ),
+    );
   }
 
-  /// Verifica si hay un video disponible para reproducir
+  /// Verifica si hay un video listo para reproducirse
   static Future<bool> isAdReady() async {
-    try {
-      return await Appodeal.isLoaded(AppodealAdType.RewardedVideo);
-    } catch (_) {
-      return false;
-    }
+    return _rewardedAd != null;
   }
 
   /// Muestra el video bonificado y ejecuta los callbacks de recompensa o fallo
@@ -129,29 +120,50 @@ class AdService {
     required VoidCallback onUserEarnedReward,
     required Function(String error) onAdFailed,
   }) async {
-    _onUserEarnedRewardCallback = onUserEarnedReward;
-    _onAdFailedCallback = onAdFailed;
+    if (_rewardedAd == null) {
+      loadRewardedAd();
+      onAdFailed('El video aún se está preparando. Por favor intenta de nuevo en unos segundos.');
+      return;
+    }
+
+    bool rewardEarned = false;
+
+    _rewardedAd!.fullScreenContentCallback = FullScreenContentCallback(
+      onAdShowedFullScreenContent: (RewardedAd ad) {
+        debugPrint('🎬 [AdMob] Video recompensado en pantalla completa.');
+      },
+      onAdDismissedFullScreenContent: (RewardedAd ad) {
+        debugPrint('🚪 [AdMob] Video cerrado por el usuario.');
+        ad.dispose();
+        _rewardedAd = null;
+        // Precargar inmediatamente el siguiente video para el usuario
+        loadRewardedAd();
+      },
+      onAdFailedToShowFullScreenContent: (RewardedAd ad, AdError error) {
+        debugPrint('🔴 [AdMob] Error al mostrar video en pantalla completa: $error');
+        ad.dispose();
+        _rewardedAd = null;
+        onAdFailed('No se pudo reproducir el anuncio. Por favor inténtalo en unos segundos.');
+        loadRewardedAd();
+      },
+    );
 
     try {
-      final isReady = await Appodeal.isLoaded(AppodealAdType.RewardedVideo);
-
-      if (!isReady) {
-        loadRewardedAd();
-        onAdFailed('El video aún se está preparando en la subasta. Por favor intenta en unos segundos.');
-        _clearActiveCallbacks();
-        return;
-      }
-
-      final shown = await Appodeal.show(AppodealAdType.RewardedVideo);
-      if (!shown) {
-        loadRewardedAd();
-        onAdFailed('No se pudo abrir el anuncio en este momento. Inténtalo de nuevo.');
-        _clearActiveCallbacks();
-      }
+      await _rewardedAd!.show(
+        onUserEarnedReward: (AdWithoutView ad, RewardItem reward) {
+          debugPrint('🎁 [AdMob] Usuario completó el video. Acreditando recompensa (+${reward.amount} ${reward.type}).');
+          if (!rewardEarned) {
+            rewardEarned = true;
+            onUserEarnedReward();
+          }
+        },
+      );
     } catch (e) {
+      debugPrint('🔴 [AdMob] Excepción al mostrar anuncio: $e');
+      _rewardedAd?.dispose();
+      _rewardedAd = null;
+      onAdFailed('Error al abrir el anuncio: $e');
       loadRewardedAd();
-      onAdFailed('Error al iniciar el anuncio: $e');
-      _clearActiveCallbacks();
     }
   }
 }

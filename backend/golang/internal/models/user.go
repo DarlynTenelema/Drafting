@@ -28,6 +28,7 @@ type User struct {
 	AdQueries              int            `gorm:"default:0" json:"ad_queries"`               // Consultas por recarga de anuncios / recompensas
 	PurchasedQueries       int            `gorm:"default:0" json:"purchased_queries"`        // Consultas compradas en paquetes (permanentes)
 	SubscriptionQueries    int            `gorm:"default:0" json:"subscription_queries"`     // Consultas del mes por suscripción activa
+	GiftQueries            int            `gorm:"default:0" json:"gift_queries"`             // Consultas exclusivas para regalar a amigos (ej. 25 del Pack Starter)
 
 	// Suscripción mensual
 	SubscriptionPlan       string         `gorm:"type:varchar(50);default:'none'" json:"subscription_plan"` // 'none', 'plus', 'pro', 'ultra'
@@ -75,6 +76,12 @@ func (user *User) CheckSubscriptionExpiry() bool {
 func (user *User) IsSubscribed() bool {
 	user.CheckSubscriptionExpiry()
 	return user.SubscriptionPlan != "" && user.SubscriptionPlan != "none" && user.SubscriptionEndsAt != nil && time.Now().Before(*user.SubscriptionEndsAt)
+}
+
+// CanTransfer indica si el usuario tiene permisos para compartir consultas con amigos
+// (Todos los paquetes comprados, usuarios con Pack Starter o suscriptores pueden compartir)
+func (user *User) CanTransfer() bool {
+	return user.IsSubscribed() || user.HasPurchasedStarter || user.PurchasedQueries > 0 || user.GiftQueries > 0
 }
 
 // RecalculateAvailableQueries actualiza la suma total de consultas disponibles

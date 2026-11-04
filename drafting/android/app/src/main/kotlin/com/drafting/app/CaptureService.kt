@@ -35,6 +35,7 @@ import android.widget.LinearLayout
 import android.widget.ImageButton
 import android.widget.ImageView
 import android.widget.FrameLayout
+import android.net.ConnectivityManager
 import android.widget.Toast
 import org.json.JSONObject
 import java.io.ByteArrayOutputStream
@@ -523,74 +524,119 @@ class CaptureService : Service() {
     private fun sendToBackend(base64Image: String, queryType: String) {
         showToast("Analizando...")
         thread {
-            try {
-                val prefs = getSharedPreferences("drafting_prefs", Context.MODE_PRIVATE)
-                val base = (baseUrl?.trim()?.trimEnd('/')?.takeIf { it.isNotEmpty() }
-                    ?: prefs.getString("base_url", null)?.trim()?.trimEnd('/')?.takeIf { it.isNotEmpty() }
-                    ?: BuildConfig.BASE_URL.trimEnd('/'))
-                if (base.isEmpty()) {
-                    throw IllegalStateException("BASE_URL is not configured")
-                }
+            val prefs = getSharedPreferences("drafting_prefs", Context.MODE_PRIVATE)
+            val base = (baseUrl?.trim()?.trimEnd('/')?.takeIf { it.isNotEmpty() }
+                ?: prefs.getString("base_url", null)?.trim()?.trimEnd('/')?.takeIf { it.isNotEmpty() }
+                ?: BuildConfig.BASE_URL.trimEnd('/'))
+            if (base.isEmpty()) {
+                showResultOnUI("Error: URL del servidor no configurada.")
+                sendResultToActivity("error", 500, "BASE_URL is not configured")
+                return@thread
+            }
 
-                val currentToken = sessionToken?.takeIf { it.isNotEmpty() }
-                    ?: prefs.getString("session_token", null)?.takeIf { it.isNotEmpty() }
+            val currentToken = sessionToken?.takeIf { it.isNotEmpty() }
+                ?: prefs.getString("session_token", null)?.takeIf { it.isNotEmpty() }
 
-                val url = URL("$base/api/v1/draft/analyze")
-                val conn = url.openConnection() as HttpURLConnection
-                conn.requestMethod = "POST"
-                conn.setRequestProperty("Content-Type", "application/json")
-                if (!currentToken.isNullOrEmpty()) {
-                    conn.setRequestProperty("Authorization", "Bearer $currentToken")
-                }
-                conn.connectTimeout = 30000
-                conn.readTimeout = 30000
-                conn.doOutput = true
-                conn.doInput = true
+            val maxAttempts = 3
+            var lastException: Exception? = null
 
-                val jsonParam = JSONObject()
-                jsonParam.put("image_base64", base64Image)
-                jsonParam.put("main_role", mainRole)
-                jsonParam.put("secondary_role", secondaryRole)
-                jsonParam.put("autofill_role", autofillRole)
-                jsonParam.put("query_type", queryType)
-                jsonParam.put("otp_champions", otpChampions)
-                if (activeCreatorId != null && activeCreatorId!!.isNotEmpty()) {
-                    jsonParam.put("active_creator_id", activeCreatorId)
-                }
-
-                conn.outputStream.use { out ->
-                    OutputStreamWriter(out, Charsets.UTF_8).use { writer ->
-                        writer.write(jsonParam.toString())
-                        writer.flush()
+            for (attempt in 1..maxAttempts) {
+                var conn: HttpURLConnection? = null
+                try {
+                    val url = URL("$base/api/v1/draft/analyze")
+                    val cm = getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
+                    val activeNet = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) cm?.activeNetwork else null
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && activeNet != null) {
+                        try {
+                            cm?.bindProcessToNetwork(activeNet)
+                        } catch (_: Exception) {}
                     }
-                }
+                    val rawConn = if (activeNet != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                        activeNet.openConnection(url)
+                    } else {
+                        url.openConnection()
+                    }
+                    conn = (rawConn as HttpURLConnection).apply {
+                        requestMethod = "POST"
+                        setRequestProperty("Content-Type", "application/json")
+                        setRequestProperty("Accept", "application/json")
+                        setRequestProperty("Connection", "close")
+                        if (!currentToken.isNullOrEmpty()) {
+                            setRequestProperty("Authorization", "Bearer $currentToken")
+                        }
+                        connectTimeout = 15000
+                        readTimeout = 40000
+                        doOutput = true
+                        doInput = true
+                    }
 
-                val responseCode = conn.responseCode
-                if (responseCode == HttpURLConnection.HTTP_OK) {
-                    val response = conn.inputStream.bufferedReader().use { it.readText() }
-                    val jsonResponse = JSONObject(response)
-                    val rec = jsonResponse.getString("recommendation")
-                    showResultOnUI(rec)
-                    sendResultToActivity("success", 200, rec)
-                } else if (responseCode == 429) {
-                    showResultOnUI("Has alcanzado el límite temporal. Espera unos minutos.")
-                    sendResultToActivity("error", 429, "Límite temporal alcanzado.")
-                } else if (responseCode == 402) {
-                    showResultOnUI("Sin consultas disponibles. Abre Drafting y toca 'Obtener consultas'.")
-                    sendResultToActivity("error", 402, "Sin consultas disponibles.")
-                } else {
-                    val errorResponse = try {
-                        conn.errorStream?.bufferedReader()?.use { it.readText() } ?: ""
-                    } catch (e: Exception) { "" }
-                    
-                    val displayMsg = if (errorResponse.isNotEmpty()) "Error 500: $errorResponse" else "Error del servidor: $responseCode"
-                    showResultOnUI(displayMsg)
-                    sendResultToActivity("error", responseCode, displayMsg)
+                    val jsonParam = JSONObject().apply {
+                        put("image_base64", base64Image)
+                        put("main_role", mainRole)
+                        put("secondary_role", secondaryRole)
+                        put("autofill_role", autofillRole)
+                        put("query_type", queryType)
+                        put("otp_champions", otpChampions)
+                        if (!activeCreatorId.isNullOrEmpty()) {
+                            put("active_creator_id", activeCreatorId)
+                        }
+                    }
+
+                    conn.outputStream.use { out ->
+                        OutputStreamWriter(out, Charsets.UTF_8).use { writer ->
+                            writer.write(jsonParam.toString())
+                            writer.flush()
+                        }
+                    }
+
+                    val responseCode = conn.responseCode
+                    if (responseCode == HttpURLConnection.HTTP_OK) {
+                        val response = conn.inputStream.bufferedReader().use { it.readText() }
+                        val jsonResponse = JSONObject(response)
+                        val rec = jsonResponse.getString("recommendation")
+                        showResultOnUI(rec)
+                        sendResultToActivity("success", 200, rec)
+                        return@thread
+                    } else if (responseCode == 429) {
+                        showResultOnUI("Has alcanzado el límite temporal. Espera unos minutos.")
+                        sendResultToActivity("error", 429, "Límite temporal alcanzado.")
+                        return@thread
+                    } else if (responseCode == 402) {
+                        showResultOnUI("Sin consultas disponibles. Abre Drafting y toca 'Obtener consultas'.")
+                        sendResultToActivity("error", 402, "Sin consultas disponibles.")
+                        return@thread
+                    } else {
+                        val errorResponse = try {
+                            conn.errorStream?.bufferedReader()?.use { it.readText() } ?: ""
+                        } catch (e: Exception) { "" }
+                        
+                        val displayMsg = if (errorResponse.isNotEmpty()) "Error 500: $errorResponse" else "Error del servidor: $responseCode"
+                        showResultOnUI(displayMsg)
+                        sendResultToActivity("error", responseCode, displayMsg)
+                        return@thread
+                    }
+                } catch (e: Exception) {
+                    lastException = e
+                    conn?.disconnect()
+                    if (attempt < maxAttempts) {
+                        try {
+                            Thread.sleep(800)
+                        } catch (_: InterruptedException) {}
+                    }
+                } finally {
+                    conn?.disconnect()
                 }
-            } catch (e: Exception) {
+            }
+
+            lastException?.let { e ->
                 e.printStackTrace()
-                showResultOnUI("Err: ${e.javaClass.simpleName} - ${e.message}")
-                sendResultToActivity("error", 500, "Error de red: ${e.message}")
+                val friendlyMsg = when (e) {
+                    is java.net.UnknownHostException -> "Sin conexión con el servidor. Revisa tu WiFi/datos o la restricción de red en segundo plano del Modo Juego."
+                    is java.net.SocketTimeoutException -> "El servidor tardó en responder. Por favor intenta de nuevo."
+                    else -> "Error de conexión: " + (e.message ?: e.javaClass.simpleName)
+                }
+                showResultOnUI(friendlyMsg)
+                sendResultToActivity("error", 500, "Error de red: " + (e.message ?: ""))
             }
         }
     }

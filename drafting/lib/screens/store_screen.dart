@@ -35,6 +35,8 @@ class _StoreScreenState extends State<StoreScreen> {
   int _dailyTransferredToday = 0;
   int _remainingTransferQuota = 10;
   bool _canTransfer = false;
+  int _giftQueries = 0;
+  String? _myReferralCode;
 
   List<dynamic> _packs = [];
   List<dynamic> _subscriptions = [];
@@ -109,6 +111,8 @@ class _StoreScreenState extends State<StoreScreen> {
             _dailyTransferredToday = data['daily_transferred_today'] ?? 0;
             _remainingTransferQuota = data['remaining_transfer_quota'] ?? 10;
             _canTransfer = data['can_transfer'] ?? false;
+            _giftQueries = data['gift_queries'] ?? 0;
+            _myReferralCode = data['referral_code'];
             _packs = data['packs'] ?? [];
             _subscriptions = data['subscriptions'] ?? [];
             _isLoading = false;
@@ -165,7 +169,7 @@ class _StoreScreenState extends State<StoreScreen> {
       return;
     }
 
-    if (!_isSubscribed) {
+    if (!_canTransfer) {
       _showSubscriptionRequiredDialog();
       return;
     }
@@ -343,7 +347,7 @@ class _StoreScreenState extends State<StoreScreen> {
             const Icon(Icons.lock_person_rounded, size: 44, color: Color(0xFF00E5FF)),
             const SizedBox(height: 14),
             Text(
-              'Comparte con tu Dúo',
+              'Comparte con tus Amigos',
               style: GoogleFonts.outfit(
                 fontSize: 20,
                 fontWeight: FontWeight.bold,
@@ -352,7 +356,7 @@ class _StoreScreenState extends State<StoreScreen> {
             ),
             const SizedBox(height: 8),
             Text(
-              'La función de compartir hasta 10 consultas por día con tus amigos está disponible para suscriptores y usuarios con Pack Starter.\n\n¡Apoya a tu compañero desde solo \$0.19!',
+              'La función de compartir hasta 10 consultas por día con tus amigos está disponible al adquirir cualquier Pack (desde \$0.19) o Suscripción activa.\n\n¡Consigue cualquier paquete para desbloquear el envío a tus amigos!',
               textAlign: TextAlign.center,
               style: TextStyle(fontSize: 13, color: Colors.white.withValues(alpha: 0.75)),
             ),
@@ -364,7 +368,7 @@ class _StoreScreenState extends State<StoreScreen> {
                 foregroundColor: Colors.black,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               ),
-              child: const Text('Ver Planes de Suscripción'),
+              child: const Text('Ver Paquetes y Planes'),
             ),
           ],
         ),
@@ -1018,6 +1022,81 @@ class _StoreScreenState extends State<StoreScreen> {
           ),
           const SizedBox(height: 16),
 
+          // Tu propio ID para recibir consultas
+          if (_myReferralCode != null && _myReferralCode!.isNotEmpty) ...[
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              decoration: BoxDecoration(
+                color: const Color(0xFF0F172A),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFF00E5FF).withValues(alpha: 0.3)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.badge_rounded, color: Color(0xFF00E5FF), size: 20),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Tu ID para que otros te envíen consultas:',
+                          style: TextStyle(fontSize: 11, color: Colors.white.withValues(alpha: 0.7)),
+                        ),
+                        Text(
+                          _myReferralCode!,
+                          style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: const Color(0xFF00E5FF)),
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.copy_rounded, color: Colors.white, size: 18),
+                    tooltip: 'Copiar mi ID',
+                    onPressed: () {
+                      Clipboard.setData(ClipboardData(text: _myReferralCode!));
+                      HapticFeedback.lightImpact();
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          backgroundColor: const Color(0xFF10B981),
+                          behavior: SnackBarBehavior.floating,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                          content: const Text('¡Tu ID ha sido copiado al portapapeles!'),
+                          duration: const Duration(seconds: 2),
+                        ),
+                      );
+                    },
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 14),
+          ],
+
+          if (_giftQueries > 0) ...[
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: const Color(0xFF10B981).withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: const Color(0xFF10B981).withValues(alpha: 0.3)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.card_giftcard_rounded, color: Color(0xFF10B981), size: 18),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Tienes $_giftQueries consultas de regalo exclusivas para enviar a amigos.',
+                      style: GoogleFonts.outfit(fontSize: 12, color: const Color(0xFF10B981), fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 14),
+          ],
+
           // Campo: ID del Jugador
           Text(
             'ID o Código del Jugador (ej. EW3J43):',
@@ -1093,13 +1172,13 @@ class _StoreScreenState extends State<StoreScreen> {
                       height: 18,
                       child: CircularProgressIndicator(strokeWidth: 2, color: Colors.black),
                     )
-                  : Icon(_isSubscribed ? Icons.send_rounded : Icons.lock_outline_rounded, size: 18),
+                  : Icon(_canTransfer ? Icons.send_rounded : Icons.lock_outline_rounded, size: 18),
               label: Text(
-                _isSubscribed ? 'Enviar $_selectedTransferAmount Consultas a mi Amigo' : 'Desbloquear con Suscripción (\$0.99)',
+                _canTransfer ? 'Enviar $_selectedTransferAmount Consultas a mi Amigo' : 'Desbloquear con Pack o Suscripción (desde \$0.19)',
                 style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.bold),
               ),
               style: ElevatedButton.styleFrom(
-                backgroundColor: _isSubscribed ? const Color(0xFF10B981) : const Color(0xFF00E5FF),
+                backgroundColor: _canTransfer ? const Color(0xFF10B981) : const Color(0xFF00E5FF),
                 foregroundColor: Colors.black,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               ),

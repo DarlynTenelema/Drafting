@@ -65,9 +65,8 @@ Future<void> _initializeBackgroundServices() async {
     ApiClient.get('/').then((_) {}, onError: (_) {});
   } catch (_) {}
 
-  // 4. Inicializar Appodeal con un breve retraso para asegurar que la Activity esté activa
+  // 4. Inicializar Google AdMob para anuncios bonificados
   try {
-    await Future.delayed(const Duration(milliseconds: 600));
     await AdService.initialize();
   } catch (_) {}
 }

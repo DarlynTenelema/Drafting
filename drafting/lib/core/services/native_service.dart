@@ -48,4 +48,24 @@ class NativeService {
       debugPrint("Failed to stop service: '${e.message}'.");
     }
   }
+
+  static Future<bool> isIgnoringBatteryOptimizations() async {
+    try {
+      final bool? isIgnoring = await _channel.invokeMethod<bool>('isIgnoringBatteryOptimizations');
+      return isIgnoring ?? true;
+    } on PlatformException catch (e) {
+      debugPrint("Failed to check battery optimization: '${e.message}'.");
+      return true;
+    }
+  }
+
+  static Future<bool> requestIgnoreBatteryOptimizations() async {
+    try {
+      final bool? requested = await _channel.invokeMethod<bool>('requestIgnoreBatteryOptimizations');
+      return requested ?? false;
+    } on PlatformException catch (e) {
+      debugPrint("Failed to request battery optimization exemption: '${e.message}'.");
+      return false;
+    }
+  }
 }

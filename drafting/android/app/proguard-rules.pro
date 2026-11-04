@@ -30,26 +30,11 @@
 -keep class com.android.vending.billing.** { *; }
 -keep class com.android.billingclient.** { *; }
 
-# Appodeal SDK & Mediation Adapters Keep rules
--keep class com.appodeal.** { *; }
--keep class com.explorestack.** { *; }
--keep class io.bidmachine.** { *; }
--keep class com.iab.** { *; }
--keep class com.bytedance.** { *; }
--keep class com.unity3d.** { *; }
--keep class com.vungle.** { *; }
--keep class com.applovin.** { *; }
--keep class com.ironsource.** { *; }
--keep class com.mbridge.** { *; }
--keep class com.facebook.ads.** { *; }
--dontwarn com.appodeal.**
--dontwarn com.explorestack.**
--dontwarn io.bidmachine.**
--dontwarn com.iab.**
--dontwarn com.bytedance.**
--dontwarn com.unity3d.**
--dontwarn com.vungle.**
--dontwarn com.applovin.**
--dontwarn com.ironsource.**
--dontwarn com.mbridge.**
--dontwarn com.facebook.ads.**
+# Google Mobile Ads (AdMob)
+-keep public class com.google.android.gms.ads.** {
+   public *;
+}
+-keep class com.google.ads.** {
+   public *;
+}
+-dontwarn com.google.android.gms.ads.**

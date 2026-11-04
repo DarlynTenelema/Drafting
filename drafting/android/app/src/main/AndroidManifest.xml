@@ -9,12 +9,18 @@
     
     <!-- Permission for internet access to send data to Golang backend -->
     <uses-permission android:name="android.permission.INTERNET"/>
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE"/>
+
+    <!-- Prevent OEM Game Modes and Doze from cutting network while in-game -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS"/>
+    <!-- Android 13+ Notification permission for Foreground Service -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
 
     <!-- Google Play In-App Billing -->
     <uses-permission android:name="com.android.vending.BILLING"/>
 
-    <!-- Permissions for Appodeal and Ad Networks -->
-    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
+    <!-- Permissions for Ad Networks & AdMob -->
     <uses-permission android:name="com.google.android.gms.permission.AD_ID"/>
 
     <application
@@ -57,7 +63,7 @@
         <meta-data
             android:name="com.google.android.gms.credentials.API_ENABLED"
             android:value="false" />
-        <!-- AdMob App ID (Requerido por los adaptadores internos de Appodeal) -->
+        <!-- Google AdMob App ID -->
         <meta-data
             android:name="com.google.android.gms.ads.APPLICATION_ID"
             android:value="ca-app-pub-6984024121811101~1856225264"/>

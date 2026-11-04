@@ -109,4 +109,20 @@ func TestDailyTransferLimits(t *testing.T) {
 	if remainingTransfer != 1 {
 		t.Errorf("Expected 1 remaining transfer quota, got %d", remainingTransfer)
 	}
+
+	// Test CanTransfer for all packs & subscriptions
+	freeUser := models.User{}
+	if freeUser.CanTransfer() {
+		t.Errorf("Expected free user without packs to NOT be able to transfer")
+	}
+
+	starterUser := models.User{HasPurchasedStarter: true, GiftQueries: 25}
+	if !starterUser.CanTransfer() {
+		t.Errorf("Expected user with starter pack to be able to transfer")
+	}
+
+	packUser := models.User{PurchasedQueries: 20}
+	if !packUser.CanTransfer() {
+		t.Errorf("Expected user with purchased pack to be able to transfer")
+	}
 }

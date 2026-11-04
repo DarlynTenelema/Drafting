@@ -15,3 +15,4 @@ key.properties
 key.properties
 upload-keystore.jks
 *.pem
+.kotlin/

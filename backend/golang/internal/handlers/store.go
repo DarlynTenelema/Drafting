@@ -219,7 +219,8 @@ func GetStoreCatalog(w http.ResponseWriter, r *http.Request) {
 		"available_queries":        user.AvailableQueries,
 		"daily_transferred_today":  user.DailyTransferredToday,
 		"remaining_transfer_quota": remainingTransferQuota,
-		"can_transfer":             (user.IsSubscribed() || user.HasPurchasedStarter) && remainingTransferQuota > 0,
+		"can_transfer":             user.CanTransfer() && remainingTransferQuota > 0,
+		"referral_code":            user.ReferralCode,
 		"packs":                    packsList,
 		"subscriptions":            subsList,
 	})

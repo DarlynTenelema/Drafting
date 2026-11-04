@@ -14,6 +14,8 @@ import io.flutter.plugin.common.EventChannel
 import android.content.BroadcastReceiver
 import android.content.IntentFilter
 import android.os.Bundle
+import android.os.PowerManager
+import android.content.pm.PackageManager
 
 class MainActivity : FlutterActivity() {
     private val CHANNEL = "com.drafting.app/capture"
@@ -139,6 +141,32 @@ class MainActivity : FlutterActivity() {
                 val intent = Intent(this, CaptureService::class.java)
                 stopService(intent)
                 result.success(true)
+            } else if (call.method == "isIgnoringBatteryOptimizations") {
+                val isIgnoring = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                    val pm = getSystemService(Context.POWER_SERVICE) as? PowerManager
+                    pm?.isIgnoringBatteryOptimizations(packageName) ?: true
+                } else {
+                    true
+                }
+                result.success(isIgnoring)
+            } else if (call.method == "requestIgnoreBatteryOptimizations") {
+                var requested = false
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                    try {
+                        val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                            data = Uri.parse("package:$packageName")
+                        }
+                        startActivity(intent)
+                        requested = true
+                    } catch (e: Exception) {
+                        try {
+                            val intent = Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
+                            startActivity(intent)
+                            requested = true
+                        } catch (_: Exception) {}
+                    }
+                }
+                result.success(requested)
             } else {
                 result.notImplemented()
             }
