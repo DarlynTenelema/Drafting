@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:in_app_purchase/in_app_purchase.dart';
+import 'package:in_app_purchase_android/in_app_purchase_android.dart';
 import 'api_client.dart';
 
 enum IapState {
@@ -14,6 +15,7 @@ enum IapState {
 
 class IapPurchaseResult {
   final bool success;
+  final bool alreadyProcessed;
   final String? message;
   final String? productId;
   final int queriesAdded;
@@ -21,6 +23,7 @@ class IapPurchaseResult {
 
   const IapPurchaseResult({
     required this.success,
+    this.alreadyProcessed = false,
     this.message,
     this.productId,
     this.queriesAdded = 0,
@@ -78,24 +81,32 @@ class InAppPurchaseService {
   final ValueNotifier<String?> pendingProductId = ValueNotifier<String?>(null);
 
   bool _isInitialized = false;
+  bool _isCleaningUp = false;
+  bool _isRecoveringAlreadyOwned = false;
+  bool _isManualRestore = false;
+  Timer? _processingTimeoutTimer;
+
+  // Protección contra envíos concurrentes o duplicados de la misma compra en una sesión
+  final Set<String> _inFlightPurchaseKeys = <String>{};
+  final Set<String> _completedPurchaseKeys = <String>{};
 
   Future<void> initialize() async {
     if (_isInitialized) {
       if (_products.isEmpty) {
         await checkAvailabilityAndLoadProducts();
       }
+      unawaited(cleanupPendingPurchasesSilently());
       return;
     }
     _isInitialized = true;
 
-    // Escuchar el stream de compras
+    // Escuchar el stream de compras de Google Play / App Store
     _subscription = _iap.purchaseStream.listen(
       _onPurchaseUpdate,
       onDone: () => _subscription?.cancel(),
       onError: (error) {
         debugPrint('[IAP] Error en purchaseStream: $error');
-        isProcessing.value = false;
-        pendingProductId.value = null;
+        _clearProcessingState();
         _purchaseResultController.add(IapPurchaseResult(
           success: false,
           message: 'Error en la conexión con la tienda: $error',
@@ -104,6 +115,24 @@ class InAppPurchaseService {
     );
 
     await checkAvailabilityAndLoadProducts();
+    unawaited(cleanupPendingPurchasesSilently());
+  }
+
+  void _clearProcessingState() {
+    _processingTimeoutTimer?.cancel();
+    _processingTimeoutTimer = null;
+    isProcessing.value = false;
+    pendingProductId.value = null;
+  }
+
+  void _startProcessingTimeout(String productId) {
+    _processingTimeoutTimer?.cancel();
+    _processingTimeoutTimer = Timer(const Duration(seconds: 45), () {
+      if (isProcessing.value && pendingProductId.value == productId) {
+        isProcessing.value = false;
+        pendingProductId.value = null;
+      }
+    });
   }
 
   Future<void> checkAvailabilityAndLoadProducts() async {
@@ -132,6 +161,33 @@ class InAppPurchaseService {
     }
   }
 
+  /// Limpia silenciosamente compras previas que hayan quedado sin consumir en Google Play
+  /// para evitar el bloqueo "Error: Ya compraste este artículo" (ITEM_ALREADY_OWNED)
+  Future<void> cleanupPendingPurchasesSilently() async {
+    if (_isCleaningUp || !_isAvailable) return;
+    if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) return;
+
+    _isCleaningUp = true;
+    try {
+      final androidAddition = _iap.getPlatformAddition<InAppPurchaseAndroidPlatformAddition>();
+      final QueryPurchaseDetailsResponse response = await androidAddition.queryPastPurchases();
+      if (response.error != null) {
+        debugPrint('[IAP] Error consultando compras previas en Android: ${response.error!.message}');
+        return;
+      }
+
+      for (final purchase in response.pastPurchases) {
+        if (purchase.status == PurchaseStatus.purchased || purchase.status == PurchaseStatus.restored) {
+          await _deliverPurchaseToBackend(purchase, isSilent: true);
+        }
+      }
+    } catch (e) {
+      debugPrint('[IAP] Error en limpieza silenciosa de compras: $e');
+    } finally {
+      _isCleaningUp = false;
+    }
+  }
+
   ProductDetails? getProduct(String id) {
     return _products[id];
   }
@@ -152,41 +208,38 @@ class InAppPurchaseService {
     pendingProductId.value = packId;
 
     try {
+      // Antes de abrir Google Play, asegurar que cualquier compra previa de paquetes
+      // que haya quedado atascada sin consumir sea liberada en segundo plano.
+      await cleanupPendingPurchasesSilently();
+
       var product = _products[packId];
       if (product == null) {
-        // Reintentar cargar productos desde Google Play antes de fallar
         await checkAvailabilityAndLoadProducts();
         product = _products[packId];
       }
 
-      if (product == null) {
-        // Si no está registrado en Google Play aún (ej: en desarrollo/pruebas locales),
-        // o si Play Store no está disponible en este entorno:
-        if (!_isAvailable || kDebugMode) {
-          debugPrint('[IAP] Producto $packId no encontrado en Play Store. Utilizando verificación directa backend.');
-          return await _simulateBackendPurchase(packId: packId, isSubscription: false);
-        }
-
-        isProcessing.value = false;
-        pendingProductId.value = null;
+      if (!_isAvailable || product == null) {
+        _clearProcessingState();
         _purchaseResultController.add(IapPurchaseResult(
           success: false,
           productId: packId,
-          message: 'El producto ($packId) aún no está activo en Google Play Store. Verifica que esté Activo en Google Play Console.',
+          message: !_isAvailable
+              ? 'Google Play Store no está disponible en este momento. Verifica tu conexión e inténtalo de nuevo.'
+              : 'El paquete ($packId) no está disponible en Google Play Store en este momento.',
         ));
         return false;
       }
 
       final purchaseParam = PurchaseParam(productDetails: product);
-      // autoConsume: false para consumir sólo después de que nuestro backend acredite las consultas
+      // autoConsume: false para consumir explícitamente mediante consumePurchase()
+      // inmediatamente después de que el backend valide o confirme la transacción.
       final launched = await _iap.buyConsumable(
         purchaseParam: purchaseParam,
         autoConsume: false,
       );
 
       if (!launched) {
-        isProcessing.value = false;
-        pendingProductId.value = null;
+        _clearProcessingState();
         _purchaseResultController.add(IapPurchaseResult(
           success: false,
           productId: packId,
@@ -195,18 +248,15 @@ class InAppPurchaseService {
         return false;
       }
 
-      // Liberar bloqueo si el diálogo del sistema se cierra sin emitir evento tras 45s
-      Future.delayed(const Duration(seconds: 45), () {
-        if (isProcessing.value && pendingProductId.value == packId) {
-          isProcessing.value = false;
-          pendingProductId.value = null;
-        }
-      });
-
+      _startProcessingTimeout(packId);
       return true;
     } catch (e) {
-      isProcessing.value = false;
-      pendingProductId.value = null;
+      final errStr = e.toString().toLowerCase();
+      if (_isAlreadyOwnedError(errStr, '')) {
+        await _handleAlreadyOwnedError(packId);
+        return false;
+      }
+      _clearProcessingState();
       _purchaseResultController.add(IapPurchaseResult(
         success: false,
         productId: packId,
@@ -230,18 +280,14 @@ class InAppPurchaseService {
         product = _products[planId];
       }
 
-      if (product == null) {
-        if (!_isAvailable || kDebugMode) {
-          debugPrint('[IAP] Suscripción $planId no encontrada en Play Store. Utilizando verificación directa backend.');
-          return await _simulateBackendPurchase(planId: planId, isSubscription: true);
-        }
-
-        isProcessing.value = false;
-        pendingProductId.value = null;
+      if (!_isAvailable || product == null) {
+        _clearProcessingState();
         _purchaseResultController.add(IapPurchaseResult(
           success: false,
           productId: planId,
-          message: 'La suscripción ($planId) aún no está activa en Google Play Store. Verifica que su Plan Base esté Activo en Play Console.',
+          message: !_isAvailable
+              ? 'Google Play Store no está disponible en este momento. Verifica tu conexión e inténtalo de nuevo.'
+              : 'La suscripción ($planId) no está disponible en Google Play Store en este momento.',
         ));
         return false;
       }
@@ -250,8 +296,7 @@ class InAppPurchaseService {
       final launched = await _iap.buyNonConsumable(purchaseParam: purchaseParam);
 
       if (!launched) {
-        isProcessing.value = false;
-        pendingProductId.value = null;
+        _clearProcessingState();
         _purchaseResultController.add(IapPurchaseResult(
           success: false,
           productId: planId,
@@ -260,17 +305,15 @@ class InAppPurchaseService {
         return false;
       }
 
-      Future.delayed(const Duration(seconds: 45), () {
-        if (isProcessing.value && pendingProductId.value == planId) {
-          isProcessing.value = false;
-          pendingProductId.value = null;
-        }
-      });
-
+      _startProcessingTimeout(planId);
       return true;
     } catch (e) {
-      isProcessing.value = false;
-      pendingProductId.value = null;
+      final errStr = e.toString().toLowerCase();
+      if (_isAlreadyOwnedError(errStr, '')) {
+        await _handleAlreadyOwnedError(planId);
+        return false;
+      }
+      _clearProcessingState();
       _purchaseResultController.add(IapPurchaseResult(
         success: false,
         productId: planId,
@@ -280,8 +323,10 @@ class InAppPurchaseService {
     }
   }
 
-  /// Restaura compras previas (requerido para suscripciones y compras pendientes de consumir)
+  /// Restaura compras previas cuando el usuario presiona el botón de Restaurar Compras
   Future<void> restorePurchases() async {
+    if (isProcessing.value) return;
+
     if (!_isAvailable) {
       await checkAvailabilityAndLoadProducts();
       if (!_isAvailable) {
@@ -295,13 +340,60 @@ class InAppPurchaseService {
 
     try {
       isProcessing.value = true;
+      _isManualRestore = true;
+
+      if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
+        final androidAddition = _iap.getPlatformAddition<InAppPurchaseAndroidPlatformAddition>();
+        final response = await androidAddition.queryPastPurchases();
+        if (response.error != null) {
+          _clearProcessingState();
+          _isManualRestore = false;
+          _purchaseResultController.add(IapPurchaseResult(
+            success: false,
+            message: 'Error al consultar compras en Google Play: ${response.error!.message}',
+          ));
+          return;
+        }
+
+        int newlyCredited = 0;
+        for (final purchase in response.pastPurchases) {
+          if (purchase.status == PurchaseStatus.purchased || purchase.status == PurchaseStatus.restored) {
+            final credited = await _deliverPurchaseToBackend(purchase, isSilent: true);
+            if (credited > 0) {
+              newlyCredited += credited;
+            }
+          }
+        }
+
+        _clearProcessingState();
+        _isManualRestore = false;
+
+        if (newlyCredited > 0) {
+          _purchaseResultController.add(IapPurchaseResult(
+            success: true,
+            alreadyProcessed: false,
+            queriesAdded: newlyCredited,
+            message: '¡Se restauraron y acreditaron +$newlyCredited consultas pendientes!',
+          ));
+        } else {
+          _purchaseResultController.add(const IapPurchaseResult(
+            success: true,
+            alreadyProcessed: true,
+            queriesAdded: 0,
+            message: 'Tus compras y suscripciones están sincronizadas al día.',
+          ));
+        }
+        return;
+      }
+
       await _iap.restorePurchases();
-      // Garantizar que isProcessing vuelva a false si no había compras para restaurar
       Future.delayed(const Duration(seconds: 3), () {
-        isProcessing.value = false;
+        _clearProcessingState();
+        _isManualRestore = false;
       });
     } catch (e) {
-      isProcessing.value = false;
+      _clearProcessingState();
+      _isManualRestore = false;
       _purchaseResultController.add(IapPurchaseResult(
         success: false,
         message: 'Error al restaurar compras: $e',
@@ -309,10 +401,113 @@ class InAppPurchaseService {
     }
   }
 
-  /// Maneja los cambios de estado en la pasarela de Google Play
+  bool _isAlreadyOwnedError(String errMsg, String errCode) {
+    final msg = errMsg.toLowerCase();
+    final code = errCode.toLowerCase();
+    return msg.contains('already') ||
+        code.contains('already') ||
+        msg.contains('item_already_owned') ||
+        code.contains('item_already_owned') ||
+        msg.contains('ya compraste') ||
+        msg.contains('ya tienes') ||
+        msg.contains('7');
+  }
+
+  /// Resuelve de forma controlada y sin bucles el error ITEM_ALREADY_OWNED ("Ya compraste este artículo")
+  Future<void> _handleAlreadyOwnedError(String? targetProductId) async {
+    final productId = (targetProductId != null && targetProductId.isNotEmpty)
+        ? targetProductId
+        : pendingProductId.value;
+    _clearProcessingState();
+
+    if (_isRecoveringAlreadyOwned) return;
+    _isRecoveringAlreadyOwned = true;
+
+    try {
+      final bool isSub = productId != null && subscriptionIds.contains(productId);
+
+      if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
+        final androidAddition = _iap.getPlatformAddition<InAppPurchaseAndroidPlatformAddition>();
+        final response = await androidAddition.queryPastPurchases();
+
+        int creditedForTarget = 0;
+        bool foundTarget = false;
+
+        if (response.error == null) {
+          for (final purchase in response.pastPurchases) {
+            if (purchase.status == PurchaseStatus.purchased || purchase.status == PurchaseStatus.restored) {
+              // Sincronizar en silencio y consumir todos los paquetes pendientes para desbloquear Google Play
+              final added = await _deliverPurchaseToBackend(purchase, isSilent: true);
+              if (purchase.productID == productId) {
+                foundTarget = true;
+                creditedForTarget += added;
+              }
+            }
+          }
+        }
+
+        if (creditedForTarget > 0) {
+          // Era una compra real que aún no se había acreditado en el servidor
+          _purchaseResultController.add(IapPurchaseResult(
+            success: true,
+            alreadyProcessed: false,
+            productId: productId,
+            queriesAdded: creditedForTarget,
+            isSubscription: isSub,
+            message: isSub
+                ? '¡Suscripción sincronizada y activada con éxito!'
+                : '¡Paquete pendiente acreditado con éxito!',
+          ));
+          return;
+        }
+
+        if (isSub) {
+          _purchaseResultController.add(IapPurchaseResult(
+            success: true,
+            alreadyProcessed: true,
+            productId: productId,
+            queriesAdded: 0,
+            isSubscription: true,
+            message: 'Tu suscripción a este plan ya se encuentra activa en Google Play.',
+          ));
+        } else {
+          _purchaseResultController.add(IapPurchaseResult(
+            success: true,
+            alreadyProcessed: true,
+            productId: productId,
+            queriesAdded: 0,
+            isSubscription: false,
+            message: foundTarget
+                ? 'Se liberó una compra pendiente en Google Play. Ya puedes adquirir el paquete nuevamente.'
+                : 'El paquete ha sido sincronizado con Google Play. Intenta comprarlo nuevamente.',
+          ));
+        }
+        return;
+      }
+
+      // Fallback para iOS
+      _purchaseResultController.add(IapPurchaseResult(
+        success: false,
+        alreadyProcessed: true,
+        productId: productId,
+        isSubscription: isSub,
+        message: isSub
+            ? 'Ya tienes esta suscripción activa.'
+            : 'Compra previa detectada. Sincroniza tus compras con el botón de restaurar.',
+      ));
+    } catch (e) {
+      debugPrint('[IAP] Error recuperando ITEM_ALREADY_OWNED: $e');
+    } finally {
+      _isRecoveringAlreadyOwned = false;
+    }
+  }
+
+  /// Maneja los cambios de estado en el stream de Google Play
   Future<void> _onPurchaseUpdate(List<PurchaseDetails> purchaseDetailsList) async {
     if (purchaseDetailsList.isEmpty) {
-      isProcessing.value = false;
+      if (!_isManualRestore) {
+        _clearProcessingState();
+      }
       return;
     }
 
@@ -326,59 +521,136 @@ class InAppPurchaseService {
 
         case PurchaseStatus.purchased:
         case PurchaseStatus.restored:
-          await _deliverPurchaseToBackend(purchase);
+          // Si viene como restored o de una sincronización en segundo plano, procesarlo sin disparar múltiples modales
+          final bool isSilentEvent = _isCleaningUp ||
+              _isRecoveringAlreadyOwned ||
+              _isManualRestore ||
+              (purchase.status == PurchaseStatus.restored && pendingProductId.value != purchase.productID);
+          await _deliverPurchaseToBackend(purchase, isSilent: isSilentEvent);
           break;
 
         case PurchaseStatus.error:
-          isProcessing.value = false;
-          pendingProductId.value = null;
+          final targetProd = purchase.productID.isNotEmpty ? purchase.productID : pendingProductId.value;
           final errMsg = purchase.error?.message ?? '';
           final errCode = purchase.error?.code ?? '';
-          debugPrint('[IAP] Error en compra: $errCode - $errMsg');
+          debugPrint('[IAP] Error en compra ($targetProd): $errCode - $errMsg');
 
-          // Si el artículo ya fue comprado pero no se había consumido/acreditado (ITEM_ALREADY_OWNED),
-          // restauramos automáticamente para acreditarlo en el backend y consumirlo.
-          if (errMsg.toLowerCase().contains('already') ||
-              errCode.toLowerCase().contains('already') ||
-              errMsg.contains('7')) {
-            await _iap.restorePurchases();
-            return;
+          if (_isAlreadyOwnedError(errMsg, errCode)) {
+            await _handleAlreadyOwnedError(targetProd);
+            break;
           }
 
-          _purchaseResultController.add(IapPurchaseResult(
-            success: false,
-            productId: purchase.productID,
-            message: errMsg.isNotEmpty ? errMsg : 'La compra fue cancelada o falló.',
-          ));
+          _clearProcessingState();
+
+          final bool isUserCanceled = errMsg.toLowerCase().contains('cancel') ||
+              errCode.toLowerCase().contains('cancel') ||
+              errMsg.contains('1');
+
+          if (!isUserCanceled) {
+            _purchaseResultController.add(IapPurchaseResult(
+              success: false,
+              productId: targetProd,
+              message: errMsg.isNotEmpty ? errMsg : 'La compra no pudo completarse.',
+            ));
+          }
           if (purchase.pendingCompletePurchase) {
-            await _iap.completePurchase(purchase);
+            try {
+              await _iap.completePurchase(purchase);
+            } catch (_) {}
           }
           break;
 
         case PurchaseStatus.canceled:
-          isProcessing.value = false;
-          pendingProductId.value = null;
-          _purchaseResultController.add(IapPurchaseResult(
-            success: false,
-            productId: purchase.productID,
-            message: 'Compra cancelada por el usuario.',
-          ));
+          _clearProcessingState();
           if (purchase.pendingCompletePurchase) {
-            await _iap.completePurchase(purchase);
+            try {
+              await _iap.completePurchase(purchase);
+            } catch (_) {}
           }
           break;
       }
     }
   }
 
-  /// Envía la compra verificada por Google Play al backend y acredita las consultas
-  Future<void> _deliverPurchaseToBackend(PurchaseDetails purchase) async {
+  String _buildPurchaseKey(PurchaseDetails purchase) {
+    final rawId = (purchase.purchaseID ?? '').trim();
+    final token = purchase.verificationData.serverVerificationData.trim();
+    if (rawId.isNotEmpty) return '${purchase.productID}:$rawId';
+    if (token.isNotEmpty) return '${purchase.productID}:$token';
+    return '${purchase.productID}:${purchase.transactionDate ?? ''}';
+  }
+
+  /// Consume el paquete en Android (para que pueda volver a comprarse sin ITEM_ALREADY_OWNED)
+  /// y confirma (acknowledge) la transacción en Google Play / App Store.
+  Future<void> _finalizePurchaseInStore(
+    PurchaseDetails purchase, {
+    required bool isConsumable,
+  }) async {
+    if (isConsumable && !kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
+      try {
+        final androidAddition = _iap.getPlatformAddition<InAppPurchaseAndroidPlatformAddition>();
+        final billingResult = await androidAddition.consumePurchase(purchase);
+        debugPrint(
+          '[IAP] consumePurchase(${purchase.productID}) -> code=${billingResult.responseCode}, msg=${billingResult.debugMessage}',
+        );
+      } catch (e) {
+        debugPrint('[IAP] Aviso en consumePurchase(${purchase.productID}): $e');
+      }
+    }
+
+    if (purchase.pendingCompletePurchase) {
+      try {
+        await _iap.completePurchase(purchase);
+      } catch (e) {
+        debugPrint('[IAP] Aviso en completePurchase(${purchase.productID}): $e');
+      }
+    }
+  }
+
+  /// Envía la compra verificada por Google Play al backend, acredita consultas si es nueva,
+  /// y consume/finaliza la compra en la tienda para evitar bloqueos o duplicados.
+  /// Retorna la cantidad de consultas nuevas acreditadas (0 si ya había sido procesada antes).
+  Future<int> _deliverPurchaseToBackend(
+    PurchaseDetails purchase, {
+    bool isSilent = false,
+  }) async {
     final productId = purchase.productID;
     final isSub = subscriptionIds.contains(productId);
+    final isConsumable = packIds.contains(productId) || !isSub;
+    final purchaseKey = _buildPurchaseKey(purchase);
+
+    // Si esta misma compra ya fue finalizada en esta sesión, asegurar consumo en tienda y salir
+    if (_completedPurchaseKeys.contains(purchaseKey)) {
+      await _finalizePurchaseInStore(purchase, isConsumable: isConsumable);
+      if (!isSilent && pendingProductId.value == productId) {
+        _clearProcessingState();
+      }
+      return 0;
+    }
+
+    // Evitar llamadas concurrentes duplicadas al backend para la misma transacción
+    if (_inFlightPurchaseKeys.contains(purchaseKey)) {
+      return 0;
+    }
+    _inFlightPurchaseKeys.add(purchaseKey);
 
     try {
-      final transactionId = purchase.purchaseID ?? purchase.verificationData.serverVerificationData;
-      final token = purchase.verificationData.serverVerificationData;
+      final rawPurchaseId = (purchase.purchaseID ?? '').trim();
+      final token = purchase.verificationData.serverVerificationData.trim();
+      final transactionId = rawPurchaseId.isNotEmpty ? rawPurchaseId : token;
+
+      if (transactionId.isEmpty && token.isEmpty) {
+        debugPrint('[IAP] Transacción ignorada por no contener orderId ni purchaseToken.');
+        if (!isSilent) {
+          _clearProcessingState();
+          _purchaseResultController.add(IapPurchaseResult(
+            success: false,
+            productId: productId,
+            message: 'No se recibió un comprobante válido de Google Play.',
+          ));
+        }
+        return 0;
+      }
 
       final response = isSub
           ? await ApiClient.post(
@@ -406,110 +678,89 @@ class InAppPurchaseService {
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
+        final int queriesAdded = (data['queries_added'] is int) ? data['queries_added'] : 0;
+        final bool alreadyProcessed = data['already_processed'] == true || queriesAdded == 0;
 
-        // ¡MUY IMPORTANTE!: Consumir o finalizar la compra en Google Play para que no la cancele en 3 días
-        if (purchase.pendingCompletePurchase) {
-          await _iap.completePurchase(purchase);
+        _completedPurchaseKeys.add(purchaseKey);
+
+        // CRÍTICO: Consumir los paquetes en Android (consumePurchase) y completar (acknowledge)
+        // tanto si es compra nueva como si ya estaba procesada, para que Google Play NUNCA deje
+        // el paquete bloqueado con "Error: Ya compraste este artículo".
+        await _finalizePurchaseInStore(purchase, isConsumable: isConsumable);
+
+        if (!isSilent || pendingProductId.value == productId) {
+          _clearProcessingState();
         }
 
-        isProcessing.value = false;
-        pendingProductId.value = null;
+        if (!isSilent) {
+          _purchaseResultController.add(IapPurchaseResult(
+            success: true,
+            alreadyProcessed: alreadyProcessed,
+            productId: productId,
+            message: data['message'] ?? '¡Acreditación completada con éxito!',
+            queriesAdded: queriesAdded,
+            isSubscription: isSub,
+          ));
+        } else if (!alreadyProcessed && queriesAdded > 0) {
+          // Si durante una limpieza silenciosa se encontró una compra real pagada que no había sido acreditada,
+          // notificar una única vez al usuario de sus nuevas consultas.
+          _purchaseResultController.add(IapPurchaseResult(
+            success: true,
+            alreadyProcessed: false,
+            productId: productId,
+            message: data['message'] ?? '¡Compra pendiente acreditada con éxito!',
+            queriesAdded: queriesAdded,
+            isSubscription: isSub,
+          ));
+        }
 
-        _purchaseResultController.add(IapPurchaseResult(
-          success: true,
-          productId: productId,
-          message: data['message'] ?? '¡Acreditación completada con éxito!',
-          queriesAdded: data['queries_added'] ?? data['subscription_queries'] ?? 0,
-          isSubscription: isSub,
-        ));
+        return queriesAdded;
+      } else if (response.statusCode == 403 || response.statusCode == 409) {
+        // Si el servidor indica que el ítem único (ej. Pack Starter) ya fue canjeado antes,
+        // consumirlo en Google Play para que no quede atascado en el dispositivo.
+        _completedPurchaseKeys.add(purchaseKey);
+        await _finalizePurchaseInStore(purchase, isConsumable: isConsumable);
+
+        if (!isSilent) {
+          _clearProcessingState();
+          _purchaseResultController.add(IapPurchaseResult(
+            success: true,
+            alreadyProcessed: true,
+            productId: productId,
+            queriesAdded: 0,
+            isSubscription: isSub,
+            message: 'Este artículo ya fue acreditado anteriormente en tu cuenta.',
+          ));
+        }
+        return 0;
       } else {
-        isProcessing.value = false;
-        pendingProductId.value = null;
-
+        if (!isSilent) {
+          _clearProcessingState();
+          _purchaseResultController.add(IapPurchaseResult(
+            success: false,
+            productId: productId,
+            message: 'El servidor no pudo validar la compra (${response.statusCode}): ${response.body}',
+          ));
+        }
+        return 0;
+      }
+    } catch (e) {
+      if (!isSilent) {
+        _clearProcessingState();
         _purchaseResultController.add(IapPurchaseResult(
           success: false,
           productId: productId,
-          message: 'El servidor no pudo validar la compra (${response.statusCode}): ${response.body}',
+          message: 'Error al verificar la compra con el servidor: $e',
         ));
       }
-    } catch (e) {
-      isProcessing.value = false;
-      pendingProductId.value = null;
-
-      _purchaseResultController.add(IapPurchaseResult(
-        success: false,
-        productId: productId,
-        message: 'Error al enviar compra al servidor: $e',
-      ));
-    }
-  }
-
-  /// Modo fallback/desarrollo cuando los productos aún no están publicados o se prueba en emulador
-  Future<bool> _simulateBackendPurchase({
-    String? packId,
-    String? planId,
-    required bool isSubscription,
-  }) async {
-    try {
-      final id = isSubscription ? planId! : packId!;
-      final txId = 'test_gp_${DateTime.now().millisecondsSinceEpoch}';
-
-      final response = isSubscription
-          ? await ApiClient.post(
-              '/api/v1/store/subscribe',
-              authenticated: true,
-              body: {
-                'plan_id': id,
-                'provider': 'google_play_sandbox',
-                'provider_transaction_id': txId,
-                'package_name': 'com.drafting.app',
-              },
-            )
-          : await ApiClient.post(
-              '/api/v1/store/purchase-pack',
-              authenticated: true,
-              body: {
-                'pack_id': id,
-                'provider': 'google_play_sandbox',
-                'provider_transaction_id': txId,
-                'package_name': 'com.drafting.app',
-              },
-            );
-
-      isProcessing.value = false;
-      pendingProductId.value = null;
-
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        _purchaseResultController.add(IapPurchaseResult(
-          success: true,
-          productId: id,
-          message: data['message'] ?? '¡Acreditación completada con éxito!',
-          queriesAdded: data['queries_added'] ?? data['subscription_queries'] ?? 0,
-          isSubscription: isSubscription,
-        ));
-        return true;
-      } else {
-        _purchaseResultController.add(IapPurchaseResult(
-          success: false,
-          productId: id,
-          message: response.body.isNotEmpty ? response.body : 'Error en la compra.',
-        ));
-        return false;
-      }
-    } catch (e) {
-      isProcessing.value = false;
-      pendingProductId.value = null;
-      _purchaseResultController.add(IapPurchaseResult(
-        success: false,
-        productId: isSubscription ? planId : packId,
-        message: 'Error de conexión: $e',
-      ));
-      return false;
+      return 0;
+    } finally {
+      _inFlightPurchaseKeys.remove(purchaseKey);
     }
   }
 
   void dispose() {
+    _processingTimeoutTimer?.cancel();
     _subscription?.cancel();
     _purchaseResultController.close();
   }

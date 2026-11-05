@@ -2,7 +2,7 @@ name: drafting
 description: "A new Flutter project."
 publish_to: 'none'
 
-version: 1.0.5+35
+version: 1.0.5+37
 
 environment:
   sdk: ^3.12.1
@@ -19,6 +19,7 @@ dependencies:
   google_sign_in: ^7.2.0
   google_fonts: ^8.2.1
   in_app_purchase: ^3.3.1
+  in_app_purchase_android: ^0.5.5
   google_mobile_ads: ^9.2.0
 
 dev_dependencies:

@@ -46,6 +46,7 @@ class _StoreScreenState extends State<StoreScreen> {
   int _selectedTransferAmount = 5;
   bool _isTransferring = false;
   bool _isPurchasing = false;
+  bool _isShowingCelebrationDialog = false;
 
   StreamSubscription<IapPurchaseResult>? _iapSubscription;
 
@@ -63,15 +64,19 @@ class _StoreScreenState extends State<StoreScreen> {
       setState(() => _isPurchasing = false);
 
       if (result.success) {
-        HapticFeedback.heavyImpact();
         widget.onDataChanged();
-        _fetchCatalog();
+        _fetchCatalog(silent: true);
 
-        _showCelebrationDialog(
-          title: result.isSubscription ? '¡Suscripción Activada!' : '¡Paquete Adquirido!',
-          message: result.message ?? 'Se han acreditado las consultas con éxito.',
-          queries: result.queriesAdded,
-        );
+        if (!result.alreadyProcessed && result.queriesAdded > 0) {
+          HapticFeedback.heavyImpact();
+          _showCelebrationDialog(
+            title: result.isSubscription ? '¡Suscripción Activada!' : '¡Paquete Adquirido!',
+            message: result.message ?? 'Se han acreditado las consultas con éxito.',
+            queries: result.queriesAdded,
+          );
+        } else if (result.message != null && result.message!.isNotEmpty) {
+          _showInfoSnackBar(result.message!);
+        }
       } else {
         if (result.message != null &&
             result.message!.isNotEmpty &&
@@ -90,11 +95,13 @@ class _StoreScreenState extends State<StoreScreen> {
     super.dispose();
   }
 
-  Future<void> _fetchCatalog() async {
-    setState(() {
-      _isLoading = true;
-      _errorMessage = null;
-    });
+  Future<void> _fetchCatalog({bool silent = false}) async {
+    if (!silent || (_packs.isEmpty && _subscriptions.isEmpty)) {
+      setState(() {
+        _isLoading = true;
+        _errorMessage = null;
+      });
+    }
 
     try {
       final response = await ApiClient.get('/api/v1/store/catalog', authenticated: true);
@@ -152,10 +159,15 @@ class _StoreScreenState extends State<StoreScreen> {
   Future<void> _subscribe(Map<String, dynamic> sub) async {
     if (_isPurchasing) return;
 
+    final planId = sub['id'] ?? '';
+    if (_isSubscribed && _subscriptionPlan == planId) {
+      _showInfoSnackBar('Ya tienes este pase mensual activo en tu cuenta.');
+      return;
+    }
+
     setState(() => _isPurchasing = true);
     HapticFeedback.mediumImpact();
 
-    final planId = sub['id'] ?? '';
     final launched = await InAppPurchaseService.instance.buySubscription(planId);
     if (!launched && mounted) {
       setState(() => _isPurchasing = false);
@@ -243,17 +255,44 @@ class _StoreScreenState extends State<StoreScreen> {
 
   void _showErrorSnackBar(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        backgroundColor: const Color(0xFFEF4444),
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        content: Text(
-          message,
-          style: GoogleFonts.outfit(color: Colors.white),
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          backgroundColor: const Color(0xFFEF4444),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          content: Text(
+            message,
+            style: GoogleFonts.outfit(color: Colors.white),
+          ),
         ),
-      ),
-    );
+      );
+  }
+
+  void _showInfoSnackBar(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          backgroundColor: const Color(0xFF1E293B),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          content: Row(
+            children: [
+              const Icon(Icons.info_outline_rounded, color: Color(0xFF00E5FF), size: 20),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  message,
+                  style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.w500),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
   }
 
   void _showCelebrationDialog({
@@ -261,6 +300,8 @@ class _StoreScreenState extends State<StoreScreen> {
     required String message,
     required int queries,
   }) {
+    if (!mounted || _isShowingCelebrationDialog) return;
+    _isShowingCelebrationDialog = true;
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -334,7 +375,9 @@ class _StoreScreenState extends State<StoreScreen> {
           ],
         ),
       ),
-    );
+    ).whenComplete(() {
+      _isShowingCelebrationDialog = false;
+    });
   }
 
   void _showSubscriptionRequiredDialog() {

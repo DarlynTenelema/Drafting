@@ -15,7 +15,8 @@ type Transaction struct {
 	AmountUSD              float64        `gorm:"type:decimal(10,2);not null" json:"amount_usd"`
 	QueriesAdded           int            `gorm:"not null" json:"queries_added"`
 	Provider               string         `gorm:"type:varchar(50);default:'google_play'" json:"provider"`
-	ProviderTransactionID string         `gorm:"type:varchar(255)" json:"provider_transaction_id"`
+	ProviderTransactionID  string         `gorm:"type:varchar(255);index" json:"provider_transaction_id"`
+	PurchaseToken          string         `gorm:"type:text;index" json:"purchase_token,omitempty"`
 	Status                 string         `gorm:"type:varchar(50);default:'completed'" json:"status"`
 	CreatedAt              time.Time      `json:"created_at"`
 	DeletedAt              gorm.DeletedAt `gorm:"index" json:"-"`

@@ -91,12 +91,14 @@ func Connect() {
 	db.Exec(`ALTER TABLE transactions ADD COLUMN IF NOT EXISTS queries_added integer DEFAULT 0`)
 	db.Exec(`ALTER TABLE transactions ADD COLUMN IF NOT EXISTS provider varchar(50) DEFAULT 'google_play'`)
 	db.Exec(`ALTER TABLE transactions ADD COLUMN IF NOT EXISTS provider_transaction_id varchar(255)`)
+	db.Exec(`ALTER TABLE transactions ADD COLUMN IF NOT EXISTS purchase_token text DEFAULT ''`)
 	db.Exec(`ALTER TABLE transactions ADD COLUMN IF NOT EXISTS status varchar(50) DEFAULT 'completed'`)
 	db.Exec(`ALTER TABLE transactions ADD COLUMN IF NOT EXISTS created_at timestamp with time zone`)
 	db.Exec(`ALTER TABLE transactions ADD COLUMN IF NOT EXISTS deleted_at timestamp with time zone`)
 
 	db.Exec(`CREATE INDEX IF NOT EXISTS idx_transactions_user_id ON transactions(user_id)`)
 	db.Exec(`CREATE INDEX IF NOT EXISTS idx_transactions_provider_tx_id ON transactions(provider_transaction_id)`)
+	db.Exec(`CREATE INDEX IF NOT EXISTS idx_transactions_purchase_token ON transactions(purchase_token)`)
 
 	db.Exec(`CREATE TABLE IF NOT EXISTS query_transfers (
 		id uuid PRIMARY KEY DEFAULT gen_random_uuid(),

@@ -64,6 +64,21 @@ func main() {
 		_, _ = w.Write([]byte("ok"))
 	})
 
+	// Google AdMob Verification (app-ads.txt) servido directamente desde Railway
+	r.Get("/app-ads.txt", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		w.Header().Set("Cache-Control", "public, max-age=3600")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("google.com, pub-6984024121811101, DIRECT, f08c47fec0942fa0\n"))
+	})
+
+	// Landing / Root endpoint para calentamiento de servidor y verificación de dominio
+	r.Get("/", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("<!DOCTYPE html><html lang=\"es\"><head><meta charset=\"UTF-8\"><title>Drafting</title></head><body><h1>Drafting</h1><p>Asistente inteligente para Wild Rift.</p></body></html>"))
+	})
+
 	// Routes Definition
 	registerAppRoutes := func(r chi.Router) {
 		// Public Routes

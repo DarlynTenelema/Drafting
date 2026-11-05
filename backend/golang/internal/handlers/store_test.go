@@ -82,3 +82,29 @@ func TestSubscriptionResolutionAndEconomics(t *testing.T) {
 		})
 	}
 }
+
+func TestValidateStoreReceiptSecurity(t *testing.T) {
+	// 1. Debe rechazar comprobantes vacíos (nunca autogenerar IDs que regalen consultas)
+	if _, _, _, errMsg := handlers.ValidateStoreReceipt("google_play", "", ""); errMsg == "" {
+		t.Errorf("Se esperaba error cuando txID y token están vacíos")
+	}
+
+	// 2. Debe rechazar proveedores sandbox o de prueba
+	if _, _, _, errMsg := handlers.ValidateStoreReceipt("google_play_sandbox", "GPA.1234", "tok_123"); errMsg == "" {
+		t.Errorf("Se esperaba rechazo para proveedor google_play_sandbox")
+	}
+
+	// 3. Debe rechazar IDs de transacción simulados (test_gp_...)
+	if _, _, _, errMsg := handlers.ValidateStoreReceipt("google_play", "test_gp_123456", "tok_123"); errMsg == "" {
+		t.Errorf("Se esperaba rechazo para txID simulado test_gp_...")
+	}
+
+	// 4. Si orderId viene vacío pero purchase_token existe, debe usar purchase_token como txID idempotente
+	prov, txID, tok, errMsg := handlers.ValidateStoreReceipt("", "", "real_play_token_abc123")
+	if errMsg != "" {
+		t.Fatalf("No se esperaba error con purchase_token válido: %s", errMsg)
+	}
+	if prov != "google_play" || txID != "real_play_token_abc123" || tok != "real_play_token_abc123" {
+		t.Errorf("Normalización inesperada: prov=%s, txID=%s, tok=%s", prov, txID, tok)
+	}
+}

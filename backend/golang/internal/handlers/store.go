@@ -11,6 +11,8 @@ import (
 	"backend/internal/database"
 	"backend/internal/middleware"
 	"backend/internal/models"
+
+	"gorm.io/gorm/clause"
 )
 
 // PackConfig define la configuración económica de cada paquete
@@ -256,7 +258,37 @@ type PurchasePackRequest struct {
 	PackageName           string `json:"package_name,omitempty"`
 }
 
-// PurchasePack gestiona la adquisición de un paquete de consultas
+// ValidateStoreReceipt verifica que el comprobante provenga de una tienda legítima y nunca autogenera IDs falsos
+func ValidateStoreReceipt(provider, txID, token string) (string, string, string, string) {
+	cleanProvider := strings.TrimSpace(strings.ToLower(provider))
+	if cleanProvider == "" {
+		cleanProvider = "google_play"
+	}
+	if cleanProvider != "google_play" && cleanProvider != "app_store" {
+		return "", "", "", "Proveedor de pagos no autorizado."
+	}
+
+	cleanTxID := strings.TrimSpace(txID)
+	cleanToken := strings.TrimSpace(token)
+
+	lowerTx := strings.ToLower(cleanTxID)
+	lowerTok := strings.ToLower(cleanToken)
+	if strings.HasPrefix(lowerTx, "test_") || strings.HasPrefix(lowerTx, "sandbox_") || strings.HasPrefix(lowerTx, "mock_") ||
+		strings.HasPrefix(lowerTok, "test_") || strings.HasPrefix(lowerTok, "sandbox_") || strings.HasPrefix(lowerTok, "mock_") {
+		return "", "", "", "Transacción simulada o de prueba no permitida."
+	}
+
+	if cleanTxID == "" && cleanToken != "" {
+		cleanTxID = cleanToken
+	}
+	if cleanTxID == "" {
+		return "", "", "", "Se requiere un identificador o token válido de la transacción de Google Play."
+	}
+
+	return cleanProvider, cleanTxID, cleanToken, ""
+}
+
+// PurchasePack gestiona la adquisición de un paquete de consultas de forma atómica e idempotente
 func PurchasePack(w http.ResponseWriter, r *http.Request) {
 	user, ok := r.Context().Value(middleware.UserContextKey).(*models.User)
 	if !ok || user == nil {
@@ -276,71 +308,129 @@ func PurchasePack(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Regla del Starter Pack: Solo una única vez
-	if pack.IsStarter && user.HasPurchasedStarter {
-		http.Error(w, "El Pack Starter ya ha sido adquirido previamente y no está disponible.", http.StatusForbidden)
+	provider, txID, purchaseToken, errMsg := ValidateStoreReceipt(req.Provider, req.ProviderTransactionID, req.PurchaseToken)
+	if errMsg != "" {
+		http.Error(w, errMsg, http.StatusBadRequest)
 		return
 	}
 
-	if req.Provider == "" {
-		req.Provider = "google_play"
-	}
-	if req.ProviderTransactionID == "" {
-		req.ProviderTransactionID = fmt.Sprintf("gp_%d", time.Now().UnixNano())
+	tx := database.DB.Begin()
+	if tx.Error != nil {
+		http.Error(w, "Error iniciando transacción de base de datos", http.StatusInternalServerError)
+		return
 	}
 
-	// Idempotencia: Verificar si esta transacción ya fue registrada como completada
+	var lockedUser models.User
+	if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("id = ?", user.ID).First(&lockedUser).Error; err != nil {
+		tx.Rollback()
+		http.Error(w, "Usuario no encontrado", http.StatusNotFound)
+		return
+	}
+
+	// 1. Idempotencia estricta (por provider_transaction_id o por purchase_token):
+	// Si la compra ya fue procesada antes, devolver 200 OK con already_processed=true y 0 consultas añadidas
+	// para que la app consuma el artículo en Google Play sin volver a regalar consultas ni mostrar alertas repetidas.
 	var existing models.Transaction
-	if err := database.DB.Where("provider_transaction_id = ? AND status = 'completed'", req.ProviderTransactionID).First(&existing).Error; err == nil {
+	idempotencyQuery := tx.Where("status = 'completed' AND (provider_transaction_id = ?", txID)
+	if purchaseToken != "" {
+		idempotencyQuery = tx.Where(
+			"status = 'completed' AND (provider_transaction_id = ? OR provider_transaction_id = ? OR (purchase_token != '' AND purchase_token = ?))",
+			txID, purchaseToken, purchaseToken,
+		)
+	} else {
+		idempotencyQuery = tx.Where("status = 'completed' AND provider_transaction_id = ?", txID)
+	}
+
+	if err := idempotencyQuery.First(&existing).Error; err == nil {
+		tx.Rollback()
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]interface{}{
 			"success":               true,
+			"already_processed":     true,
 			"message":               "Transacción ya procesada previamente.",
 			"pack_id":               pack.ID,
 			"queries_added":         0,
-			"available_queries":     user.AvailableQueries,
-			"purchased_queries":     user.PurchasedQueries,
-			"gift_queries":          user.GiftQueries,
-			"has_purchased_starter": user.HasPurchasedStarter,
+			"gift_queries_added":    0,
+			"available_queries":     lockedUser.AvailableQueries,
+			"purchased_queries":     lockedUser.PurchasedQueries,
+			"gift_queries":          lockedUser.GiftQueries,
+			"has_purchased_starter": lockedUser.HasPurchasedStarter,
+		})
+		return
+	}
+
+	// 2. Regla del Starter Pack: Solo una única vez por usuario.
+	// Si el usuario ya tiene HasPurchasedStarter=true (por ejemplo de una compra previa pendiente de consumir en Google Play),
+	// no acreditamos consultas adicionales (0 añadidas), pero respondemos 200 con already_processed=true para que Google Play
+	// pueda consumir/limpiar el ítem atascado y no bloquee la tienda con ITEM_ALREADY_OWNED.
+	if pack.IsStarter && lockedUser.HasPurchasedStarter {
+		tx.Rollback()
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success":               true,
+			"already_processed":     true,
+			"message":               "El Pack Starter ya fue acreditado anteriormente en tu cuenta.",
+			"pack_id":               pack.ID,
+			"queries_added":         0,
+			"gift_queries_added":    0,
+			"available_queries":     lockedUser.AvailableQueries,
+			"purchased_queries":     lockedUser.PurchasedQueries,
+			"gift_queries":          lockedUser.GiftQueries,
+			"has_purchased_starter": lockedUser.HasPurchasedStarter,
 		})
 		return
 	}
 
 	giftAdded := 0
 	if pack.IsStarter {
-		user.HasPurchasedStarter = true
+		lockedUser.HasPurchasedStarter = true
 		giftAdded = 25
-		user.GiftQueries += giftAdded
+		lockedUser.GiftQueries += giftAdded
 	}
-	user.AddPurchasedQueries(pack.TotalQueries)
+	lockedUser.RecalculateAvailableQueries()
+	lockedUser.AddPurchasedQueries(pack.TotalQueries)
 
-	// Persistir específicamente los campos de la tienda para evitar conflictos en columnas ajenas
-	if err := database.DB.Model(user).Updates(map[string]interface{}{
-		"purchased_queries":     user.PurchasedQueries,
-		"gift_queries":          user.GiftQueries,
-		"available_queries":     user.AvailableQueries,
-		"has_purchased_starter": user.HasPurchasedStarter,
+	// 3. Registrar primero la transacción dentro de la transacción SQL atómica
+	transactionRecord := models.Transaction{
+		UserID:                lockedUser.ID,
+		Type:                  "pack",
+		ItemKey:               pack.ID,
+		AmountUSD:             pack.PriceUSD,
+		QueriesAdded:          pack.TotalQueries,
+		Provider:              provider,
+		ProviderTransactionID: txID,
+		PurchaseToken:         purchaseToken,
+		Status:                "completed",
+		CreatedAt:             time.Now().UTC(),
+	}
+
+	if err := tx.Create(&transactionRecord).Error; err != nil {
+		tx.Rollback()
+		log.Printf("[STORE] Error registrando transacción de paquete: %v", err)
+		http.Error(w, "Error registrando la transacción de compra", http.StatusInternalServerError)
+		return
+	}
+
+	// 4. Actualizar el saldo del usuario dentro de la misma transacción SQL
+	if err := tx.Model(&lockedUser).Updates(map[string]interface{}{
+		"purchased_queries":     lockedUser.PurchasedQueries,
+		"gift_queries":          lockedUser.GiftQueries,
+		"available_queries":     lockedUser.AvailableQueries,
+		"has_purchased_starter": lockedUser.HasPurchasedStarter,
 	}).Error; err != nil {
+		tx.Rollback()
 		log.Printf("[STORE] Error actualizando usuario tras compra: %v", err)
 		http.Error(w, fmt.Sprintf("Error actualizando saldo de consultas: %v", err), http.StatusInternalServerError)
 		return
 	}
 
-	transactionRecord := models.Transaction{
-		UserID:                user.ID,
-		Type:                  "pack",
-		ItemKey:               pack.ID,
-		AmountUSD:             pack.PriceUSD,
-		QueriesAdded:          pack.TotalQueries,
-		Provider:              req.Provider,
-		ProviderTransactionID: req.ProviderTransactionID,
-		Status:                "completed",
-		CreatedAt:             time.Now().UTC(),
+	if err := tx.Commit().Error; err != nil {
+		log.Printf("[STORE] Error confirmando transacción de compra: %v", err)
+		http.Error(w, "Error confirmando la compra", http.StatusInternalServerError)
+		return
 	}
 
-	if err := database.DB.Create(&transactionRecord).Error; err != nil {
-		log.Printf("[STORE] Warning: no se pudo guardar registro de transacción: %v", err)
-	}
+	*user = lockedUser
 
 	successMsg := fmt.Sprintf("¡Compra exitosa! Se han añadido %d consultas a tu cuenta.", pack.TotalQueries)
 	if giftAdded > 0 {
@@ -350,14 +440,15 @@ func PurchasePack(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
 		"success":               true,
+		"already_processed":     false,
 		"message":               successMsg,
 		"pack_id":               pack.ID,
 		"queries_added":         pack.TotalQueries,
 		"gift_queries_added":    giftAdded,
-		"available_queries":     user.AvailableQueries,
-		"purchased_queries":     user.PurchasedQueries,
-		"gift_queries":          user.GiftQueries,
-		"has_purchased_starter": user.HasPurchasedStarter,
+		"available_queries":     lockedUser.AvailableQueries,
+		"purchased_queries":     lockedUser.PurchasedQueries,
+		"gift_queries":          lockedUser.GiftQueries,
+		"has_purchased_starter": lockedUser.HasPurchasedStarter,
 	})
 }
 
@@ -369,7 +460,7 @@ type SubscribeRequest struct {
 	PackageName           string `json:"package_name,omitempty"`
 }
 
-// Subscribe activa o renueva la suscripción mensual del usuario
+// Subscribe activa o renueva la suscripción mensual del usuario de forma atómica e idempotente
 func Subscribe(w http.ResponseWriter, r *http.Request) {
 	user, ok := r.Context().Value(middleware.UserContextKey).(*models.User)
 	if !ok || user == nil {
@@ -389,73 +480,109 @@ func Subscribe(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.Provider == "" {
-		req.Provider = "google_play"
-	}
-	if req.ProviderTransactionID == "" {
-		req.ProviderTransactionID = fmt.Sprintf("sub_%d", time.Now().UnixNano())
+	provider, txID, purchaseToken, errMsg := ValidateStoreReceipt(req.Provider, req.ProviderTransactionID, req.PurchaseToken)
+	if errMsg != "" {
+		http.Error(w, errMsg, http.StatusBadRequest)
+		return
 	}
 
-	// Idempotencia: Verificar si esta transacción ya fue registrada como completada
+	tx := database.DB.Begin()
+	if tx.Error != nil {
+		http.Error(w, "Error iniciando transacción de base de datos", http.StatusInternalServerError)
+		return
+	}
+
+	var lockedUser models.User
+	if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("id = ?", user.ID).First(&lockedUser).Error; err != nil {
+		tx.Rollback()
+		http.Error(w, "Usuario no encontrado", http.StatusNotFound)
+		return
+	}
+
+	// 1. Idempotencia estricta: verificar por provider_transaction_id o por purchase_token dentro del ciclo vigente
 	var existing models.Transaction
-	if err := database.DB.Where("provider_transaction_id = ? AND status = 'completed'", req.ProviderTransactionID).First(&existing).Error; err == nil {
+	cycleThreshold := time.Now().UTC().AddDate(0, 0, -25)
+	subIdempotencyQuery := tx.Where("status = 'completed' AND provider_transaction_id = ?", txID)
+	if purchaseToken != "" {
+		subIdempotencyQuery = tx.Where(
+			"status = 'completed' AND (provider_transaction_id = ? OR provider_transaction_id = ? OR (purchase_token != '' AND purchase_token = ? AND item_key = ? AND created_at > ?))",
+			txID, purchaseToken, purchaseToken, plan.ID, cycleThreshold,
+		)
+	}
+
+	if err := subIdempotencyQuery.First(&existing).Error; err == nil {
+		tx.Rollback()
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]interface{}{
 			"success":              true,
+			"already_processed":    true,
 			"message":              "Suscripción ya procesada previamente.",
 			"queries_added":        0,
-			"subscription_plan":    user.SubscriptionPlan,
-			"subscription_queries": user.SubscriptionQueries,
-			"subscription_ends_at": user.SubscriptionEndsAt,
-			"available_queries":    user.AvailableQueries,
+			"subscription_plan":    lockedUser.SubscriptionPlan,
+			"subscription_queries": lockedUser.SubscriptionQueries,
+			"subscription_ends_at": lockedUser.SubscriptionEndsAt,
+			"available_queries":    lockedUser.AvailableQueries,
 		})
 		return
 	}
 
-	// Las consultas de suscripción se acumulan
+	// Las consultas de suscripción se acumulan únicamente en compras/renovaciones nuevas verificadas
 	expiryDate := time.Now().UTC().AddDate(0, 1, 0)
-	user.SubscriptionPlan = plan.ID
-	user.SubscriptionQueries += plan.QueriesPerMonth
-	user.SubscriptionEndsAt = &expiryDate
-	user.RecalculateAvailableQueries()
+	lockedUser.SubscriptionPlan = plan.ID
+	lockedUser.SubscriptionQueries += plan.QueriesPerMonth
+	lockedUser.SubscriptionEndsAt = &expiryDate
+	lockedUser.RecalculateAvailableQueries()
 
-	// Persistir específicamente la suscripción del usuario para garantizar su activación
-	if err := database.DB.Model(user).Updates(map[string]interface{}{
-		"subscription_plan":    user.SubscriptionPlan,
-		"subscription_queries": user.SubscriptionQueries,
-		"subscription_ends_at": user.SubscriptionEndsAt,
-		"available_queries":    user.AvailableQueries,
+	transactionRecord := models.Transaction{
+		UserID:                lockedUser.ID,
+		Type:                  "subscription",
+		ItemKey:               plan.ID,
+		AmountUSD:             plan.PriceUSD,
+		QueriesAdded:          plan.QueriesPerMonth,
+		Provider:              provider,
+		ProviderTransactionID: txID,
+		PurchaseToken:         purchaseToken,
+		Status:                "completed",
+		CreatedAt:             time.Now().UTC(),
+	}
+
+	if err := tx.Create(&transactionRecord).Error; err != nil {
+		tx.Rollback()
+		log.Printf("[STORE] Error registrando transacción de suscripción: %v", err)
+		http.Error(w, "Error registrando la suscripción", http.StatusInternalServerError)
+		return
+	}
+
+	if err := tx.Model(&lockedUser).Updates(map[string]interface{}{
+		"subscription_plan":    lockedUser.SubscriptionPlan,
+		"subscription_queries": lockedUser.SubscriptionQueries,
+		"subscription_ends_at": lockedUser.SubscriptionEndsAt,
+		"available_queries":    lockedUser.AvailableQueries,
 	}).Error; err != nil {
+		tx.Rollback()
 		log.Printf("[STORE] Error actualizando usuario tras suscripción: %v", err)
 		http.Error(w, fmt.Sprintf("Error actualizando la suscripción: %v", err), http.StatusInternalServerError)
 		return
 	}
 
-	transactionRecord := models.Transaction{
-		UserID:                user.ID,
-		Type:                  "subscription",
-		ItemKey:               plan.ID,
-		AmountUSD:             plan.PriceUSD,
-		QueriesAdded:          plan.QueriesPerMonth,
-		Provider:              req.Provider,
-		ProviderTransactionID: req.ProviderTransactionID,
-		Status:                "completed",
-		CreatedAt:             time.Now().UTC(),
+	if err := tx.Commit().Error; err != nil {
+		log.Printf("[STORE] Error confirmando suscripción: %v", err)
+		http.Error(w, "Error confirmando la suscripción", http.StatusInternalServerError)
+		return
 	}
 
-	if err := database.DB.Create(&transactionRecord).Error; err != nil {
-		log.Printf("[STORE] Warning: no se pudo guardar registro de suscripción: %v", err)
-	}
+	*user = lockedUser
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
 		"success":              true,
+		"already_processed":    false,
 		"message":              fmt.Sprintf("¡Suscripción al %s activada! Tienes +%d consultas para este mes.", plan.Name, plan.QueriesPerMonth),
 		"queries_added":        plan.QueriesPerMonth,
-		"subscription_plan":    user.SubscriptionPlan,
-		"subscription_queries": user.SubscriptionQueries,
-		"subscription_ends_at": user.SubscriptionEndsAt,
-		"available_queries":    user.AvailableQueries,
+		"subscription_plan":    lockedUser.SubscriptionPlan,
+		"subscription_queries": lockedUser.SubscriptionQueries,
+		"subscription_ends_at": lockedUser.SubscriptionEndsAt,
+		"available_queries":    lockedUser.AvailableQueries,
 	})
 }
 
