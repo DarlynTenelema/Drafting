@@ -40,9 +40,9 @@ func Connect() {
 
 	log.Println("Connected to the database successfully.")
 
-	db.Exec(`ALTER TABLE users ADD COLUMN IF NOT EXISTS available_queries integer DEFAULT 13`)
+	db.Exec(`ALTER TABLE users ADD COLUMN IF NOT EXISTS available_queries integer DEFAULT 8`)
 	db.Exec(`ALTER TABLE users ADD COLUMN IF NOT EXISTS daily_queries integer DEFAULT 3`)
-	db.Exec(`ALTER TABLE users ADD COLUMN IF NOT EXISTS bonus_queries integer DEFAULT 10`)
+	db.Exec(`ALTER TABLE users ADD COLUMN IF NOT EXISTS bonus_queries integer DEFAULT 5`)
 	db.Exec(`ALTER TABLE users ADD COLUMN IF NOT EXISTS ad_queries integer DEFAULT 0`)
 	db.Exec(`ALTER TABLE users ADD COLUMN IF NOT EXISTS last_daily_reward_date varchar(10) DEFAULT ''`)
 	db.Exec(`ALTER TABLE users ADD COLUMN IF NOT EXISTS referral_code varchar(16) DEFAULT ''`)
@@ -53,11 +53,12 @@ func Connect() {
 	// Asignar códigos únicos a usuarios existentes para que no tengan '' repetido
 	db.Exec(`UPDATE users SET referral_code = 'WR' || UPPER(SUBSTRING(REPLACE(id::text, '-', ''), 1, 6)) WHERE referral_code IS NULL OR referral_code = ''`)
 
-	// Backfill para usuarios existentes: garantizar que daily_queries tenga tope 3 y el resto en ad/bonus
-	db.Exec(`UPDATE users SET daily_queries = 3, bonus_queries = LEAST(10, GREATEST(0, available_queries - 3)), ad_queries = GREATEST(0, available_queries - 13) WHERE daily_queries IS NULL OR daily_queries = 0`)
+	// Backfill solo para usuarios legacy que nunca tuvieron desglose inicializado
+	db.Exec(`UPDATE users SET daily_queries = 3, bonus_queries = LEAST(10, GREATEST(0, available_queries - 3)), ad_queries = GREATEST(0, available_queries - 13), last_daily_reward_date = TO_CHAR(NOW() AT TIME ZONE 'UTC', 'YYYY-MM-DD') WHERE (last_daily_reward_date IS NULL OR last_daily_reward_date = '') AND (daily_queries IS NULL OR daily_queries = 0)`)
 
 	db.Exec(`ALTER TABLE users ADD COLUMN IF NOT EXISTS purchased_queries integer DEFAULT 0`)
 	db.Exec(`ALTER TABLE users ADD COLUMN IF NOT EXISTS subscription_queries integer DEFAULT 0`)
+	db.Exec(`ALTER TABLE users ADD COLUMN IF NOT EXISTS gift_queries integer DEFAULT 0`)
 	db.Exec(`ALTER TABLE users ADD COLUMN IF NOT EXISTS subscription_plan varchar(50) DEFAULT 'none'`)
 	db.Exec(`ALTER TABLE users ADD COLUMN IF NOT EXISTS subscription_ends_at timestamp with time zone`)
 	db.Exec(`ALTER TABLE users ADD COLUMN IF NOT EXISTS has_purchased_starter boolean DEFAULT false`)
@@ -65,6 +66,9 @@ func Connect() {
 	db.Exec(`ALTER TABLE users ADD COLUMN IF NOT EXISTS last_transfer_date varchar(10) DEFAULT ''`)
 	db.Exec(`ALTER TABLE users ADD COLUMN IF NOT EXISTS daily_received_today integer DEFAULT 0`)
 	db.Exec(`ALTER TABLE users ADD COLUMN IF NOT EXISTS last_received_date varchar(10) DEFAULT ''`)
+
+	// Sincronizar available_queries con la suma real de bolsas para reparar cuentas de versiones anteriores
+	db.Exec(`UPDATE users SET available_queries = GREATEST(0, COALESCE(daily_queries, 0) + COALESCE(bonus_queries, 0) + COALESCE(ad_queries, 0) + COALESCE(purchased_queries, 0) + COALESCE(subscription_queries, 0)) WHERE available_queries != GREATEST(0, COALESCE(daily_queries, 0) + COALESCE(bonus_queries, 0) + COALESCE(ad_queries, 0) + COALESCE(purchased_queries, 0) + COALESCE(subscription_queries, 0))`)
 
 	// Tablas de Tienda, Transacciones y Transferencias (Garantizadas en Producción)
 	db.Exec(`CREATE TABLE IF NOT EXISTS transactions (
@@ -105,9 +109,11 @@ func Connect() {
 		deleted_at timestamp with time zone
 	)`)
 	db.Exec(`ALTER TABLE query_transfers ADD COLUMN IF NOT EXISTS sender_id uuid`)
+	db.Exec(`ALTER TABLE query_transfers ALTER COLUMN sender_id DROP NOT NULL`)
 	db.Exec(`ALTER TABLE query_transfers ADD COLUMN IF NOT EXISTS from_user_id uuid`)
 	db.Exec(`ALTER TABLE query_transfers ADD COLUMN IF NOT EXISTS from_referral_code varchar(16)`)
 	db.Exec(`ALTER TABLE query_transfers ADD COLUMN IF NOT EXISTS receiver_id uuid`)
+	db.Exec(`ALTER TABLE query_transfers ALTER COLUMN receiver_id DROP NOT NULL`)
 	db.Exec(`ALTER TABLE query_transfers ADD COLUMN IF NOT EXISTS to_user_id uuid`)
 	db.Exec(`ALTER TABLE query_transfers ADD COLUMN IF NOT EXISTS to_referral_code varchar(16)`)
 	db.Exec(`ALTER TABLE query_transfers ADD COLUMN IF NOT EXISTS amount integer DEFAULT 0`)
@@ -121,9 +127,17 @@ func Connect() {
 	db.Exec(`UPDATE users 
 		SET available_queries = available_queries + 50, 
 		    purchased_queries = purchased_queries + 50, 
+		    gift_queries = COALESCE(gift_queries, 0) + 25,
 		    has_purchased_starter = true 
 		WHERE id = '527e0507-28ea-4548-b51e-a3458871cd1b' 
 		  AND has_purchased_starter = false`)
+
+	db.Exec(`UPDATE users 
+		SET gift_queries = 25 
+		WHERE id = '527e0507-28ea-4548-b51e-a3458871cd1b' 
+		  AND has_purchased_starter = true 
+		  AND COALESCE(gift_queries, 0) = 0 
+		  AND COALESCE(daily_transferred_today, 0) = 0`)
 
 	db.Exec(`INSERT INTO transactions (id, user_id, type, item_key, amount_usd, queries_added, provider, provider_transaction_id, status, created_at)
 		VALUES (gen_random_uuid(), '527e0507-28ea-4548-b51e-a3458871cd1b', 'pack', 'pack_starter', 0.19, 50, 'google_play', 'GPA.3372-9089-9136-22405', 'completed', NOW())

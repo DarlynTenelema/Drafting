@@ -61,16 +61,33 @@ class _AchievementsScreenState extends State<AchievementsScreen> {
     }
   }
 
+  String _extractReferralCode(String rawInput) {
+    final trimmed = rawInput.trim();
+    if (trimmed.isEmpty) return '';
+    // Si el usuario pegó un mensaje de WhatsApp/Discord que incluye el código WRxxxxxx
+    final match = RegExp(r'\b(WR[A-Z0-9]{4,10})\b', caseSensitive: false).firstMatch(trimmed);
+    if (match != null) {
+      return match.group(1)!.toUpperCase();
+    }
+    return trimmed.replaceAll('#', '').replaceAll('@', '').trim().toUpperCase();
+  }
+
   Future<void> _checkClipboardForCode() async {
     if (_hasRedeemed) return;
     try {
       final data = await Clipboard.getData('text/plain');
-      final text = data?.text?.trim().toUpperCase();
-      if (text != null && text.startsWith('WR') && text.length == 8 && text != widget.referralCode) {
-        if (mounted && _codeController.text.isEmpty) {
-          setState(() {
-            _codeController.text = text;
-          });
+      final rawText = data?.text?.trim();
+      if (rawText != null && rawText.isNotEmpty) {
+        final extracted = _extractReferralCode(rawText);
+        if (extracted.startsWith('WR') &&
+            extracted.length >= 6 &&
+            extracted.length <= 10 &&
+            extracted != widget.referralCode.toUpperCase()) {
+          if (mounted && _codeController.text.isEmpty) {
+            setState(() {
+              _codeController.text = extracted;
+            });
+          }
         }
       }
     } catch (_) {}
@@ -83,7 +100,7 @@ class _AchievementsScreenState extends State<AchievementsScreen> {
   }
 
   Future<void> _redeemCode() async {
-    final code = _codeController.text.trim().toUpperCase();
+    final code = _extractReferralCode(_codeController.text);
     if (code.isEmpty) {
       setState(() {
         _errorMessage = 'Por favor ingresa un código.';
@@ -163,9 +180,10 @@ class _AchievementsScreenState extends State<AchievementsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final nextMilestoneTarget = (_claimed + 1) * 2;
-    final friendsNeeded = nextMilestoneTarget - _count;
-    final isMaxedOut = _claimed >= 5;
+    final int currentFriends = _count.clamp(0, 10);
+    final int friendsNeeded = (10 - currentFriends).clamp(0, 10);
+    final bool isMaxedOut = currentFriends >= 10 || _claimed >= 10;
+    final int earnedQueries = currentFriends * 5;
 
     return Scaffold(
       backgroundColor: const Color(0xFF0B0E14),
@@ -195,6 +213,16 @@ class _AchievementsScreenState extends State<AchievementsScreen> {
           ],
         ),
         centerTitle: true,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh_rounded, color: Colors.white70),
+            tooltip: 'Actualizar logros',
+            onPressed: () {
+              HapticFeedback.lightImpact();
+              widget.onDataChanged();
+            },
+          ),
+        ],
       ),
       body: Container(
         width: double.infinity,
@@ -210,203 +238,212 @@ class _AchievementsScreenState extends State<AchievementsScreen> {
           ),
         ),
         child: SafeArea(
-          child: SingleChildScrollView(
-            physics: const BouncingScrollPhysics(),
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // 1. HERO CARD: LOGRO PRINCIPAL
-                Container(
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(22),
-                    gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [
-                        const Color(0xFF10B981).withValues(alpha: 0.18),
-                        const Color(0xFF0F172A),
+          child: RefreshIndicator(
+            color: const Color(0xFF10B981),
+            backgroundColor: const Color(0xFF0F172A),
+            onRefresh: () async {
+              widget.onDataChanged();
+            },
+            child: SingleChildScrollView(
+              physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // 1. HERO CARD: LOGRO PRINCIPAL
+                  Container(
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(22),
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [
+                          const Color(0xFF10B981).withValues(alpha: 0.18),
+                          const Color(0xFF0F172A),
+                        ],
+                      ),
+                      border: Border.all(
+                        color: const Color(0xFF10B981).withValues(alpha: 0.4),
+                        width: 1.2,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFF10B981).withValues(alpha: 0.1),
+                          blurRadius: 20,
+                          offset: const Offset(0, 6),
+                        ),
                       ],
                     ),
-                    border: Border.all(
-                      color: const Color(0xFF10B981).withValues(alpha: 0.4),
-                      width: 1.2,
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: const Color(0xFF10B981).withValues(alpha: 0.1),
-                        blurRadius: 20,
-                        offset: const Offset(0, 6),
-                      ),
-                    ],
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(10),
-                            decoration: const BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: Color(0xFF10B981),
-                            ),
-                            child: const Icon(Icons.emoji_events_rounded, color: Colors.white, size: 24),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'Reclutador Wild Rift',
-                                  style: GoogleFonts.outfit(
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.white,
-                                  ),
-                                ),
-                                const SizedBox(height: 2),
-                                Text(
-                                  'Invita a 2 amigos y gana +5 consultas',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    color: Colors.white.withValues(alpha: 0.7),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF10B981).withValues(alpha: 0.25),
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: const Color(0xFF10B981)),
-                            ),
-                            child: Text(
-                              '$_claimed/5',
-                              style: const TextStyle(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(10),
+                              decoration: const BoxDecoration(
+                                shape: BoxShape.circle,
                                 color: Color(0xFF10B981),
-                                fontWeight: FontWeight.bold,
-                                fontSize: 13,
                               ),
+                              child: const Icon(Icons.emoji_events_rounded, color: Colors.white, size: 24),
                             ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 18),
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(8),
-                        child: LinearProgressIndicator(
-                          value: (_count / 10).clamp(0.0, 1.0),
-                          backgroundColor: Colors.white.withValues(alpha: 0.1),
-                          valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF10B981)),
-                          minHeight: 10,
-                        ),
-                      ),
-                      const SizedBox(height: 10),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            isMaxedOut
-                                ? '🏆 ¡Todos los logros completados! (+25 consultas)'
-                                : 'Faltan $friendsNeeded ${friendsNeeded == 1 ? "amigo" : "amigos"} para el próximo bono',
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                              color: isMaxedOut ? const Color(0xFF10B981) : Colors.white70,
-                            ),
-                          ),
-                          Text(
-                            '$_count/10 amigos',
-                            style: TextStyle(
-                              fontSize: 11,
-                              color: Colors.white.withValues(alpha: 0.5),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 16),
-                      // 5 Hitos con Íconos Gamificados
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: List.generate(5, (index) {
-                          final tier = index + 1;
-                          final reqFriends = tier * 2;
-                          final isClaimed = _claimed >= tier;
-                          final isCurrent = _claimed == index;
-
-                          Color iconColor = Colors.white24;
-                          Color bgColor = Colors.white.withValues(alpha: 0.04);
-                          Color borderColor = Colors.white.withValues(alpha: 0.08);
-
-                          if (isClaimed) {
-                            iconColor = const Color(0xFF10B981);
-                            bgColor = const Color(0xFF10B981).withValues(alpha: 0.15);
-                            borderColor = const Color(0xFF10B981).withValues(alpha: 0.4);
-                          } else if (isCurrent) {
-                            iconColor = const Color(0xFF00E5FF);
-                            bgColor = const Color(0xFF00E5FF).withValues(alpha: 0.15);
-                            borderColor = const Color(0xFF00E5FF).withValues(alpha: 0.5);
-                          }
-
-                          return Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Container(
-                                width: 44,
-                                height: 44,
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  color: bgColor,
-                                  border: Border.all(color: borderColor, width: isCurrent ? 1.5 : 1.0),
-                                  boxShadow: isCurrent || isClaimed
-                                      ? [
-                                          BoxShadow(
-                                            color: iconColor.withValues(alpha: 0.25),
-                                            blurRadius: 8,
-                                          )
-                                        ]
-                                      : null,
-                                ),
-                                child: Center(
-                                  child: Icon(
-                                    isClaimed
-                                        ? Icons.check_circle_rounded
-                                        : isCurrent
-                                            ? Icons.stars_rounded
-                                            : Icons.lock_outline_rounded,
-                                    color: iconColor,
-                                    size: 20,
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(height: 6),
-                              Row(
-                                mainAxisSize: MainAxisSize.min,
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  const Icon(Icons.group_rounded, size: 10, color: Colors.white54),
-                                  const SizedBox(width: 2),
                                   Text(
-                                    '$reqFriends',
-                                    style: TextStyle(
-                                      fontSize: 11,
+                                    'Reclutador Wild Rift',
+                                    style: GoogleFonts.outfit(
+                                      fontSize: 18,
                                       fontWeight: FontWeight.bold,
-                                      color: isClaimed || isCurrent ? Colors.white : Colors.white38,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    'Cada amigo invitado te da +5 consultas (máx +50)',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: Colors.white.withValues(alpha: 0.7),
                                     ),
                                   ),
                                 ],
                               ),
-                            ],
-                          );
-                        }),
-                      ),
-                    ],
+                            ),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF10B981).withValues(alpha: 0.25),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: const Color(0xFF10B981)),
+                              ),
+                              child: Text(
+                                '$currentFriends/10',
+                                style: const TextStyle(
+                                  color: Color(0xFF10B981),
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 13,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 18),
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: LinearProgressIndicator(
+                            value: (currentFriends / 10).clamp(0.0, 1.0),
+                            backgroundColor: Colors.white.withValues(alpha: 0.1),
+                            valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF10B981)),
+                            minHeight: 10,
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Expanded(
+                              child: Text(
+                                isMaxedOut
+                                    ? '🏆 ¡Todos los logros completados! (+50 consultas)'
+                                    : 'Ganadas: +$earnedQueries consultas • Faltan $friendsNeeded ${friendsNeeded == 1 ? "amigo" : "amigos"} para el máximo',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: isMaxedOut ? const Color(0xFF10B981) : Colors.white70,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              '$currentFriends/10 amigos',
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: Colors.white.withValues(alpha: 0.5),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 16),
+                        // 5 Hitos con Íconos Gamificados (2, 4, 6, 8, 10 amigos)
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: List.generate(5, (index) {
+                            final tier = index + 1;
+                            final reqFriends = tier * 2;
+                            final isClaimed = currentFriends >= reqFriends;
+                            final isCurrent = currentFriends < reqFriends && currentFriends >= (reqFriends - 2);
+
+                            Color iconColor = Colors.white24;
+                            Color bgColor = Colors.white.withValues(alpha: 0.04);
+                            Color borderColor = Colors.white.withValues(alpha: 0.08);
+
+                            if (isClaimed) {
+                              iconColor = const Color(0xFF10B981);
+                              bgColor = const Color(0xFF10B981).withValues(alpha: 0.15);
+                              borderColor = const Color(0xFF10B981).withValues(alpha: 0.4);
+                            } else if (isCurrent) {
+                              iconColor = const Color(0xFF00E5FF);
+                              bgColor = const Color(0xFF00E5FF).withValues(alpha: 0.15);
+                              borderColor = const Color(0xFF00E5FF).withValues(alpha: 0.5);
+                            }
+
+                            return Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Container(
+                                  width: 44,
+                                  height: 44,
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    color: bgColor,
+                                    border: Border.all(color: borderColor, width: isCurrent ? 1.5 : 1.0),
+                                    boxShadow: isCurrent || isClaimed
+                                        ? [
+                                            BoxShadow(
+                                              color: iconColor.withValues(alpha: 0.25),
+                                              blurRadius: 8,
+                                            )
+                                          ]
+                                        : null,
+                                  ),
+                                  child: Center(
+                                    child: Icon(
+                                      isClaimed
+                                          ? Icons.check_circle_rounded
+                                          : isCurrent
+                                              ? Icons.stars_rounded
+                                              : Icons.lock_outline_rounded,
+                                      color: iconColor,
+                                      size: 20,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 6),
+                                Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const Icon(Icons.group_rounded, size: 10, color: Colors.white54),
+                                    const SizedBox(width: 2),
+                                    Text(
+                                      '$reqFriends',
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.bold,
+                                        color: isClaimed || isCurrent ? Colors.white : Colors.white38,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            );
+                          }),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
 
                 const SizedBox(height: 20),
 
@@ -651,6 +688,7 @@ class _AchievementsScreenState extends State<AchievementsScreen> {
                 const SizedBox(height: 100),
               ],
             ),
+          ),
           ),
         ),
       ),

@@ -100,6 +100,7 @@ func (user *User) RecalculateAvailableQueries() {
 // 5) Consultas compradas en paquetes (permanentes, se guardan al final)
 func (user *User) ConsumeQuery() bool {
 	user.CheckSubscriptionExpiry()
+	user.RecalculateAvailableQueries()
 	if user.AvailableQueries <= 0 {
 		return false
 	}
@@ -116,6 +117,47 @@ func (user *User) ConsumeQuery() bool {
 	}
 	user.RecalculateAvailableQueries()
 	return true
+}
+
+// DeductTransferQueries descuenta consultas para compartir con un amigo,
+// priorizando las GiftQueries (exclusivas de regalo), luego Suscripción, Compradas, Anuncios, Bono y Diarias.
+func (user *User) DeductTransferQueries(amount int) bool {
+	if amount <= 0 {
+		return false
+	}
+	user.CheckSubscriptionExpiry()
+	user.RecalculateAvailableQueries()
+	if user.GiftQueries+user.AvailableQueries < amount {
+		return false
+	}
+
+	remaining := amount
+	buckets := []*int{
+		&user.GiftQueries,
+		&user.SubscriptionQueries,
+		&user.PurchasedQueries,
+		&user.AdQueries,
+		&user.BonusQueries,
+		&user.DailyQueries,
+	}
+
+	for _, bucket := range buckets {
+		if remaining <= 0 {
+			break
+		}
+		if *bucket > 0 {
+			if *bucket >= remaining {
+				*bucket -= remaining
+				remaining = 0
+			} else {
+				remaining -= *bucket
+				*bucket = 0
+			}
+		}
+	}
+
+	user.RecalculateAvailableQueries()
+	return remaining == 0
 }
 
 // AddAdQueries suma consultas por ver anuncios o logros de referidos

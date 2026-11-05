@@ -103,8 +103,15 @@ class _IndexScreenState extends State<IndexScreen> {
           _isActive = false;
         });
       } else if (code == 200) {
-        // Análisis exitoso: descontar 1 consulta
+        // Análisis exitoso: descontar 1 consulta y sincronizar con servidor
         _decrementQuery();
+      } else if (code == 401) {
+        // Sesión expirada o iniciada en otro dispositivo
+        NativeService.stopCaptureService();
+        setState(() {
+          _isActive = false;
+        });
+        _handleLogout();
       } else if (code == 402) {
         // Sin consultas disponibles: detener inmediatamente el servicio nativo
         NativeService.stopCaptureService();
@@ -125,16 +132,25 @@ class _IndexScreenState extends State<IndexScreen> {
       }
       if (_dailyQueries > 0) {
         _dailyQueries--;
+      } else if (_subscriptionQueries > 0) {
+        _subscriptionQueries--;
       } else if (_bonusQueries > 0) {
         _bonusQueries--;
       } else if (_adQueries > 0) {
         _adQueries--;
+      } else if (_purchasedQueries > 0) {
+        _purchasedQueries--;
       }
     });
     await prefs.setInt('available_queries', _availableQueries);
     await prefs.setInt('daily_queries', _dailyQueries);
+    await prefs.setInt('subscription_queries', _subscriptionQueries);
     await prefs.setInt('bonus_queries', _bonusQueries);
     await prefs.setInt('ad_queries', _adQueries);
+    await prefs.setInt('purchased_queries', _purchasedQueries);
+
+    // Sincronizar en segundo plano con el backend
+    _fetchUserData();
 
     // Si se agotaron las consultas, detener asistente y avisar al usuario
     if (_availableQueries == 0 && mounted) {
@@ -1175,6 +1191,7 @@ class _IndexScreenState extends State<IndexScreen> {
           onTap: () {
             HapticFeedback.selectionClick();
             setState(() => _currentTab = index);
+            _fetchUserData();
           },
           splashColor: activeColor.withValues(alpha: 0.08),
           highlightColor: Colors.transparent,

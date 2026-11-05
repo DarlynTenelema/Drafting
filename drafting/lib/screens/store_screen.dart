@@ -184,6 +184,11 @@ class _StoreScreenState extends State<StoreScreen> {
       return;
     }
 
+    if (_selectedTransferAmount > (_availableQueries + _giftQueries)) {
+      _showErrorSnackBar('No tienes suficientes consultas disponibles para transferir $_selectedTransferAmount.');
+      return;
+    }
+
     setState(() => _isTransferring = true);
     HapticFeedback.mediumImpact();
 
@@ -684,11 +689,11 @@ class _StoreScreenState extends State<StoreScreen> {
       borderColor = const Color(0xFF10B981).withValues(alpha: 0.4);
       tagBgColor = const Color(0xFF10B981).withValues(alpha: 0.2);
       tagTextColor = const Color(0xFF10B981);
-    } else if (pack['id'] == 'pro') {
+    } else if (pack['id'] == 'pack_pro' || pack['id'] == 'pro') {
       borderColor = const Color(0xFFC89B3C).withValues(alpha: 0.5);
       tagBgColor = const Color(0xFFC89B3C).withValues(alpha: 0.2);
       tagTextColor = const Color(0xFFC89B3C);
-    } else if (pack['id'] == 'ultra') {
+    } else if (pack['id'] == 'pack_ultra' || pack['id'] == 'ultra') {
       borderColor = const Color(0xFF8B5CF6).withValues(alpha: 0.5);
       tagBgColor = const Color(0xFF8B5CF6).withValues(alpha: 0.2);
       tagTextColor = const Color(0xFFC4B5FD);

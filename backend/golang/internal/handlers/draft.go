@@ -21,7 +21,8 @@ type DraftRequest struct {
 }
 
 type DraftResponse struct {
-	Recommendation string `json:"recommendation"`
+	Recommendation   string `json:"recommendation"`
+	AvailableQueries int    `json:"available_queries"`
 }
 
 func AnalyzeDraft(w http.ResponseWriter, r *http.Request) {
@@ -38,9 +39,25 @@ func AnalyzeDraft(w http.ResponseWriter, r *http.Request) {
 
 	// Retrieve user from context
 	user, ok := r.Context().Value(middleware.UserContextKey).(*models.User)
-	if !ok {
+	if !ok || user == nil {
 		http.Error(w, "User context missing", http.StatusInternalServerError)
 		return
+	}
+
+	// Sincronizar bono diario y recalcular saldo (incluso para usuarios con versiones anteriores o burbuja directa)
+	today := time.Now().UTC().Format("2006-01-02")
+	dailyGranted := user.RefreshDailyQueries(today)
+	subExpired := user.CheckSubscriptionExpiry()
+	user.RecalculateAvailableQueries()
+
+	if dailyGranted || subExpired {
+		database.DB.Model(user).Updates(map[string]interface{}{
+			"daily_queries":          user.DailyQueries,
+			"available_queries":      user.AvailableQueries,
+			"last_daily_reward_date": user.LastDailyRewardDate,
+			"subscription_plan":      user.SubscriptionPlan,
+			"subscription_ends_at":   user.SubscriptionEndsAt,
+		})
 	}
 
 	// --- Quota & Consultation Logic ---
@@ -61,19 +78,25 @@ func AnalyzeDraft(w http.ResponseWriter, r *http.Request) {
 	// Record successful API usage with tokens for cost tracking
 	database.DB.Create(&models.ApiUsage{UserID: user.ID, TokensUsed: int(tokens), CreatedAt: time.Now()})
 
-	// Decrement query count with priority (Daily -> Bonus -> Ad)
+	// Decrement query count with priority (Daily -> Subscription -> Bonus -> Ad -> Purchased)
 	user.ConsumeQuery()
 	user.LastDraftAt = time.Now()
 	database.DB.Model(user).Updates(map[string]interface{}{
-		"daily_queries":     user.DailyQueries,
-		"bonus_queries":     user.BonusQueries,
-		"ad_queries":        user.AdQueries,
-		"available_queries": user.AvailableQueries,
-		"last_draft_at":     user.LastDraftAt,
+		"daily_queries":          user.DailyQueries,
+		"subscription_queries":   user.SubscriptionQueries,
+		"bonus_queries":          user.BonusQueries,
+		"ad_queries":             user.AdQueries,
+		"purchased_queries":      user.PurchasedQueries,
+		"available_queries":      user.AvailableQueries,
+		"last_daily_reward_date": user.LastDailyRewardDate,
+		"last_draft_at":          user.LastDraftAt,
 	})
 
 	// Send Response
-	resp := DraftResponse{Recommendation: recommendation}
+	resp := DraftResponse{
+		Recommendation:   recommendation,
+		AvailableQueries: user.AvailableQueries,
+	}
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(resp)
 }

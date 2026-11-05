@@ -483,12 +483,21 @@ class CaptureService : Service() {
         // Remove padding to get exact screen bounds
         val croppedBitmap = Bitmap.createBitmap(bitmap, 0, 0, imgWidth, imgHeight)
         
-        // Enviar la imagen en su resolución original (sin escalar) para no perder los textos diminutos.
-        val finalBitmap = croppedBitmap
+        // Escalar proporcionalmente si supera 1600px para mantener textos nítidos sin enviar 8-10MB por red móvil
+        val maxDimension = 1600
+        val largestSide = maxOf(imgWidth, imgHeight)
+        val finalBitmap = if (largestSide > maxDimension) {
+            val scale = maxDimension.toFloat() / largestSide.toFloat()
+            val targetW = (imgWidth * scale).toInt().coerceAtLeast(1)
+            val targetH = (imgHeight * scale).toInt().coerceAtLeast(1)
+            Bitmap.createScaledBitmap(croppedBitmap, targetW, targetH, true)
+        } else {
+            croppedBitmap
+        }
 
-        // Compress and encode at 100% maximum quality
+        // Comprimir con alta nitidez (84%) reduciendo el peso un 90% para evitar timeouts
         val stream = ByteArrayOutputStream()
-        finalBitmap.compress(Bitmap.CompressFormat.JPEG, 100, stream)
+        finalBitmap.compress(Bitmap.CompressFormat.JPEG, 84, stream)
         val byteArray = stream.toByteArray()
         val base64Image = Base64.encodeToString(byteArray, Base64.NO_WRAP)
         
@@ -600,6 +609,10 @@ class CaptureService : Service() {
                     } else if (responseCode == 429) {
                         showResultOnUI("Has alcanzado el límite temporal. Espera unos minutos.")
                         sendResultToActivity("error", 429, "Límite temporal alcanzado.")
+                        return@thread
+                    } else if (responseCode == 401) {
+                        showResultOnUI("Tu sesión ha expirado. Abre la app Drafting e inicia sesión nuevamente.")
+                        sendResultToActivity("error", 401, "Sesión expirada.")
                         return@thread
                     } else if (responseCode == 402) {
                         showResultOnUI("Sin consultas disponibles. Abre Drafting y toca 'Obtener consultas'.")

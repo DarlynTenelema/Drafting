@@ -64,10 +64,9 @@ android {
             } else {
                 signingConfigs.getByName("debug")
             }
-            // Desactivar minificación destructiva de R8 sobre plugins nativos/JNI/Appodeal
-            // para evitar ClassNotFoundException / JNI abort al abrir la app en producción.
-            isMinifyEnabled = true
-            isShrinkResources = true
+            // Desactivar minificación de R8 para proteger plugins nativos, llamadas JNI y Play Services
+            isMinifyEnabled = false
+            isShrinkResources = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
     }

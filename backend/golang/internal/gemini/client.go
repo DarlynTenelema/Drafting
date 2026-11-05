@@ -77,7 +77,6 @@ Tu objetivo es recomendar los 3 mejores campeones ideales para contrarrestar al 
 Reglas CRÍTICAS:
 - IDIOMA: Español.
 - FORMATO: PROHIBIDO USAR ASTERISCOS (**) O ESTILOS MARKDOWN. Solo texto limpio y viñetas con punto (•).
-- COMPLETITUD OBLIGATORIA: Debes completar la recomendación de los 3 campeones con sus runas y hechizos. No cortes la respuesta a medias.
 - CONCISIÓN: El jugador solo tiene 30 segundos. Sé claro, directo y accionable sin rodeos.
 
 ESTRUCTURA EXACTA:

@@ -183,8 +183,28 @@ func GetStoreCatalog(w http.ResponseWriter, r *http.Request) {
 	}
 
 	today := time.Now().UTC().Format("2006-01-02")
+	prevTransferDate := user.LastTransferDate
+	prevReceivedDate := user.LastReceivedDate
 	user.ResetDailyLimitsIfNewDay(today)
-	user.CheckSubscriptionExpiry()
+	subExpired := user.CheckSubscriptionExpiry()
+	user.RecalculateAvailableQueries()
+
+	if user.ReferralCode == "" {
+		user.ReferralCode = models.GenerateReferralCode(user.ID)
+	}
+
+	if prevTransferDate != user.LastTransferDate || prevReceivedDate != user.LastReceivedDate || subExpired {
+		database.DB.Model(user).Updates(map[string]interface{}{
+			"daily_transferred_today": user.DailyTransferredToday,
+			"last_transfer_date":      user.LastTransferDate,
+			"daily_received_today":    user.DailyReceivedToday,
+			"last_received_date":      user.LastReceivedDate,
+			"subscription_plan":       user.SubscriptionPlan,
+			"subscription_ends_at":    user.SubscriptionEndsAt,
+			"available_queries":       user.AvailableQueries,
+			"referral_code":           user.ReferralCode,
+		})
+	}
 
 	// Filtrar catálogo: si ya compró el starter pack, no se muestra
 	packsList := make([]PackConfig, 0)
@@ -216,9 +236,11 @@ func GetStoreCatalog(w http.ResponseWriter, r *http.Request) {
 		"subscription_ends_at":     user.SubscriptionEndsAt,
 		"subscription_queries":     user.SubscriptionQueries,
 		"purchased_queries":        user.PurchasedQueries,
+		"gift_queries":             user.GiftQueries,
 		"available_queries":        user.AvailableQueries,
 		"daily_transferred_today":  user.DailyTransferredToday,
 		"remaining_transfer_quota": remainingTransferQuota,
+		"remaining_transfer_today": remainingTransferQuota,
 		"can_transfer":             user.CanTransfer() && remainingTransferQuota > 0,
 		"referral_code":            user.ReferralCode,
 		"packs":                    packsList,
@@ -278,18 +300,27 @@ func PurchasePack(w http.ResponseWriter, r *http.Request) {
 			"queries_added":         0,
 			"available_queries":     user.AvailableQueries,
 			"purchased_queries":     user.PurchasedQueries,
+			"gift_queries":          user.GiftQueries,
 			"has_purchased_starter": user.HasPurchasedStarter,
 		})
 		return
 	}
 
+	giftAdded := 0
 	if pack.IsStarter {
 		user.HasPurchasedStarter = true
+		giftAdded = 25
+		user.GiftQueries += giftAdded
 	}
 	user.AddPurchasedQueries(pack.TotalQueries)
 
-	// Persistir directamente el saldo del usuario para asegurar su acreditación
-	if err := database.DB.Save(user).Error; err != nil {
+	// Persistir específicamente los campos de la tienda para evitar conflictos en columnas ajenas
+	if err := database.DB.Model(user).Updates(map[string]interface{}{
+		"purchased_queries":     user.PurchasedQueries,
+		"gift_queries":          user.GiftQueries,
+		"available_queries":     user.AvailableQueries,
+		"has_purchased_starter": user.HasPurchasedStarter,
+	}).Error; err != nil {
 		log.Printf("[STORE] Error actualizando usuario tras compra: %v", err)
 		http.Error(w, fmt.Sprintf("Error actualizando saldo de consultas: %v", err), http.StatusInternalServerError)
 		return
@@ -311,14 +342,21 @@ func PurchasePack(w http.ResponseWriter, r *http.Request) {
 		log.Printf("[STORE] Warning: no se pudo guardar registro de transacción: %v", err)
 	}
 
+	successMsg := fmt.Sprintf("¡Compra exitosa! Se han añadido %d consultas a tu cuenta.", pack.TotalQueries)
+	if giftAdded > 0 {
+		successMsg = fmt.Sprintf("¡Compra exitosa! Tienes +%d consultas para ti y +%d consultas de regalo para compartir con tus amigos.", pack.TotalQueries, giftAdded)
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
 		"success":               true,
-		"message":               fmt.Sprintf("¡Compra exitosa! Se han añadido %d consultas a tu cuenta.", pack.TotalQueries),
+		"message":               successMsg,
 		"pack_id":               pack.ID,
 		"queries_added":         pack.TotalQueries,
+		"gift_queries_added":    giftAdded,
 		"available_queries":     user.AvailableQueries,
 		"purchased_queries":     user.PurchasedQueries,
+		"gift_queries":          user.GiftQueries,
 		"has_purchased_starter": user.HasPurchasedStarter,
 	})
 }
@@ -365,6 +403,7 @@ func Subscribe(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(map[string]interface{}{
 			"success":              true,
 			"message":              "Suscripción ya procesada previamente.",
+			"queries_added":        0,
 			"subscription_plan":    user.SubscriptionPlan,
 			"subscription_queries": user.SubscriptionQueries,
 			"subscription_ends_at": user.SubscriptionEndsAt,
@@ -380,8 +419,13 @@ func Subscribe(w http.ResponseWriter, r *http.Request) {
 	user.SubscriptionEndsAt = &expiryDate
 	user.RecalculateAvailableQueries()
 
-	// Persistir directamente la suscripción del usuario para garantizar su activación
-	if err := database.DB.Save(user).Error; err != nil {
+	// Persistir específicamente la suscripción del usuario para garantizar su activación
+	if err := database.DB.Model(user).Updates(map[string]interface{}{
+		"subscription_plan":    user.SubscriptionPlan,
+		"subscription_queries": user.SubscriptionQueries,
+		"subscription_ends_at": user.SubscriptionEndsAt,
+		"available_queries":    user.AvailableQueries,
+	}).Error; err != nil {
 		log.Printf("[STORE] Error actualizando usuario tras suscripción: %v", err)
 		http.Error(w, fmt.Sprintf("Error actualizando la suscripción: %v", err), http.StatusInternalServerError)
 		return
@@ -406,7 +450,8 @@ func Subscribe(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
 		"success":              true,
-		"message":              fmt.Sprintf("¡Suscripción al %s activada! Tienes %d consultas para este mes.", plan.Name, plan.QueriesPerMonth),
+		"message":              fmt.Sprintf("¡Suscripción al %s activada! Tienes +%d consultas para este mes.", plan.Name, plan.QueriesPerMonth),
+		"queries_added":        plan.QueriesPerMonth,
 		"subscription_plan":    user.SubscriptionPlan,
 		"subscription_queries": user.SubscriptionQueries,
 		"subscription_ends_at": user.SubscriptionEndsAt,
@@ -419,7 +464,24 @@ type TransferRequest struct {
 	Amount         int    `json:"amount"`
 }
 
-// TransferQueries permite a un suscriptor activo transferir hasta 10 consultas por día a un amigo
+// extractCleanPlayerCode limpia prefijos, espacios o mensajes pegados de WhatsApp/Discord
+func extractCleanPlayerCode(raw string) string {
+	raw = strings.TrimSpace(raw)
+	raw = strings.TrimPrefix(raw, "#")
+	raw = strings.TrimPrefix(raw, "@")
+	if strings.Contains(raw, " ") {
+		for _, word := range strings.Fields(raw) {
+			cleanWord := strings.Trim(word, "¡!.,:;\"'()[]{}#@")
+			upper := strings.ToUpper(cleanWord)
+			if strings.HasPrefix(upper, "WR") && len(upper) >= 6 && len(upper) <= 12 {
+				return upper
+			}
+		}
+	}
+	return strings.TrimSpace(raw)
+}
+
+// TransferQueries permite a usuarios con paquetes o suscripción activa transferir hasta 10 consultas por día a un amigo
 func TransferQueries(w http.ResponseWriter, r *http.Request) {
 	user, ok := r.Context().Value(middleware.UserContextKey).(*models.User)
 	if !ok || user == nil {
@@ -435,10 +497,12 @@ func TransferQueries(w http.ResponseWriter, r *http.Request) {
 
 	today := time.Now().UTC().Format("2006-01-02")
 	user.ResetDailyLimitsIfNewDay(today)
+	user.CheckSubscriptionExpiry()
+	user.RecalculateAvailableQueries()
 
-	// Regla 1: Usuarios con suscripción activa o con Pack Starter pueden transferir
-	if !user.IsSubscribed() && !user.HasPurchasedStarter {
-		http.Error(w, "La función de compartir consultas con amigos está disponible para suscriptores y usuarios con Pack Starter.", http.StatusForbidden)
+	// Regla 1: Usuarios con cualquier paquete comprado, Pack Starter, consultas de regalo o suscripción activa pueden transferir
+	if !user.CanTransfer() {
+		http.Error(w, "La función de compartir consultas con amigos está disponible al adquirir cualquier Pack o Suscripción.", http.StatusForbidden)
 		return
 	}
 
@@ -458,26 +522,27 @@ func TransferQueries(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Regla 4: Verificar que el remitente tenga saldo suficiente
-	if user.AvailableQueries < req.Amount {
+	// Regla 4: Verificar que el remitente tenga saldo suficiente (incluyendo consultas de regalo)
+	if user.AvailableQueries+user.GiftQueries < req.Amount {
 		http.Error(w, "No tienes suficientes consultas disponibles para realizar la transferencia.", http.StatusBadRequest)
 		return
 	}
 
-	// Regla 5: Buscar al destinatario
-	rawTarget := strings.TrimSpace(req.TargetPlayerID)
+	// Regla 5: Buscar al destinatario (insensible a mayúsculas/minúsculas y con o sin prefijo WR)
+	rawTarget := extractCleanPlayerCode(req.TargetPlayerID)
 	if rawTarget == "" {
 		http.Error(w, "Debes proporcionar el ID o código del jugador.", http.StatusBadRequest)
 		return
 	}
 
-	targetCodeWithPrefix := strings.ToUpper(rawTarget)
+	targetUpper := strings.ToUpper(rawTarget)
+	targetCodeWithPrefix := targetUpper
 	if !strings.HasPrefix(targetCodeWithPrefix, "WR") {
 		targetCodeWithPrefix = "WR" + targetCodeWithPrefix
 	}
 
 	var targetUser models.User
-	err := database.DB.Where("referral_code = ? OR referral_code = ? OR id::text = ?", targetCodeWithPrefix, rawTarget, rawTarget).First(&targetUser).Error
+	err := database.DB.Where("UPPER(referral_code) = ? OR UPPER(referral_code) = ? OR id::text = ?", targetUpper, targetCodeWithPrefix, rawTarget).First(&targetUser).Error
 	if err != nil {
 		http.Error(w, "No se encontró ningún jugador con ese ID o código.", http.StatusNotFound)
 		return
@@ -498,58 +563,55 @@ func TransferQueries(w http.ResponseWriter, r *http.Request) {
 
 	tx := database.DB.Begin()
 
-	// Descontar consultas del remitente (priorizando consultas de suscripción o compradas)
-	deducted := 0
-	toDeduct := req.Amount
-
-	if user.SubscriptionQueries >= toDeduct {
-		user.SubscriptionQueries -= toDeduct
-		deducted = toDeduct
-	} else {
-		deducted += user.SubscriptionQueries
-		toDeduct -= user.SubscriptionQueries
-		user.SubscriptionQueries = 0
-
-		if user.PurchasedQueries >= toDeduct {
-			user.PurchasedQueries -= toDeduct
-			deducted += toDeduct
-		} else {
-			deducted += user.PurchasedQueries
-			toDeduct -= user.PurchasedQueries
-			user.PurchasedQueries = 0
-
-			if user.AdQueries >= toDeduct {
-				user.AdQueries -= toDeduct
-				deducted += toDeduct
-			} else {
-				deducted += user.AdQueries
-				user.AdQueries = 0
-			}
-		}
+	// Descontar consultas del remitente (priorizando GiftQueries -> Suscripción -> Compradas -> Anuncios -> Bono -> Diarias)
+	if !user.DeductTransferQueries(req.Amount) {
+		tx.Rollback()
+		http.Error(w, "No tienes suficientes consultas transferibles.", http.StatusBadRequest)
+		return
 	}
 
 	user.DailyTransferredToday += req.Amount
 	user.LastTransferDate = today
-	user.RecalculateAvailableQueries()
 
-	if err := tx.Save(user).Error; err != nil {
+	if err := tx.Model(user).Updates(map[string]interface{}{
+		"gift_queries":            user.GiftQueries,
+		"subscription_queries":    user.SubscriptionQueries,
+		"purchased_queries":       user.PurchasedQueries,
+		"ad_queries":              user.AdQueries,
+		"bonus_queries":           user.BonusQueries,
+		"daily_queries":           user.DailyQueries,
+		"available_queries":       user.AvailableQueries,
+		"daily_transferred_today": user.DailyTransferredToday,
+		"last_transfer_date":      user.LastTransferDate,
+	}).Error; err != nil {
 		tx.Rollback()
 		http.Error(w, "Error actualizando el saldo del remitente", http.StatusInternalServerError)
 		return
 	}
 
 	// Añadir consultas al destinatario
+	targetUser.RecalculateAvailableQueries()
 	targetUser.AddAdQueries(req.Amount)
 	targetUser.DailyReceivedToday += req.Amount
 	targetUser.LastReceivedDate = today
 
-	if err := tx.Save(&targetUser).Error; err != nil {
+	if err := tx.Model(&targetUser).Updates(map[string]interface{}{
+		"ad_queries":           targetUser.AdQueries,
+		"available_queries":    targetUser.AvailableQueries,
+		"daily_received_today": targetUser.DailyReceivedToday,
+		"last_received_date":   targetUser.LastReceivedDate,
+	}).Error; err != nil {
 		tx.Rollback()
 		http.Error(w, "Error acreditando consultas al destinatario", http.StatusInternalServerError)
 		return
 	}
 
-	// Registrar transferencia para auditoría
+	if err := tx.Commit().Error; err != nil {
+		http.Error(w, "Error confirmando la transferencia", http.StatusInternalServerError)
+		return
+	}
+
+	// Registrar transferencia para auditoría (no bloqueante ante esquemas legacy)
 	transferLog := models.QueryTransfer{
 		FromUserID:       user.ID,
 		FromReferralCode: user.ReferralCode,
@@ -558,14 +620,9 @@ func TransferQueries(w http.ResponseWriter, r *http.Request) {
 		Amount:           req.Amount,
 		CreatedAt:        time.Now().UTC(),
 	}
-
-	if err := tx.Create(&transferLog).Error; err != nil {
-		tx.Rollback()
-		http.Error(w, "Error registrando la transferencia", http.StatusInternalServerError)
-		return
+	if err := database.DB.Create(&transferLog).Error; err != nil {
+		log.Printf("[STORE] Warning: no se pudo guardar auditoría de transferencia: %v", err)
 	}
-
-	tx.Commit()
 
 	remainingToday := 10 - user.DailyTransferredToday
 	if remainingToday < 0 {
@@ -579,12 +636,14 @@ func TransferQueries(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
-		"success":                 true,
-		"message":                 fmt.Sprintf("¡Has transferido con éxito %d consultas a %s!", req.Amount, targetDisplayName),
-		"transferred_amount":      req.Amount,
-		"target_player":           targetDisplayName,
-		"available_queries":       user.AvailableQueries,
-		"daily_transferred_today": user.DailyTransferredToday,
+		"success":                  true,
+		"message":                  fmt.Sprintf("¡Has transferido con éxito %d consultas a %s!", req.Amount, targetDisplayName),
+		"transferred_amount":       req.Amount,
+		"target_player":            targetDisplayName,
+		"available_queries":        user.AvailableQueries,
+		"gift_queries":             user.GiftQueries,
+		"daily_transferred_today":  user.DailyTransferredToday,
 		"remaining_transfer_today": remainingToday,
+		"remaining_transfer_quota": remainingToday,
 	})
 }

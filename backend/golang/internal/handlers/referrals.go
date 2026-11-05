@@ -33,7 +33,7 @@ func RedeemReferral(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	rawCode := strings.TrimSpace(req.ReferralCode)
+	rawCode := extractCleanPlayerCode(req.ReferralCode)
 	if rawCode == "" {
 		http.Error(w, "El código de invitación es requerido", http.StatusBadRequest)
 		return
@@ -51,9 +51,10 @@ func RedeemReferral(w http.ResponseWriter, r *http.Request) {
 	if !strings.HasPrefix(codeWithPrefix, "WR") {
 		codeWithPrefix = "WR" + codeWithPrefix
 	}
+	codeWithoutPrefix := strings.TrimPrefix(codeUpper, "WR")
 
 	var referrer models.User
-	if err := database.DB.Where("UPPER(referral_code) = ? OR UPPER(referral_code) = ? OR id::text = ?", codeUpper, codeWithPrefix, rawCode).First(&referrer).Error; err != nil {
+	if err := database.DB.Where("UPPER(referral_code) = ? OR UPPER(referral_code) = ? OR UPPER(referral_code) = ? OR id::text = ?", codeUpper, codeWithPrefix, codeWithoutPrefix, rawCode).First(&referrer).Error; err != nil {
 		http.Error(w, "Código de invitación no válido o inexistente.", http.StatusNotFound)
 		return
 	}

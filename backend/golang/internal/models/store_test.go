@@ -125,4 +125,26 @@ func TestDailyTransferLimits(t *testing.T) {
 	if !packUser.CanTransfer() {
 		t.Errorf("Expected user with purchased pack to be able to transfer")
 	}
+
+	// Test DeductTransferQueries prioritizes GiftQueries first, then Subscription, Purchased, Ad, Bonus, Daily
+	transferUser := models.User{
+		GiftQueries:         10,
+		SubscriptionQueries: 5,
+		PurchasedQueries:    5,
+		AdQueries:           3,
+		BonusQueries:        2,
+		DailyQueries:        1,
+	}
+	transferUser.RecalculateAvailableQueries()
+
+	// Deduct 12 queries -> should consume all 10 GiftQueries and 2 SubscriptionQueries
+	if !transferUser.DeductTransferQueries(12) {
+		t.Fatalf("Expected DeductTransferQueries(12) to succeed")
+	}
+	if transferUser.GiftQueries != 0 {
+		t.Errorf("Expected GiftQueries to be 0, got %d", transferUser.GiftQueries)
+	}
+	if transferUser.SubscriptionQueries != 3 {
+		t.Errorf("Expected SubscriptionQueries to be 3, got %d", transferUser.SubscriptionQueries)
+	}
 }

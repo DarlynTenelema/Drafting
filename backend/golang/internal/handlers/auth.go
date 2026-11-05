@@ -106,17 +106,21 @@ func Me(w http.ResponseWriter, r *http.Request) {
 
 	// Sistema de consultas diarias: Tope máximo de 3 (NO acumula más allá de 3 al pasar días)
 	today := time.Now().UTC().Format("2006-01-02")
+	prevAvailable := user.AvailableQueries
 	dailyGranted := user.RefreshDailyQueries(today)
-	if dailyGranted {
+	subExpired := user.CheckSubscriptionExpiry()
+	user.ResetDailyLimitsIfNewDay(today)
+	user.RecalculateAvailableQueries()
+
+	if dailyGranted || subExpired || user.AvailableQueries != prevAvailable {
 		database.DB.Model(user).Updates(map[string]interface{}{
 			"daily_queries":          user.DailyQueries,
 			"available_queries":      user.AvailableQueries,
 			"last_daily_reward_date": user.LastDailyRewardDate,
+			"subscription_plan":      user.SubscriptionPlan,
+			"subscription_ends_at":   user.SubscriptionEndsAt,
 		})
 	}
-
-	user.CheckSubscriptionExpiry()
-	user.ResetDailyLimitsIfNewDay(today)
 
 	isPremium := user.IsSubscribed()
 	activePlan := "freemium"
