@@ -157,18 +157,32 @@ class InAppPurchaseService {
       debugPrint('[IAP] Tienda disponible: $_isAvailable');
 
       if (_isAvailable) {
-        final ProductDetailsResponse response = await _iap.queryProductDetails(allProductIds);
-        if (response.error != null) {
-          debugPrint('[IAP] Error cargando productos: ${response.error!.message}');
+        // 1. Consultar productos consumibles (paquetes y micro-donaciones)
+        final inAppIds = {...packIds, ...donationIds};
+        final ProductDetailsResponse inAppResponse = await _iap.queryProductDetails(inAppIds);
+        if (inAppResponse.error != null) {
+          debugPrint('[IAP] Error cargando in-app products: ${inAppResponse.error!.message}');
         } else {
-          _products.clear();
-          for (final product in response.productDetails) {
+          for (final product in inAppResponse.productDetails) {
             _products[product.id] = product;
-            debugPrint('[IAP] Producto cargado: ${product.id} - ${product.title} - ${product.price}');
+            debugPrint('[IAP] Producto consumible cargado: ${product.id} - ${product.title} - ${product.price}');
           }
-          if (response.notFoundIDs.isNotEmpty) {
-            debugPrint('[IAP] Productos pendientes de aprobación en Google Play: ${response.notFoundIDs}');
+          if (inAppResponse.notFoundIDs.isNotEmpty) {
+            debugPrint('[IAP] Consumibles pendientes de propagación en Google Play: ${inAppResponse.notFoundIDs}');
           }
+        }
+
+        // 2. Consultar suscripciones mensuales de forma independiente
+        try {
+          final ProductDetailsResponse subResponse = await _iap.queryProductDetails(subscriptionIds);
+          if (subResponse.error == null) {
+            for (final product in subResponse.productDetails) {
+              _products[product.id] = product;
+              debugPrint('[IAP] Suscripción cargada: ${product.id} - ${product.title} - ${product.price}');
+            }
+          }
+        } catch (subErr) {
+          debugPrint('[IAP] Aviso consultando suscripciones: $subErr');
         }
       }
     } catch (e) {
@@ -781,6 +795,13 @@ class InAppPurchaseService {
         }
         return 0;
       } else {
+        // Si es una transacción antigua en modo silencioso y el servidor responde 400
+        // (por ejemplo transacción corrupta o no procesable en sandbox), consumirla para no mantener la cola de Google Play bloqueada indefinidamente
+        if (isSilent && isConsumable && response.statusCode == 400) {
+          debugPrint('[IAP] Liberando compra consumible no procesable (400) de Google Play: $purchaseKey');
+          _completedPurchaseKeys.add(purchaseKey);
+          await _finalizePurchaseInStore(purchase, isConsumable: isConsumable);
+        }
         if (!isSilent) {
           _clearProcessingState();
           _purchaseResultController.add(IapPurchaseResult(

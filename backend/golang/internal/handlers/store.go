@@ -1,8 +1,10 @@
 package handlers
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"strings"
@@ -421,6 +423,19 @@ func PurchasePack(w http.ResponseWriter, r *http.Request) {
 
 	pack, exists := ResolvePack(req.PackID)
 	if !exists {
+		// Compatibilidad y auto-recuperación: si una transacción pendiente pertenece a un tier de micro-donación
+		// (por ejemplo donate_10), reenrutarla internamente a ContributeDonation para acreditarla y consumirla.
+		if _, isDonation := ResolveDonationTier(req.PackID); isDonation {
+			reqJSON, _ := json.Marshal(map[string]interface{}{
+				"tier_id":                 req.PackID,
+				"provider":                req.Provider,
+				"provider_transaction_id": req.ProviderTransactionID,
+				"purchase_token":          req.PurchaseToken,
+			})
+			r.Body = io.NopCloser(bytes.NewBuffer(reqJSON))
+			ContributeDonation(w, r)
+			return
+		}
 		http.Error(w, "Paquete no válido.", http.StatusBadRequest)
 		return
 	}

@@ -111,9 +111,9 @@ func GetDonationsRanking(w http.ResponseWriter, r *http.Request) {
 
 	var myProfile *models.DonorProfile
 	if user != nil && db != nil {
-		var found models.DonorProfile
-		if err := db.Where("user_id = ?", user.ID).First(&found).Error; err == nil {
-			myProfile = &found
+		var found []models.DonorProfile
+		if err := db.Where("user_id = ?", user.ID).Limit(1).Find(&found).Error; err == nil && len(found) > 0 {
+			myProfile = &found[0]
 		}
 	}
 

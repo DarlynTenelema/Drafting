@@ -108,3 +108,36 @@ func TestValidateStoreReceiptSecurity(t *testing.T) {
 		t.Errorf("Normalización inesperada: prov=%s, txID=%s, tok=%s", prov, txID, tok)
 	}
 }
+
+func TestDonationTierResolutionAndEconomics(t *testing.T) {
+	testCases := []struct {
+		inputKey      string
+		expectedID    string
+		expectedPrice float64
+		expectedBonus int
+	}{
+		{"donate_10", "donate_10", 0.10, 2},
+		{"donate_25", "donate_25", 0.25, 5},
+		{"donate_49", "donate_49", 0.49, 10},
+		{"donate_75", "donate_75", 0.75, 15},
+		{"donate_99", "donate_99", 0.99, 25},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.inputKey, func(t *testing.T) {
+			tier, exists := handlers.ResolveDonationTier(tc.inputKey)
+			if !exists {
+				t.Fatalf("Expected donation tier %s to exist", tc.inputKey)
+			}
+			if tier.ID != tc.expectedID {
+				t.Errorf("Expected tier ID %s, got %s", tc.expectedID, tier.ID)
+			}
+			if tier.PriceUSD != tc.expectedPrice {
+				t.Errorf("Expected price %f, got %f", tc.expectedPrice, tier.PriceUSD)
+			}
+			if tier.BonusQueries != tc.expectedBonus {
+				t.Errorf("Expected bonus queries %d, got %d", tc.expectedBonus, tier.BonusQueries)
+			}
+		})
+	}
+}

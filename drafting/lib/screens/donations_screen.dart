@@ -52,8 +52,10 @@ class _DonationsScreenState extends State<DonationsScreen> {
     InAppPurchaseService.instance.initialize();
     _iapSub = InAppPurchaseService.instance.onPurchaseResult.listen((res) async {
       if (!mounted) return;
-      if (res.productId != null && InAppPurchaseService.donationIds.contains(res.productId)) {
-        setState(() => _isPurchasing = false);
+      if (res.productId == null || InAppPurchaseService.donationIds.contains(res.productId)) {
+        if (_isPurchasing) {
+          setState(() => _isPurchasing = false);
+        }
         if (res.success) {
           HapticFeedback.heavyImpact();
           widget.onDataChanged();

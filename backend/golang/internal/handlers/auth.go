@@ -37,8 +37,8 @@ func GoogleLogin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if req.DeviceID != "" {
-		var bannedUser models.User
-		if err := database.DB.Where("device_id = ? AND banned = ?", req.DeviceID, true).First(&bannedUser).Error; err == nil {
+		var bannedUsers []models.User
+		if err := database.DB.Where("device_id = ? AND banned = ?", req.DeviceID, true).Limit(1).Find(&bannedUsers).Error; err == nil && len(bannedUsers) > 0 {
 			http.Error(w, "Este dispositivo ha sido bloqueado por violar las normas de la comunidad.", http.StatusForbidden)
 			return
 		}
