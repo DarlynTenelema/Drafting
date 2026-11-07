@@ -234,6 +234,25 @@ class InAppPurchaseService {
         product = _products[packId];
       }
 
+      // Si aún no aparece en la consulta general, hacer una consulta directa e individual a Google Play Billing
+      if (_isAvailable && product == null) {
+        try {
+          final singleResp = await _iap.queryProductDetails({packId});
+          if (singleResp.error == null && singleResp.productDetails.isNotEmpty) {
+            for (final p in singleResp.productDetails) {
+              _products[p.id] = p;
+            }
+            product = _products[packId];
+          } else {
+            debugPrint(
+              '[IAP] Consulta individual ($packId) sin resultado. notFoundIDs=${singleResp.notFoundIDs}, err=${singleResp.error?.message}',
+            );
+          }
+        } catch (e) {
+          debugPrint('[IAP] Error en consulta individual ($packId): $e');
+        }
+      }
+
       if (!_isAvailable || product == null) {
         _clearProcessingState();
         _purchaseResultController.add(IapPurchaseResult(
@@ -241,7 +260,7 @@ class InAppPurchaseService {
           productId: packId,
           message: !_isAvailable
               ? 'Google Play Store no está disponible en este momento. Verifica tu conexión e inténtalo de nuevo.'
-              : 'El paquete ($packId) no está disponible en Google Play Store en este momento.',
+              : 'Google Play Store aún está sincronizando este artículo ($packId). Borra la caché de Google Play Store o inténtalo en unos minutos.',
         ));
         return false;
       }

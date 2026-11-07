@@ -70,6 +70,10 @@ class _StoreScreenState extends State<StoreScreen> {
     InAppPurchaseService.instance.initialize();
     _iapSubscription = InAppPurchaseService.instance.onPurchaseResult.listen((result) {
       if (!mounted) return;
+      // Ignorar eventos de micro-donaciones ya que son manejados exclusivamente por DonationsScreen
+      if (result.productId != null && InAppPurchaseService.donationIds.contains(result.productId)) {
+        return;
+      }
       final lang = LanguageService.instance;
       setState(() => _isPurchasing = false);
 

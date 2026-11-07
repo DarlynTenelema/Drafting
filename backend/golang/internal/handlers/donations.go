@@ -30,7 +30,7 @@ var AvailableDonationTiers = []DonationTier{
 		Name:         "Chispa Hextech",
 		PriceUSD:     0.10,
 		BonusQueries: 2,
-		Badge:        "Micro Aporte",
+		Badge:        "Aporte Inicial",
 		IconType:     "spark",
 	},
 	{
@@ -119,7 +119,7 @@ func GetDonationsRanking(w http.ResponseWriter, r *http.Request) {
 
 	canEditProfile := false
 	if user != nil {
-		if (myProfile != nil && myProfile.TotalDonatedUSD > 0) || strings.EqualFold(strings.TrimSpace(user.Email), AuthorizedAdminEmail) {
+		if myProfile != nil && myProfile.TotalDonatedUSD > 0 {
 			canEditProfile = true
 		}
 	}
@@ -328,21 +328,9 @@ func UpdateDonorProfile(w http.ResponseWriter, r *http.Request) {
 	var donor models.DonorProfile
 	err := db.Where("user_id = ?", user.ID).First(&donor).Error
 
-	isAdmin := strings.EqualFold(strings.TrimSpace(user.Email), AuthorizedAdminEmail)
 	if err != nil {
-		if !isAdmin {
-			http.Error(w, "Realiza tu primera micro-donación (desde $0.10) para desbloquear tu tarjeta en el Ranking y promocionar tu canal.", http.StatusForbidden)
-			return
-		}
-		donor = models.DonorProfile{
-			UserID:          user.ID,
-			DisplayName:     user.Username,
-			AvatarURL:       user.ProfilePic,
-			TotalDonatedUSD: 0.99,
-			DonationsCount:  1,
-			LastDonatedAt:   time.Now().UTC(),
-			CreatedAt:       time.Now().UTC(),
-		}
+		http.Error(w, "Realiza tu primer aporte (desde $0.10) para desbloquear tu perfil en el Ranking y compartir tu canal.", http.StatusForbidden)
+		return
 	}
 
 	platform := strings.ToLower(strings.TrimSpace(req.Platform))
