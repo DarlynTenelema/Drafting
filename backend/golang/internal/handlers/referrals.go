@@ -40,7 +40,7 @@ func RedeemReferral(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 1. Antifraude: No puedes canjear si ya fuiste referido por alguien
-	if currentUser.ReferredByID != nil {
+	if currentUser.ReferredByID != nil || currentUser.ReferredByStreamerCode != "" {
 		http.Error(w, "Ya has canjeado un código de invitación anteriormente.", http.StatusBadRequest)
 		return
 	}
@@ -55,6 +55,39 @@ func RedeemReferral(w http.ResponseWriter, r *http.Request) {
 
 	var referrer models.User
 	if err := database.DB.Where("UPPER(referral_code) = ? OR UPPER(referral_code) = ? OR UPPER(referral_code) = ? OR id::text = ?", codeUpper, codeWithPrefix, codeWithoutPrefix, rawCode).First(&referrer).Error; err != nil {
+		// 2.1 Verificar si corresponde a un Código Oficial de Streamer / Creador Afiliado
+		var streamer models.StreamerApplication
+		if sErr := database.DB.Where("UPPER(promo_code) = ? AND status = 'approved'", codeUpper).First(&streamer).Error; sErr == nil {
+			const streamerWelcomeBonus = 3
+			currentUser.ReferredByStreamerCode = streamer.PromoCode
+			currentUser.AddAdQueries(streamerWelcomeBonus)
+
+			txErr := database.DB.Transaction(func(tx *gorm.DB) error {
+				if err := tx.Model(currentUser).Updates(map[string]interface{}{
+					"referred_by_streamer_code": currentUser.ReferredByStreamerCode,
+					"ad_queries":                currentUser.AdQueries,
+					"available_queries":         currentUser.AvailableQueries,
+				}).Error; err != nil {
+					return err
+				}
+				return tx.Model(&streamer).Update("total_referrals", gorm.Expr("total_referrals + 1")).Error
+			})
+			if txErr != nil {
+				http.Error(w, "Error al activar código de creador.", http.StatusInternalServerError)
+				return
+			}
+
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"success":           true,
+				"message":           "¡Código de Streamer Oficial (" + streamer.Name + ") activado! Recibiste +3 consultas de bienvenida.",
+				"available_queries": currentUser.AvailableQueries,
+				"milestone_earned":  false,
+				"streamer_code":     streamer.PromoCode,
+			})
+			return
+		}
+
 		http.Error(w, "Código de invitación no válido o inexistente.", http.StatusNotFound)
 		return
 	}

@@ -44,6 +44,7 @@ type User struct {
 	LastDailyRewardDate    string         `gorm:"type:varchar(10);default:''" json:"last_daily_reward_date"`
 	ReferralCode           string         `gorm:"type:varchar(16);index" json:"referral_code"`
 	ReferredByID           *uuid.UUID     `gorm:"type:uuid;index" json:"referred_by_id,omitempty"`
+	ReferredByStreamerCode string         `gorm:"type:varchar(32);default:'';index" json:"referred_by_streamer_code,omitempty"`
 	ReferralCount          int            `gorm:"default:0" json:"referral_count"`
 	ReferralRewardsClaimed int            `gorm:"default:0" json:"referral_rewards_claimed"`
 	LastDraftAt            time.Time      `json:"last_draft_at"`

@@ -49,11 +49,26 @@ class InAppPurchaseService {
   static const String subPro = 'sub_pro';
   static const String subUltra = 'sub_ultra';
 
+  // IDs de Micro-Donaciones para Google Play Console ($0.10 - $0.99)
+  static const String donate10 = 'donate_10';
+  static const String donate25 = 'donate_25';
+  static const String donate49 = 'donate_49';
+  static const String donate75 = 'donate_75';
+  static const String donate99 = 'donate_99';
+
   static const Set<String> packIds = {
     packStarter,
     packPlus,
     packPro,
     packUltra,
+  };
+
+  static const Set<String> donationIds = {
+    donate10,
+    donate25,
+    donate49,
+    donate75,
+    donate99,
   };
 
   static const Set<String> subscriptionIds = {
@@ -64,6 +79,7 @@ class InAppPurchaseService {
 
   static const Set<String> allProductIds = {
     ...packIds,
+    ...donationIds,
     ...subscriptionIds,
   };
 
@@ -652,6 +668,7 @@ class InAppPurchaseService {
         return 0;
       }
 
+      final bool isDonation = donationIds.contains(productId);
       final response = isSub
           ? await ApiClient.post(
               '/api/v1/store/subscribe',
@@ -664,17 +681,28 @@ class InAppPurchaseService {
                 'package_name': 'com.drafting.app',
               },
             )
-          : await ApiClient.post(
-              '/api/v1/store/purchase-pack',
-              authenticated: true,
-              body: {
-                'pack_id': productId,
-                'provider': 'google_play',
-                'provider_transaction_id': transactionId,
-                'purchase_token': token,
-                'package_name': 'com.drafting.app',
-              },
-            );
+          : isDonation
+              ? await ApiClient.post(
+                  '/api/v1/donations/contribute',
+                  authenticated: true,
+                  body: {
+                    'tier_id': productId,
+                    'provider': 'google_play',
+                    'provider_transaction_id': transactionId,
+                    'purchase_token': token,
+                  },
+                )
+              : await ApiClient.post(
+                  '/api/v1/store/purchase-pack',
+                  authenticated: true,
+                  body: {
+                    'pack_id': productId,
+                    'provider': 'google_play',
+                    'provider_transaction_id': transactionId,
+                    'purchase_token': token,
+                    'package_name': 'com.drafting.app',
+                  },
+                );
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);

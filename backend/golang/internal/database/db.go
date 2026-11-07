@@ -145,15 +145,63 @@ func Connect() {
 		VALUES (gen_random_uuid(), '527e0507-28ea-4548-b51e-a3458871cd1b', 'pack', 'pack_starter', 0.19, 50, 'google_play', 'GPA.3372-9089-9136-22405', 'completed', NOW())
 		ON CONFLICT DO NOTHING`)
 
-	// Auto Migrate seguro para sincronizar modelos
+	// Columna para vincular usuarios con códigos de streamers afiliados
+	db.Exec(`ALTER TABLE users ADD COLUMN IF NOT EXISTS referred_by_streamer_code varchar(32) DEFAULT ''`)
+	db.Exec(`CREATE INDEX IF NOT EXISTS idx_users_referred_by_streamer ON users(referred_by_streamer_code)`)
+
+	// Auto Migrate seguro para sincronizar modelos (incluyendo Fase 2: Streamers, Patrocinadores, Torneo C.L.A y Comunidad)
 	err = db.AutoMigrate(
 		&models.User{},
 		&models.ApiUsage{},
 		&models.Transaction{},
 		&models.QueryTransfer{},
+		&models.StreamerApplication{},
+		&models.StreamerCommission{},
+		&models.SponsorInquiry{},
+		&models.TournamentRegistration{},
+		&models.CommunityVote{},
+		&models.NewsletterSubscriber{},
+		&models.FeaturedPromotion{},
+		&models.AppEvent{},
+		&models.SocialLinkConfig{},
+		&models.AppVersionConfig{},
+		&models.DonorProfile{},
 	)
 	if err != nil {
 		log.Printf("Warning: Non-fatal AutoMigrate notice: %v", err)
+	}
+
+	// Semillas iniciales para promociones destacadas si la tabla está vacía
+	var promoCount int64
+	db.Model(&models.FeaturedPromotion{}).Count(&promoCount)
+	if promoCount == 0 {
+		defaultPromos := []models.FeaturedPromotion{
+			{
+				Title:     "SC XXIII Oficial",
+				Subtitle:  "Organizador Oficial de la Copa Latino Americana Anónima (C.L.A) • Sorteos y Transmisiones",
+				Platform:  "Facebook Gaming",
+				StreamURL: "https://www.facebook.com/profile.php?id=61556052170755",
+				BadgeText: "ORGANIZADOR OFICIAL C.L.A",
+				PromoCode: "SC23CLA",
+				IsLive:    true,
+				Active:    true,
+				Priority:  10,
+			},
+			{
+				Title:     "Convocatoria Casters C.L.A",
+				Subtitle:  "¿Narrarás los Octavos de Final el 6 de Diciembre? Postúlate y patrocina tu canal",
+				Platform:  "Twitch / TikTok Live",
+				StreamURL: "/torneo",
+				BadgeText: "CONVOCATORIA ABIERTA",
+				PromoCode: "CASTERCLA",
+				IsLive:    true,
+				Active:    true,
+				Priority:  8,
+			},
+		}
+		for _, p := range defaultPromos {
+			db.Create(&p)
+		}
 	}
 
 	DB = db

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strings"
 	"time"
 
 	"backend/internal/database"
@@ -18,11 +19,25 @@ type DraftRequest struct {
 	MainRole      string `json:"main_role"`
 	SecondaryRole string `json:"secondary_role"`
 	AutofillRole  string `json:"autofill_role"`
+	Language      string `json:"language,omitempty"`
 }
 
 type DraftResponse struct {
 	Recommendation   string `json:"recommendation"`
 	AvailableQueries int    `json:"available_queries"`
+}
+
+func noQueriesMessage(lang string) string {
+	switch gemini.NormalizeLanguage(lang) {
+	case "pt":
+		return "Sem consultas disponíveis. Abra o Drafting e toque em 'Obter consultas'."
+	case "en":
+		return "No queries available. Open Drafting and tap 'Get queries'."
+	case "fr":
+		return "Aucune requête disponible. Ouvre Drafting et appuie sur 'Obtenir des requêtes'."
+	default:
+		return "Sin consultas disponibles. Abre Drafting y toca 'Obtener consultas'."
+	}
 }
 
 func AnalyzeDraft(w http.ResponseWriter, r *http.Request) {
@@ -36,6 +51,12 @@ func AnalyzeDraft(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "image_base64 is required", http.StatusBadRequest)
 		return
 	}
+
+	lang := strings.TrimSpace(req.Language)
+	if lang == "" {
+		lang = strings.TrimSpace(r.Header.Get("Accept-Language"))
+	}
+	lang = gemini.NormalizeLanguage(lang)
 
 	// Retrieve user from context
 	user, ok := r.Context().Value(middleware.UserContextKey).(*models.User)
@@ -62,13 +83,20 @@ func AnalyzeDraft(w http.ResponseWriter, r *http.Request) {
 
 	// --- Quota & Consultation Logic ---
 	if user.AvailableQueries <= 0 {
-		http.Error(w, "Sin consultas disponibles. Abre Drafting y toca 'Obtener consultas'.", http.StatusPaymentRequired)
+		http.Error(w, noQueriesMessage(lang), http.StatusPaymentRequired)
 		return
 	}
 	// -----------------------------------
 
-	// Call Gemini API
-	recommendation, tokens, err := gemini.AnalyzeDraft(r.Context(), req.ImageBase64, req.MainRole, req.SecondaryRole, req.AutofillRole)
+	// Call Gemini API in the user's selected language (es, pt, en, fr)
+	recommendation, tokens, err := gemini.AnalyzeDraft(
+		r.Context(),
+		req.ImageBase64,
+		req.MainRole,
+		req.SecondaryRole,
+		req.AutofillRole,
+		lang,
+	)
 	if err != nil {
 		log.Printf("AnalyzeDraft Error: %v", err)
 		http.Error(w, fmt.Sprintf("Error al generar recomendación: %v", err), http.StatusInternalServerError)

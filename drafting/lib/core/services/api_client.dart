@@ -4,6 +4,7 @@ import 'dart:async';
 import 'package:http/http.dart' as http;
 
 import '../config/app_config.dart';
+import 'language_service.dart';
 import 'session_service.dart';
 
 class ApiClient {
@@ -17,14 +18,14 @@ class ApiClient {
       }
       return response;
     } on TimeoutException {
-      throw ApiException('Ups, la conexión tardó demasiado. Verifica tu internet.');
+      throw ApiException(LanguageService.instance.tr('net_timeout'));
     } on SocketException {
-      throw ApiException('Ups, tienes desconexión a internet. Verifica tu conexión.');
+      throw ApiException(LanguageService.instance.tr('net_offline'));
     } catch (e) {
       if (e.toString().contains('SocketException') || e.toString().contains('ClientException')) {
-        throw ApiException('Ups, tienes desconexión a internet. Verifica tu conexión.');
+        throw ApiException(LanguageService.instance.tr('net_offline'));
       } else if (e.toString().contains('TimeoutException')) {
-        throw ApiException('Ups, la conexión tardó demasiado. Verifica tu internet.');
+        throw ApiException(LanguageService.instance.tr('net_timeout'));
       }
       rethrow;
     }
@@ -38,6 +39,7 @@ class ApiClient {
   }) async {
     final headers = <String, String>{
       'Content-Type': 'application/json',
+      'Accept-Language': LanguageService.instance.currentLanguage,
     };
 
     if (authenticated) {
@@ -60,7 +62,9 @@ class ApiClient {
     bool authenticated = false,
     String? sessionToken,
   }) async {
-    final headers = <String, String>{};
+    final headers = <String, String>{
+      'Accept-Language': LanguageService.instance.currentLanguage,
+    };
 
     if (authenticated) {
       final token = sessionToken ?? await SessionService.getSessionToken();
@@ -80,6 +84,7 @@ class ApiClient {
   }) async {
     final headers = <String, String>{
       'Content-Type': 'application/json',
+      'Accept-Language': LanguageService.instance.currentLanguage,
     };
 
     if (authenticated) {
@@ -102,7 +107,9 @@ class ApiClient {
     bool authenticated = false,
     String? sessionToken,
   }) async {
-    final headers = <String, String>{};
+    final headers = <String, String>{
+      'Accept-Language': LanguageService.instance.currentLanguage,
+    };
 
     if (authenticated) {
       final token = sessionToken ?? await SessionService.getSessionToken();
@@ -124,6 +131,7 @@ class ApiClient {
   }) async {
     final uri = AppConfig.apiUri(path);
     final request = http.MultipartRequest('POST', uri);
+    request.headers['Accept-Language'] = LanguageService.instance.currentLanguage;
 
     request.fields.addAll(fields);
 

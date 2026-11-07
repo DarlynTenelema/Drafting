@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'dart:math' as math;
+import '../../core/services/language_service.dart';
 
 class HextechOrb extends StatefulWidget {
   final bool isActive;
@@ -137,7 +138,16 @@ class _HextechOrbState extends State<HextechOrb> with SingleTickerProviderStateM
                     ),
                 ],
               ),
-              child: Text(widget.isActive ? 'ACTIVO' : 'ACTIVAR'),
+              child: ValueListenableBuilder<String>(
+                valueListenable: LanguageService.instance.languageNotifier,
+                builder: (context, _, __) {
+                  return Text(
+                    widget.isActive
+                        ? LanguageService.instance.tr('orb_active')
+                        : LanguageService.instance.tr('orb_activate'),
+                  );
+                },
+              ),
             ),
           ],
         ),

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../core/services/language_service.dart';
 
 class TutorialDialog extends StatefulWidget {
   const TutorialDialog({super.key});
@@ -31,26 +32,29 @@ class _TutorialDialogState extends State<TutorialDialog> {
   final PageController _pageController = PageController();
   int _currentPage = 0;
 
-  final List<Map<String, String>> _steps = [
-    {
-      'badge': 'PASO 1 DE 3',
-      'title': '1. Activa tu Asistente',
-      'description': 'Presiona el orbe central en Drafting para desplegar la burbuja flotante antes de iniciar tu partida.',
-      'image': 'assets/images/tutorial_step1.jpg',
-    },
-    {
-      'badge': 'PASO 2 DE 3',
-      'title': '2. Abre Wild Rift y Escanea',
-      'description': 'Durante la selección de campeones o en plena partida, toca el botón de la IA en la burbuja flotante para analizar la pantalla.',
-      'image': 'assets/images/tutorial_step2.jpg',
-    },
-    {
-      'badge': 'PASO 3 DE 3',
-      'title': '3. Domina con la Mejor Build',
-      'description': 'Recibe al instante contra-picks, runas y build de objetos core. ¡Copia el análisis con un toque para pasarlo a tu dúo!',
-      'image': 'assets/images/tutorial_step3.jpg',
-    },
-  ];
+  List<Map<String, String>> get _steps {
+    final lang = LanguageService.instance;
+    return [
+      {
+        'badge': lang.tr('tut_s1_badge'),
+        'title': lang.tr('tut_s1_title'),
+        'description': lang.tr('tut_s1_desc'),
+        'image': 'assets/images/tutorial_step1.jpg',
+      },
+      {
+        'badge': lang.tr('tut_s2_badge'),
+        'title': lang.tr('tut_s2_title'),
+        'description': lang.tr('tut_s2_desc'),
+        'image': 'assets/images/tutorial_step2.jpg',
+      },
+      {
+        'badge': lang.tr('tut_s3_badge'),
+        'title': lang.tr('tut_s3_title'),
+        'description': lang.tr('tut_s3_desc'),
+        'image': 'assets/images/tutorial_step3.jpg',
+      },
+    ];
+  }
 
   @override
   void dispose() {
@@ -120,7 +124,7 @@ class _TutorialDialogState extends State<TutorialDialog> {
                       ),
                       const SizedBox(width: 8),
                       Text(
-                        'Cómo funciona Drafting',
+                        LanguageService.instance.tr('tut_header'),
                         style: GoogleFonts.outfit(
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
@@ -255,7 +259,7 @@ class _TutorialDialogState extends State<TutorialDialog> {
                       if (_currentPage < _steps.length - 1)
                         TextButton(
                           onPressed: () => Navigator.of(context).pop(),
-                          child: const Text('Omitir', style: TextStyle(color: Colors.white54)),
+                          child: Text(LanguageService.instance.tr('tut_skip'), style: const TextStyle(color: Colors.white54)),
                         ),
                       const SizedBox(width: 8),
                       Container(
@@ -281,7 +285,9 @@ class _TutorialDialogState extends State<TutorialDialog> {
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                           ),
                           child: Text(
-                            _currentPage == _steps.length - 1 ? '¡Comenzar!' : 'Siguiente',
+                            _currentPage == _steps.length - 1
+                                ? LanguageService.instance.tr('tut_start')
+                                : LanguageService.instance.tr('tut_next'),
                             style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
                           ),
                         ),

@@ -1,0 +1,12 @@
+{
+  "name": "drafting-web-ecosystem",
+  "version": "2.0.0",
+  "description": "Plataforma Web Oficial de Drafting & SC XXIII - Afiliados, Patrocinadores, Copa C.L.A y Comunidad",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "npx --yes serve . -l 3000",
+    "dev": "npx --yes serve . -l 3000"
+  }
+}
+

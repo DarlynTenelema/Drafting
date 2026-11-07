@@ -6,6 +6,7 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../core/services/api_client.dart';
 import '../core/services/iap_service.dart';
+import '../core/services/language_service.dart';
 
 class StoreScreen extends StatefulWidget {
   final VoidCallback onDataChanged;
@@ -53,14 +54,23 @@ class _StoreScreenState extends State<StoreScreen> {
   @override
   void initState() {
     super.initState();
+    LanguageService.instance.languageNotifier.addListener(_onLanguageChanged);
     _fetchCatalog();
     _initIap();
+  }
+
+  void _onLanguageChanged() {
+    if (mounted) {
+      setState(() {});
+      _fetchCatalog(silent: true);
+    }
   }
 
   void _initIap() {
     InAppPurchaseService.instance.initialize();
     _iapSubscription = InAppPurchaseService.instance.onPurchaseResult.listen((result) {
       if (!mounted) return;
+      final lang = LanguageService.instance;
       setState(() => _isPurchasing = false);
 
       if (result.success) {
@@ -70,8 +80,8 @@ class _StoreScreenState extends State<StoreScreen> {
         if (!result.alreadyProcessed && result.queriesAdded > 0) {
           HapticFeedback.heavyImpact();
           _showCelebrationDialog(
-            title: result.isSubscription ? '¡Suscripción Activada!' : '¡Paquete Adquirido!',
-            message: result.message ?? 'Se han acreditado las consultas con éxito.',
+            title: result.isSubscription ? lang.tr('st_sub_active_title') : lang.tr('st_pack_bought_title'),
+            message: result.message ?? lang.tr('st_queries_credited'),
             queries: result.queriesAdded,
           );
         } else if (result.message != null && result.message!.isNotEmpty) {
@@ -90,6 +100,7 @@ class _StoreScreenState extends State<StoreScreen> {
 
   @override
   void dispose() {
+    LanguageService.instance.languageNotifier.removeListener(_onLanguageChanged);
     _iapSubscription?.cancel();
     _friendIdController.dispose();
     super.dispose();
@@ -161,7 +172,7 @@ class _StoreScreenState extends State<StoreScreen> {
 
     final planId = sub['id'] ?? '';
     if (_isSubscribed && _subscriptionPlan == planId) {
-      _showInfoSnackBar('Ya tienes este pase mensual activo en tu cuenta.');
+      _showInfoSnackBar(LanguageService.instance.tr('st_already_sub_snack'));
       return;
     }
 
@@ -175,9 +186,10 @@ class _StoreScreenState extends State<StoreScreen> {
   }
 
   Future<void> _transferQueries() async {
+    final lang = LanguageService.instance;
     final rawTarget = _friendIdController.text.trim();
     if (rawTarget.isEmpty) {
-      _showErrorSnackBar('Ingresa el ID o código de tu amigo (ej. EW3J43).');
+      _showErrorSnackBar(lang.tr('st_enter_friend_err'));
       return;
     }
 
@@ -187,17 +199,17 @@ class _StoreScreenState extends State<StoreScreen> {
     }
 
     if (_remainingTransferQuota <= 0) {
-      _showErrorSnackBar('Ya alcanzaste el límite diario de 10 consultas transferidas hoy.');
+      _showErrorSnackBar(lang.tr('st_limit_reached_err'));
       return;
     }
 
     if (_selectedTransferAmount > _remainingTransferQuota) {
-      _showErrorSnackBar('Solo puedes transferir hasta $_remainingTransferQuota consultas más hoy.');
+      _showErrorSnackBar(lang.tr('st_quota_left_err', {'left': '$_remainingTransferQuota'}));
       return;
     }
 
     if (_selectedTransferAmount > (_availableQueries + _giftQueries)) {
-      _showErrorSnackBar('No tienes suficientes consultas disponibles para transferir $_selectedTransferAmount.');
+      _showErrorSnackBar(lang.tr('st_not_enough_err', {'amount': '$_selectedTransferAmount'}));
       return;
     }
 
@@ -233,7 +245,7 @@ class _StoreScreenState extends State<StoreScreen> {
                   const SizedBox(width: 12),
                   Expanded(
                     child: Text(
-                      data['message'] ?? '¡Consultas transferidas con éxito!',
+                      data['message'] ?? lang.tr('st_transfer_ok'),
                       style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.w600),
                     ),
                   ),
@@ -243,11 +255,11 @@ class _StoreScreenState extends State<StoreScreen> {
           );
         }
       } else {
-        final errorMsg = response.body.isNotEmpty ? response.body : 'Error al transferir consultas';
+        final errorMsg = response.body.isNotEmpty ? response.body : lang.tr('net_error');
         _showErrorSnackBar(errorMsg);
       }
     } catch (e) {
-      _showErrorSnackBar('Error de conexión: $e');
+      _showErrorSnackBar(lang.tr('net_error'));
     } finally {
       if (mounted) setState(() => _isTransferring = false);
     }
@@ -338,7 +350,7 @@ class _StoreScreenState extends State<StoreScreen> {
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Text(
-                '+$queries Consultas Listas',
+                LanguageService.instance.tr('st_queries_ready_badge', {'count': '$queries'}),
                 style: GoogleFonts.outfit(
                   fontSize: 15,
                   fontWeight: FontWeight.bold,
@@ -367,7 +379,7 @@ class _StoreScreenState extends State<StoreScreen> {
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                 ),
                 child: Text(
-                  '¡A la Ranked!',
+                  LanguageService.instance.tr('st_to_ranked_btn'),
                   style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 16),
                 ),
               ),
@@ -381,6 +393,7 @@ class _StoreScreenState extends State<StoreScreen> {
   }
 
   void _showSubscriptionRequiredDialog() {
+    final lang = LanguageService.instance;
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -395,7 +408,7 @@ class _StoreScreenState extends State<StoreScreen> {
             const Icon(Icons.lock_person_rounded, size: 44, color: Color(0xFF00E5FF)),
             const SizedBox(height: 14),
             Text(
-              'Comparte con tus Amigos',
+              lang.tr('st_share_modal_title'),
               style: GoogleFonts.outfit(
                 fontSize: 20,
                 fontWeight: FontWeight.bold,
@@ -404,7 +417,7 @@ class _StoreScreenState extends State<StoreScreen> {
             ),
             const SizedBox(height: 8),
             Text(
-              'La función de compartir hasta 10 consultas por día con tus amigos está disponible al adquirir cualquier Pack (desde \$0.19) o Suscripción activa.\n\n¡Consigue cualquier paquete para desbloquear el envío a tus amigos!',
+              lang.tr('st_share_modal_body'),
               textAlign: TextAlign.center,
               style: TextStyle(fontSize: 13, color: Colors.white.withValues(alpha: 0.75)),
             ),
@@ -416,7 +429,7 @@ class _StoreScreenState extends State<StoreScreen> {
                 foregroundColor: Colors.black,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               ),
-              child: const Text('Ver Paquetes y Planes'),
+              child: Text(lang.tr('st_share_modal_btn')),
             ),
           ],
         ),
@@ -426,6 +439,7 @@ class _StoreScreenState extends State<StoreScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final lang = LanguageService.instance;
     return Scaffold(
       backgroundColor: const Color(0xFF090D16),
       appBar: AppBar(
@@ -439,7 +453,7 @@ class _StoreScreenState extends State<StoreScreen> {
             const Icon(Icons.storefront_rounded, color: Color(0xFFC89B3C), size: 22),
             const SizedBox(width: 8),
             Text(
-              'Tienda & Pases',
+              lang.tr('st_appbar'),
               style: GoogleFonts.outfit(
                 fontSize: 20,
                 fontWeight: FontWeight.bold,
@@ -451,7 +465,7 @@ class _StoreScreenState extends State<StoreScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.restore_rounded, color: Colors.white70),
-            tooltip: 'Restaurar Compras',
+            tooltip: lang.tr('st_restore_tooltip'),
             onPressed: () async {
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
@@ -459,7 +473,7 @@ class _StoreScreenState extends State<StoreScreen> {
                   behavior: SnackBarBehavior.floating,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   content: Text(
-                    'Verificando compras activas en Google Play...',
+                    lang.tr('st_restoring_snack'),
                     style: GoogleFonts.outfit(color: Colors.white),
                   ),
                 ),
@@ -491,7 +505,7 @@ class _StoreScreenState extends State<StoreScreen> {
                         ElevatedButton(
                           onPressed: _fetchCatalog,
                           style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF00E5FF)),
-                          child: const Text('Reintentar', style: TextStyle(color: Colors.black)),
+                          child: Text(lang.tr('st_retry'), style: const TextStyle(color: Colors.black)),
                         ),
                       ],
                     ),
@@ -511,8 +525,8 @@ class _StoreScreenState extends State<StoreScreen> {
 
                       // --- 1. PAQUETES DE CONSULTAS (COMPRAS ÚNICAS) ---
                       _buildSectionHeader(
-                        title: 'Paquetes de Consultas',
-                        subtitle: 'Consultas permanentes que nunca caducan',
+                        title: lang.tr('st_packs_header'),
+                        subtitle: lang.tr('st_packs_sub'),
                         icon: Icons.all_inclusive_rounded,
                         color: const Color(0xFF00E5FF),
                       ),
@@ -525,8 +539,8 @@ class _StoreScreenState extends State<StoreScreen> {
 
                       // --- 2. SUSCRIPCIONES MENSUALES ---
                       _buildSectionHeader(
-                        title: 'Pases Mensuales (Mayor Ahorro)',
-                        subtitle: 'Recarga masiva cada mes + Enviar consultas a amigos',
+                        title: lang.tr('st_subs_header'),
+                        subtitle: lang.tr('st_subs_sub'),
                         icon: Icons.workspace_premium_rounded,
                         color: const Color(0xFFC89B3C),
                       ),
@@ -590,7 +604,7 @@ class _StoreScreenState extends State<StoreScreen> {
                   ),
                   const SizedBox(width: 10),
                   Text(
-                    'Tu Saldo Disponible',
+                    LanguageService.instance.tr('st_balance_title'),
                     style: GoogleFonts.outfit(
                       fontSize: 16,
                       fontWeight: FontWeight.w600,
@@ -609,7 +623,9 @@ class _StoreScreenState extends State<StoreScreen> {
                   ),
                 ),
                 child: Text(
-                  _isSubscribed ? 'PASSE ${_subscriptionPlan.toUpperCase()}' : 'PLAN GRATIS',
+                  _isSubscribed
+                      ? 'PASSE ${_subscriptionPlan.toUpperCase()}'
+                      : LanguageService.instance.tr('st_free_plan'),
                   style: GoogleFonts.outfit(
                     fontSize: 11,
                     fontWeight: FontWeight.bold,
@@ -634,7 +650,7 @@ class _StoreScreenState extends State<StoreScreen> {
               ),
               const SizedBox(width: 8),
               Text(
-                'Consultas',
+                LanguageService.instance.tr('home_query_plural'),
                 style: GoogleFonts.outfit(
                   fontSize: 16,
                   color: const Color(0xFF00E5FF),
@@ -646,14 +662,14 @@ class _StoreScreenState extends State<StoreScreen> {
           if (_isSubscribed) ...[
             const SizedBox(height: 6),
             Text(
-              '$_subscriptionQueries consultas mensuales vigentes.',
+              LanguageService.instance.tr('st_sub_queries_current', {'count': '$_subscriptionQueries'}),
               style: TextStyle(fontSize: 12, color: Colors.white.withValues(alpha: 0.6)),
             ),
           ],
           if (_purchasedQueries > 0) ...[
             const SizedBox(height: 4),
             Text(
-              '$_purchasedQueries consultas permanentes adquiridas.',
+              LanguageService.instance.tr('st_purchased_queries_current', {'count': '$_purchasedQueries'}),
               style: TextStyle(fontSize: 12, color: const Color(0xFF00E5FF).withValues(alpha: 0.8)),
             ),
           ],
@@ -664,7 +680,7 @@ class _StoreScreenState extends State<StoreScreen> {
                 const Icon(Icons.check_circle_outline_rounded, color: Color(0xFF10B981), size: 14),
                 const SizedBox(width: 4),
                 Text(
-                  'Pack Starter de bienvenida canjeado',
+                  LanguageService.instance.tr('st_starter_redeemed'),
                   style: TextStyle(fontSize: 11, color: const Color(0xFF10B981).withValues(alpha: 0.8)),
                 ),
               ],
@@ -821,7 +837,7 @@ class _StoreScreenState extends State<StoreScreen> {
                       Row(
                         children: [
                           Text(
-                            '$queries Consultas',
+                            LanguageService.instance.tr('st_pack_queries', {'count': '$queries'}),
                             style: GoogleFonts.outfit(
                               fontSize: 18,
                               fontWeight: FontWeight.bold,
@@ -831,7 +847,7 @@ class _StoreScreenState extends State<StoreScreen> {
                           if (bonus > 0) ...[
                             const SizedBox(width: 6),
                             Text(
-                              '(+$bonus regalo)',
+                              LanguageService.instance.tr('st_pack_bonus', {'bonus': '$bonus'}),
                               style: const TextStyle(
                                 fontSize: 12,
                                 color: Color(0xFF10B981),
@@ -954,7 +970,7 @@ class _StoreScreenState extends State<StoreScreen> {
                       ),
                       const SizedBox(height: 6),
                       Text(
-                        '$queries Consultas / mes',
+                        LanguageService.instance.tr('st_sub_queries_month', {'count': '$queries'}),
                         style: GoogleFonts.outfit(
                           fontSize: 17,
                           fontWeight: FontWeight.bold,
@@ -979,10 +995,10 @@ class _StoreScreenState extends State<StoreScreen> {
                   ),
                   child: Text(
                     isCurrentPlan
-                        ? 'Activo'
+                        ? LanguageService.instance.tr('st_active')
                         : InAppPurchaseService.instance.getDisplayPrice(
                             sub['id'] ?? '',
-                            '\$${price.toStringAsFixed(2)}/mes',
+                            '\$${price.toStringAsFixed(2)}${LanguageService.instance.tr('st_sub_per_month')}',
                           ),
                     style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 14),
                   ),
@@ -1024,7 +1040,7 @@ class _StoreScreenState extends State<StoreScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Compartir con tu Dúo / Amigos',
+                      LanguageService.instance.tr('st_share_header'),
                       style: GoogleFonts.outfit(
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
@@ -1032,7 +1048,7 @@ class _StoreScreenState extends State<StoreScreen> {
                       ),
                     ),
                     Text(
-                      'Regala consultas a compañeros de tu squad',
+                      LanguageService.instance.tr('st_share_sub'),
                       style: TextStyle(fontSize: 11, color: Colors.white.withValues(alpha: 0.5)),
                     ),
                   ],
@@ -1054,11 +1070,14 @@ class _StoreScreenState extends State<StoreScreen> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  'Cuota para enviar hoy:',
+                  LanguageService.instance.tr('st_quota_today_label'),
                   style: TextStyle(fontSize: 12, color: Colors.white.withValues(alpha: 0.7)),
                 ),
                 Text(
-                  '$_dailyTransferredToday enviadas | $_remainingTransferQuota restantes',
+                  LanguageService.instance.tr(
+                    'st_quota_today_val',
+                    {'sent': '$_dailyTransferredToday', 'left': '$_remainingTransferQuota'},
+                  ),
                   style: GoogleFonts.outfit(
                     fontSize: 13,
                     fontWeight: FontWeight.bold,
@@ -1088,7 +1107,7 @@ class _StoreScreenState extends State<StoreScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Tu ID para que otros te envíen consultas:',
+                          LanguageService.instance.tr('st_your_id_label'),
                           style: TextStyle(fontSize: 11, color: Colors.white.withValues(alpha: 0.7)),
                         ),
                         Text(
@@ -1100,7 +1119,7 @@ class _StoreScreenState extends State<StoreScreen> {
                   ),
                   IconButton(
                     icon: const Icon(Icons.copy_rounded, color: Colors.white, size: 18),
-                    tooltip: 'Copiar mi ID',
+                    tooltip: LanguageService.instance.tr('st_copy_id_tooltip'),
                     onPressed: () {
                       Clipboard.setData(ClipboardData(text: _myReferralCode!));
                       HapticFeedback.lightImpact();
@@ -1109,7 +1128,7 @@ class _StoreScreenState extends State<StoreScreen> {
                           backgroundColor: const Color(0xFF10B981),
                           behavior: SnackBarBehavior.floating,
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                          content: const Text('¡Tu ID ha sido copiado al portapapeles!'),
+                          content: Text(LanguageService.instance.tr('st_id_copied_snack')),
                           duration: const Duration(seconds: 2),
                         ),
                       );
@@ -1135,7 +1154,7 @@ class _StoreScreenState extends State<StoreScreen> {
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      'Tienes $_giftQueries consultas de regalo exclusivas para enviar a amigos.',
+                      LanguageService.instance.tr('st_gift_queries_banner', {'count': '$_giftQueries'}),
                       style: GoogleFonts.outfit(fontSize: 12, color: const Color(0xFF10B981), fontWeight: FontWeight.w600),
                     ),
                   ),
@@ -1147,7 +1166,7 @@ class _StoreScreenState extends State<StoreScreen> {
 
           // Campo: ID del Jugador
           Text(
-            'ID o Código del Jugador (ej. EW3J43):',
+            LanguageService.instance.tr('st_friend_id_label'),
             style: GoogleFonts.outfit(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.white70),
           ),
           const SizedBox(height: 6),
@@ -1156,7 +1175,7 @@ class _StoreScreenState extends State<StoreScreen> {
             textCapitalization: TextCapitalization.characters,
             style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold),
             decoration: InputDecoration(
-              hintText: 'Ingresa el ID del jugador',
+              hintText: LanguageService.instance.tr('st_friend_id_hint'),
               hintStyle: const TextStyle(color: Colors.white24, fontSize: 13),
               filled: true,
               fillColor: const Color(0xFF0F172A),
@@ -1179,7 +1198,7 @@ class _StoreScreenState extends State<StoreScreen> {
 
           // Selector de cantidad de consultas (1 a 10)
           Text(
-            'Cantidad de Consultas a Enviar: $_selectedTransferAmount',
+            LanguageService.instance.tr('st_transfer_amount_label', {'amount': '$_selectedTransferAmount'}),
             style: GoogleFonts.outfit(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.white70),
           ),
           const SizedBox(height: 8),
@@ -1222,7 +1241,9 @@ class _StoreScreenState extends State<StoreScreen> {
                     )
                   : Icon(_canTransfer ? Icons.send_rounded : Icons.lock_outline_rounded, size: 18),
               label: Text(
-                _canTransfer ? 'Enviar $_selectedTransferAmount Consultas a mi Amigo' : 'Desbloquear con Pack o Suscripción (desde \$0.19)',
+                _canTransfer
+                    ? LanguageService.instance.tr('st_send_btn_unlocked', {'amount': '$_selectedTransferAmount'})
+                    : LanguageService.instance.tr('st_send_btn_locked'),
                 style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.bold),
               ),
               style: ElevatedButton.styleFrom(

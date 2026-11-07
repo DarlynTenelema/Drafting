@@ -42,6 +42,20 @@ func main() {
 	// 3. Setup Router
 	r := chi.NewRouter()
 
+	// CORS middleware for Web Ecosystem & Mobile Clients
+	r.Use(func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Access-Control-Allow-Origin", "*")
+			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+			w.Header().Set("Access-Control-Allow-Headers", "Accept, Authorization, Content-Type, X-CSRF-Token")
+			if r.Method == http.MethodOptions {
+				w.WriteHeader(http.StatusNoContent)
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	})
+
 	// Standard chi middlewares
 	r.Use(func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -85,6 +99,23 @@ func main() {
 		r.Post("/auth/google", handlers.GoogleLogin)
 		r.Post("/auth/register", handlers.ManualRegister)
 		r.Post("/auth/login", handlers.ManualLogin)
+		r.Get("/app/version", handlers.GetAppVersion)
+		r.Post("/app/version", handlers.SetAppVersion)
+
+		// Events, Live Stream Alerts & Official Social Networks Hub
+		r.Get("/events", handlers.GetEventsHub)
+
+		// Public Ecosystem Routes (Web & App Phase 2: Streamers, Sponsors, Tournament C.L.A & Community)
+		r.Get("/ecosystem/overview", handlers.GetEcosystemOverview)
+		r.Post("/ecosystem/streamers/apply", handlers.ApplyAsStreamer)
+		r.Get("/ecosystem/streamers/stats", handlers.GetStreamerStats)
+		r.Get("/ecosystem/streamers/leaderboard", handlers.GetStreamersLeaderboard)
+		r.Post("/ecosystem/sponsors/inquire", handlers.CreateSponsorInquiry)
+		r.Get("/ecosystem/tournament/info", handlers.GetTournamentInfo)
+		r.Post("/ecosystem/tournament/register", handlers.RegisterForTournament)
+		r.Get("/ecosystem/community/polls", handlers.GetCommunityPolls)
+		r.Post("/ecosystem/community/vote", handlers.CastCommunityVote)
+		r.Post("/ecosystem/community/subscribe", handlers.SubscribeNewsletter)
 
 		// Authenticated Routes
 		r.Group(func(r chi.Router) {
@@ -100,6 +131,14 @@ func main() {
 			r.Post("/store/purchase-pack", handlers.PurchasePack)
 			r.Post("/store/subscribe", handlers.Subscribe)
 			r.Post("/store/transfer-queries", handlers.TransferQueries)
+
+			// Donations & Streamer Supporters Ranking ($0.10 - $0.99)
+			r.Get("/donations/ranking", handlers.GetDonationsRanking)
+			r.Post("/donations/contribute", handlers.ContributeDonation)
+			r.Put("/donations/profile", handlers.UpdateDonorProfile)
+
+			// Exclusive Admin Control Panel for Events & Live Alerts (0805409802d@gmail.com only)
+			r.Post("/events/manage", handlers.ManageEventsHub)
 		})
 	}
 

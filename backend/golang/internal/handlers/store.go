@@ -176,6 +176,121 @@ func ResolveSubscription(id string) (SubscriptionConfig, bool) {
 	}
 }
 
+func normalizeAppLanguage(raw string) string {
+	clean := strings.ToLower(strings.TrimSpace(raw))
+	if len(clean) >= 2 {
+		clean = clean[:2]
+	}
+	switch clean {
+	case "pt", "en", "fr":
+		return clean
+	default:
+		return "es"
+	}
+}
+
+func localizePack(p PackConfig, lang string) PackConfig {
+	switch lang {
+	case "pt":
+		switch p.ID {
+		case "pack_starter":
+			p.Tag = "Apenas uma vez"
+			p.Description = "50 consultas para você + 25 para presentear amigos"
+		case "pack_plus":
+			p.Tag = "Econômico"
+			p.Description = "20 consultas permanentes sem data de validade"
+		case "pack_pro":
+			p.Tag = "Mais Popular"
+			p.Description = "50 consultas permanentes sem data de validade"
+		case "pack_ultra":
+			p.Tag = "Melhor Valor"
+			p.Description = "100 consultas permanentes sem data de validade"
+		}
+	case "en":
+		switch p.ID {
+		case "pack_starter":
+			p.Tag = "One-time only"
+			p.Description = "50 queries for you + 25 bonus queries to gift friends"
+		case "pack_plus":
+			p.Tag = "Budget"
+			p.Description = "20 permanent queries that never expire"
+		case "pack_pro":
+			p.Tag = "Most Popular"
+			p.Description = "50 permanent queries that never expire"
+		case "pack_ultra":
+			p.Tag = "Best Value"
+			p.Description = "100 permanent queries that never expire"
+		}
+	case "fr":
+		switch p.ID {
+		case "pack_starter":
+			p.Tag = "Une seule fois"
+			p.Description = "50 consultations pour vous + 25 à offrir à vos amis"
+		case "pack_plus":
+			p.Tag = "Économique"
+			p.Description = "20 consultations permanentes sans date d'expiration"
+		case "pack_pro":
+			p.Tag = "Plus Populaire"
+			p.Description = "50 consultations permanentes sans date d'expiration"
+		case "pack_ultra":
+			p.Tag = "Meilleure Offre"
+			p.Description = "100 consultations permanentes sans date d'expiration"
+		}
+	}
+	return p
+}
+
+func localizeSubscription(s SubscriptionConfig, lang string) SubscriptionConfig {
+	switch lang {
+	case "pt":
+		switch s.ID {
+		case "sub_plus":
+			s.Name = "Passe Plus"
+			s.Tag = "Básico Mensal"
+			s.Description = "150 consultas/mês acumuláveis + Enviar até 10/dia para amigos"
+		case "sub_pro":
+			s.Name = "Passe Pro"
+			s.Tag = "Avançado"
+			s.Description = "300 consultas/mês acumuláveis + Enviar até 10/dia para amigos"
+		case "sub_ultra":
+			s.Name = "Passe Ultra"
+			s.Tag = "Challenger"
+			s.Description = "450 consultas/mês acumuláveis + Enviar até 10/dia para amigos"
+		}
+	case "en":
+		switch s.ID {
+		case "sub_plus":
+			s.Name = "Plus Pass"
+			s.Tag = "Monthly Basic"
+			s.Description = "150 stackable queries/month + Gift up to 10/day to friends"
+		case "sub_pro":
+			s.Name = "Pro Pass"
+			s.Tag = "Advanced"
+			s.Description = "300 stackable queries/month + Gift up to 10/day to friends"
+		case "sub_ultra":
+			s.Name = "Ultra Pass"
+			s.Tag = "Challenger"
+			s.Description = "450 stackable queries/month + Gift up to 10/day to friends"
+		}
+	case "fr":
+		switch s.ID {
+		case "sub_plus":
+			s.Name = "Passe Plus"
+			s.Tag = "Mensuel Basique"
+			s.Description = "150 consultations/mois cumulables + Offrir jusqu'à 10/jour aux amis"
+		case "sub_pro":
+			s.Name = "Passe Pro"
+			s.Tag = "Avancé"
+			s.Description = "300 consultations/mois cumulables + Offrir jusqu'à 10/jour aux amis"
+		case "sub_ultra":
+			s.Name = "Passe Ultra"
+			s.Tag = "Challenger"
+			s.Description = "450 consultations/mois cumulables + Offrir jusqu'à 10/jour aux amis"
+		}
+	}
+	return s
+}
+
 // GetStoreCatalog retorna los paquetes y suscripciones disponibles según el estado del usuario
 func GetStoreCatalog(w http.ResponseWriter, r *http.Request) {
 	user, ok := r.Context().Value(middleware.UserContextKey).(*models.User)
@@ -183,6 +298,8 @@ func GetStoreCatalog(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
+
+	lang := normalizeAppLanguage(r.Header.Get("Accept-Language"))
 
 	today := time.Now().UTC().Format("2006-01-02")
 	prevTransferDate := user.LastTransferDate
@@ -212,7 +329,7 @@ func GetStoreCatalog(w http.ResponseWriter, r *http.Request) {
 	packsList := make([]PackConfig, 0)
 	orderPacks := []string{"pack_starter", "pack_plus", "pack_pro", "pack_ultra"}
 	for _, id := range orderPacks {
-		pack := AvailablePacks[id]
+		pack := localizePack(AvailablePacks[id], lang)
 		if pack.IsStarter && user.HasPurchasedStarter {
 			continue // Desaparece para siempre de la tienda
 		}
@@ -222,7 +339,7 @@ func GetStoreCatalog(w http.ResponseWriter, r *http.Request) {
 	subsList := make([]SubscriptionConfig, 0)
 	orderSubs := []string{"sub_plus", "sub_pro", "sub_ultra"}
 	for _, id := range orderSubs {
-		subsList = append(subsList, AvailableSubscriptions[id])
+		subsList = append(subsList, localizeSubscription(AvailableSubscriptions[id], lang))
 	}
 
 	remainingTransferQuota := 10 - user.DailyTransferredToday
@@ -424,6 +541,9 @@ func PurchasePack(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// 5. Acreditar comisión al Streamer Afiliado si el jugador fue referido por un creador
+	CreditStreamerCommissionIfApplicable(tx, &lockedUser, &transactionRecord)
+
 	if err := tx.Commit().Error; err != nil {
 		log.Printf("[STORE] Error confirmando transacción de compra: %v", err)
 		http.Error(w, "Error confirmando la compra", http.StatusInternalServerError)
@@ -564,6 +684,9 @@ func Subscribe(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, fmt.Sprintf("Error actualizando la suscripción: %v", err), http.StatusInternalServerError)
 		return
 	}
+
+	// Acreditar comisión al Streamer Afiliado si el jugador fue referido por un creador
+	CreditStreamerCommissionIfApplicable(tx, &lockedUser, &transactionRecord)
 
 	if err := tx.Commit().Error; err != nil {
 		log.Printf("[STORE] Error confirmando suscripción: %v", err)

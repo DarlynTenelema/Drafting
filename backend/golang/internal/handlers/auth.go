@@ -172,6 +172,7 @@ func Me(w http.ResponseWriter, r *http.Request) {
 		"referral_count":           user.ReferralCount,
 		"referral_rewards_claimed": user.ReferralRewardsClaimed,
 		"has_redeemed_referral":    user.ReferredByID != nil,
+		"app_version":              GetCurrentAppVersionInfo(),
 	})
 }
 

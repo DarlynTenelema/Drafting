@@ -2,42 +2,29 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, viewport-fit=cover">
+    <meta name="theme-color" content="#0F172A">
     <meta name="google-site-verification" content="InW2LchI2Pk-jRw_O3ulXTpxow1v9XEqxWTG-5Pl57Y" />
     <meta name="google-site-verification" content="zntOJvWb6xu_hXsDf0OeV8kN1uf_UqzvrLWuZs8w9x8" />
     <meta name="google-site-verification" content="AoMIknCqhydQPOblzzCuuTZ554ND3ZeC0OrpciVNcv4" />
-    <title>Drafting</title>
-    <meta name="description" content="Drafting es una aplicación de gestión de proyectos.">
+    <title>Drafting & SC XXIII | IA para Wild Rift, Streamers & Copa C.L.A</title>
+    <meta name="description" content="Plataforma oficial de Drafting y SC XXIII: Analista Hextech con IA para Wild Rift, Programa de Comisiones para Streamers, Patrocinadores y Copa Latino Americana Anónima (C.L.A).">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@600;700;800;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="./styles.css">
 </head>
 <body>
-    <header>
-        <div class="logo">
-            <svg width="30" height="30" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M12 2L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-3z" fill="#3b82f6"/>
-                <path d="M12 2L3 5v6c0 5.55 3.84 10.74 9 12V2z" fill="#1d4ed8"/>
-                <path d="M11 17h2v-6h-2v6zm0-8h2V7h-2v2z" fill="#fbbf24"/>
-            </svg>
-            Drafting
-        </div>
-        <nav>
-            <a href="index.html">Inicio</a>
-            <a href="privacy.html">Privacidad</a>
-            <a href="mailto:darlyndavid2026@gmail.com">Contacto</a>
-        </nav>
-    </header>
+    <!-- Canvas interactivo de partículas Hextech en segundo plano -->
+    <canvas id="hextech-particles-canvas" aria-hidden="true"></canvas>
 
-    <main class="hero">
-        <h1>Drafting</h1>
-        <p><strong>Propósito de la aplicación:</strong> Drafting es una aplicación diseñada para ayudar a los usuarios a gestionar sus proyectos, organizar tareas y colaborar con sus equipos. La aplicación utiliza el inicio de sesión de Google para identificar de forma segura a los usuarios y sincronizar sus datos de trabajo entre dispositivos.</p>
-        <a href="#descargar" class="cta-button">Comenzar Ahora</a>
-    </main>
+    <!-- Punto de montaje único para la aplicación JavaScript (SPA) -->
+    <div id="app"></div>
 
-    <footer>
-        <p>&copy; 2026 Drafting. Todos los derechos reservados.</p>
-    </footer>
+    <!-- Contenedor global de notificaciones Toast -->
+    <div id="toast-root" aria-live="polite"></div>
+
+    <!-- Entrada modular de JavaScript ES6 -->
+    <script type="module" src="./src/main.js"></script>
 </body>
 </html>

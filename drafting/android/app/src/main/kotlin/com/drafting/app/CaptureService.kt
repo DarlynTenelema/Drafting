@@ -64,11 +64,118 @@ class CaptureService : Service() {
     private var planTier: String = "plus"
     private var otpChampions: String = ""
     private var activeCreatorId: String? = null
+    private var language: String = "es"
+
+    private val prefsListener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { sharedPrefs, key ->
+        if (key == "language") {
+            val updated = sharedPrefs.getString("language", "es") ?: "es"
+            language = updated.lowercase().take(2)
+            Handler(Looper.getMainLooper()).post {
+                refreshOverlayTexts()
+            }
+        }
+    }
+
+    private fun getCurrentLang(): String {
+        val saved = try {
+            getSharedPreferences("drafting_prefs", Context.MODE_PRIVATE).getString("language", null)
+        } catch (_: Exception) {
+            null
+        }
+        if (!saved.isNullOrBlank()) {
+            language = saved.lowercase().take(2)
+        }
+        return language.lowercase().take(2)
+    }
+
+    private fun refreshOverlayTexts() {
+        if (!::floatingView.isInitialized) return
+        floatingView.findViewById<TextView>(R.id.messageTitle)?.text = overlayTr("title")
+        floatingView.findViewById<TextView>(R.id.loadingTextView)?.text = overlayTr("analyzing_match")
+    }
+
+    private fun overlayTr(key: String): String {
+        val lang = getCurrentLang()
+        return when (lang) {
+            "pt" -> when (key) {
+                "title" -> "RECOMENDAÇÃO IA"
+                "analyzing_match" -> "Analisando partida..."
+                "analyzing_toast" -> "Analisando..."
+                "copied" -> "Recomendação copiada para a área de transferência!"
+                "view_translucent" -> "Visão: Translúcida (65%)"
+                "view_solid" -> "Visão: Sólida (94%)"
+                "size_compact" -> "Tamanho: Compacto"
+                "size_standard" -> "Tamanho: Padrão"
+                "size_wide" -> "Tamanho: Amplo"
+                "err_429" -> "Limite temporário atingido. Aguarde alguns instantes."
+                "err_401" -> "Sua sessão expirou. Abra o app Drafting e faça login novamente."
+                "err_402" -> "Sem consultas disponíveis. Abra o Drafting e toque em 'Obter consultas'."
+                "err_net" -> "Sem conexão com o servidor. Verifique seu WiFi/dados ou Modo Jogo."
+                "err_timeout" -> "O servidor demorou para responder. Tente novamente."
+                else -> key
+            }
+            "en" -> when (key) {
+                "title" -> "AI RECOMMENDATION"
+                "analyzing_match" -> "Analyzing match..."
+                "analyzing_toast" -> "Analyzing..."
+                "copied" -> "Recommendation copied to clipboard!"
+                "view_translucent" -> "View: Translucent (65%)"
+                "view_solid" -> "View: Solid (94%)"
+                "size_compact" -> "Size: Compact"
+                "size_standard" -> "Size: Standard"
+                "size_wide" -> "Size: Wide"
+                "err_429" -> "Temporary rate limit reached. Please wait a moment."
+                "err_401" -> "Your session has expired. Open Drafting and sign in again."
+                "err_402" -> "No queries available. Open Drafting and tap 'Get queries'."
+                "err_net" -> "No connection to server. Check your WiFi/data or Game Mode restrictions."
+                "err_timeout" -> "Server took too long to respond. Please try again."
+                else -> key
+            }
+            "fr" -> when (key) {
+                "title" -> "RECOMMANDATION IA"
+                "analyzing_match" -> "Analyse de la partie..."
+                "analyzing_toast" -> "Analyse en cours..."
+                "copied" -> "Recommandation copiée dans le presse-papiers !"
+                "view_translucent" -> "Vue : Translucide (65%)"
+                "view_solid" -> "Vue : Solide (94%)"
+                "size_compact" -> "Taille : Compacte"
+                "size_standard" -> "Taille : Standard"
+                "size_wide" -> "Taille : Large"
+                "err_429" -> "Limite temporaire atteinte. Veuillez patienter un instant."
+                "err_401" -> "Votre session a expiré. Ouvrez Drafting et reconnectez-vous."
+                "err_402" -> "Aucune requête disponible. Ouvrez Drafting et appuyez sur 'Obtenir des requêtes'."
+                "err_net" -> "Aucune connexion au serveur. Vérifiez votre WiFi/données ou le Mode Jeu."
+                "err_timeout" -> "Le serveur a mis trop de temps à répondre. Veuillez réessayer."
+                else -> key
+            }
+            else -> when (key) {
+                "title" -> "RECOMENDACIÓN AI"
+                "analyzing_match" -> "Analizando partida..."
+                "analyzing_toast" -> "Analizando..."
+                "copied" -> "¡Recomendación copiada al portapapeles!"
+                "view_translucent" -> "Vista: Traslúcida (65%)"
+                "view_solid" -> "Vista: Sólida (94%)"
+                "size_compact" -> "Tamaño: Compacto"
+                "size_standard" -> "Tamaño: Estándar"
+                "size_wide" -> "Tamaño: Amplio"
+                "err_429" -> "Has alcanzado el límite temporal. Espera unos minutos."
+                "err_401" -> "Tu sesión ha expirado. Abre la app Drafting e inicia sesión nuevamente."
+                "err_402" -> "Sin consultas disponibles. Abre Drafting y toca 'Obtener consultas'."
+                "err_net" -> "Sin conexión con el servidor. Revisa tu WiFi/datos o la restricción de red en segundo plano del Modo Juego."
+                "err_timeout" -> "El servidor tardó en responder. Por favor intenta de nuevo."
+                else -> key
+            }
+        }
+    }
 
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onCreate() {
         super.onCreate()
+        try {
+            getSharedPreferences("drafting_prefs", Context.MODE_PRIVATE)
+                .registerOnSharedPreferenceChangeListener(prefsListener)
+        } catch (_: Exception) {}
         createNotificationChannel()
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             startForeground(
@@ -112,6 +219,13 @@ class CaptureService : Service() {
         planTier = intent.getStringExtra("planTier") ?: "plus"
         otpChampions = intent.getStringExtra("otpChampions") ?: ""
         activeCreatorId = intent.getStringExtra("activeCreatorId")
+        val incomingLang = intent.getStringExtra("language")
+        if (!incomingLang.isNullOrBlank()) {
+            language = incomingLang.lowercase().take(2)
+            getSharedPreferences("drafting_prefs", Context.MODE_PRIVATE).edit().putString("language", language).apply()
+        } else {
+            language = getSharedPreferences("drafting_prefs", Context.MODE_PRIVATE).getString("language", "es") ?: "es"
+        }
 
         if (code != android.app.Activity.RESULT_OK || data == null) {
             notifyCaptureError("Invalid capture permission data.")
@@ -232,9 +346,9 @@ class CaptureService : Service() {
             val textToCopy = resultTextView?.text?.toString()?.trim() ?: ""
             if (textToCopy.isNotEmpty()) {
                 val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                val clip = ClipData.newPlainText("Recomendación Drafting", textToCopy)
+                val clip = ClipData.newPlainText("Drafting", textToCopy)
                 clipboard.setPrimaryClip(clip)
-                Toast.makeText(applicationContext, "¡Recomendación copiada al portapapeles!", Toast.LENGTH_SHORT).show()
+                Toast.makeText(applicationContext, overlayTr("copied"), Toast.LENGTH_SHORT).show()
             }
         }
 
@@ -261,7 +375,7 @@ class CaptureService : Service() {
             isLowOpacity = !isLowOpacity
             messageContainer?.alpha = if (isLowOpacity) 0.65f else 0.94f
             prefs.edit().putBoolean("overlay_low_opacity", isLowOpacity).apply()
-            showToast(if (isLowOpacity) "Vista: Traslúcida (65%)" else "Vista: Sólida (94%)")
+            showToast(if (isLowOpacity) overlayTr("view_translucent") else overlayTr("view_solid"))
         }
 
         val layoutFlag: Int = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -320,12 +434,12 @@ class CaptureService : Service() {
                 .remove("overlay_custom_width")
                 .remove("overlay_custom_height").apply()
             val (wDp, hDp, label) = when (sizeIndex) {
-                0 -> Triple(280, 170, "Compacto")
-                2 -> Triple(420, 310, "Amplio")
-                else -> Triple(340, 230, "Estándar")
+                0 -> Triple(280, 170, overlayTr("size_compact"))
+                2 -> Triple(420, 310, overlayTr("size_wide"))
+                else -> Triple(340, 230, overlayTr("size_standard"))
             }
             applyContainerSize(dpToPx(wDp), dpToPx(hDp))
-            showToast("Tamaño: $label")
+            showToast(label)
         }
 
         // 3. Redimensionar libremente arrastrando con el dedo desde la esquina
@@ -371,6 +485,9 @@ class CaptureService : Service() {
 
         val dragHandle = floatingView.findViewById<ImageView>(R.id.dragHandle)
         val messageTitle = floatingView.findViewById<TextView>(R.id.messageTitle)
+        val loadingTextView = floatingView.findViewById<TextView>(R.id.loadingTextView)
+        messageTitle?.text = overlayTr("title")
+        loadingTextView?.text = overlayTr("analyzing_match")
         
         setupDrag(dragHandle, params)
         if (messageTitle != null) {
@@ -439,6 +556,7 @@ class CaptureService : Service() {
         // Show Loading State
         if (retryCount == 0) {
             Handler(Looper.getMainLooper()).post {
+                refreshOverlayTexts()
                 adjustMessageContainerPosition()
                 floatingView.findViewById<FrameLayout>(R.id.messageContainer).visibility = View.VISIBLE
                 floatingView.findViewById<LinearLayout>(R.id.loadingLayout).visibility = View.VISIBLE
@@ -531,14 +649,15 @@ class CaptureService : Service() {
     }
 
     private fun sendToBackend(base64Image: String, queryType: String) {
-        showToast("Analizando...")
+        showToast(overlayTr("analyzing_toast"))
         thread {
             val prefs = getSharedPreferences("drafting_prefs", Context.MODE_PRIVATE)
+            val currentLang = (prefs.getString("language", language) ?: language).lowercase().take(2)
             val base = (baseUrl?.trim()?.trimEnd('/')?.takeIf { it.isNotEmpty() }
                 ?: prefs.getString("base_url", null)?.trim()?.trimEnd('/')?.takeIf { it.isNotEmpty() }
                 ?: BuildConfig.BASE_URL.trimEnd('/'))
             if (base.isEmpty()) {
-                showResultOnUI("Error: URL del servidor no configurada.")
+                showResultOnUI("Error: BASE_URL not configured.")
                 sendResultToActivity("error", 500, "BASE_URL is not configured")
                 return@thread
             }
@@ -569,6 +688,7 @@ class CaptureService : Service() {
                         requestMethod = "POST"
                         setRequestProperty("Content-Type", "application/json")
                         setRequestProperty("Accept", "application/json")
+                        setRequestProperty("Accept-Language", currentLang)
                         setRequestProperty("Connection", "close")
                         if (!currentToken.isNullOrEmpty()) {
                             setRequestProperty("Authorization", "Bearer $currentToken")
@@ -586,6 +706,7 @@ class CaptureService : Service() {
                         put("autofill_role", autofillRole)
                         put("query_type", queryType)
                         put("otp_champions", otpChampions)
+                        put("language", currentLang)
                         if (!activeCreatorId.isNullOrEmpty()) {
                             put("active_creator_id", activeCreatorId)
                         }
@@ -607,23 +728,23 @@ class CaptureService : Service() {
                         sendResultToActivity("success", 200, rec)
                         return@thread
                     } else if (responseCode == 429) {
-                        showResultOnUI("Has alcanzado el límite temporal. Espera unos minutos.")
-                        sendResultToActivity("error", 429, "Límite temporal alcanzado.")
+                        showResultOnUI(overlayTr("err_429"))
+                        sendResultToActivity("error", 429, overlayTr("err_429"))
                         return@thread
                     } else if (responseCode == 401) {
-                        showResultOnUI("Tu sesión ha expirado. Abre la app Drafting e inicia sesión nuevamente.")
-                        sendResultToActivity("error", 401, "Sesión expirada.")
+                        showResultOnUI(overlayTr("err_401"))
+                        sendResultToActivity("error", 401, overlayTr("err_401"))
                         return@thread
                     } else if (responseCode == 402) {
-                        showResultOnUI("Sin consultas disponibles. Abre Drafting y toca 'Obtener consultas'.")
-                        sendResultToActivity("error", 402, "Sin consultas disponibles.")
+                        showResultOnUI(overlayTr("err_402"))
+                        sendResultToActivity("error", 402, overlayTr("err_402"))
                         return@thread
                     } else {
                         val errorResponse = try {
                             conn.errorStream?.bufferedReader()?.use { it.readText() } ?: ""
                         } catch (e: Exception) { "" }
                         
-                        val displayMsg = if (errorResponse.isNotEmpty()) "Error 500: $errorResponse" else "Error del servidor: $responseCode"
+                        val displayMsg = if (errorResponse.isNotEmpty()) "Error 500: $errorResponse" else "Error: $responseCode"
                         showResultOnUI(displayMsg)
                         sendResultToActivity("error", responseCode, displayMsg)
                         return@thread
@@ -644,12 +765,12 @@ class CaptureService : Service() {
             lastException?.let { e ->
                 e.printStackTrace()
                 val friendlyMsg = when (e) {
-                    is java.net.UnknownHostException -> "Sin conexión con el servidor. Revisa tu WiFi/datos o la restricción de red en segundo plano del Modo Juego."
-                    is java.net.SocketTimeoutException -> "El servidor tardó en responder. Por favor intenta de nuevo."
-                    else -> "Error de conexión: " + (e.message ?: e.javaClass.simpleName)
+                    is java.net.UnknownHostException -> overlayTr("err_net")
+                    is java.net.SocketTimeoutException -> overlayTr("err_timeout")
+                    else -> "Error: " + (e.message ?: e.javaClass.simpleName)
                 }
                 showResultOnUI(friendlyMsg)
-                sendResultToActivity("error", 500, "Error de red: " + (e.message ?: ""))
+                sendResultToActivity("error", 500, friendlyMsg)
             }
         }
     }
@@ -657,6 +778,7 @@ class CaptureService : Service() {
     private fun showResultOnUI(text: String) {
         Handler(Looper.getMainLooper()).post {
             if (!::floatingView.isInitialized) return@post
+            refreshOverlayTexts()
             adjustMessageContainerPosition()
             floatingView.findViewById<FrameLayout>(R.id.messageContainer).visibility = View.VISIBLE
             floatingView.findViewById<LinearLayout>(R.id.loadingLayout).visibility = View.GONE
@@ -736,6 +858,10 @@ class CaptureService : Service() {
 
     override fun onDestroy() {
         super.onDestroy()
+        try {
+            getSharedPreferences("drafting_prefs", Context.MODE_PRIVATE)
+                .unregisterOnSharedPreferenceChangeListener(prefsListener)
+        } catch (_: Exception) {}
         if (::floatingView.isInitialized) {
             try {
                 windowManager.removeView(floatingView)

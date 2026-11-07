@@ -8,6 +8,7 @@ import 'screens/splash_screen.dart';
 import 'core/services/ad_service.dart';
 import 'core/services/api_client.dart';
 import 'core/services/iap_service.dart';
+import 'core/services/language_service.dart';
 
 void main() async {
   if (kReleaseMode) {
@@ -20,6 +21,11 @@ void main() async {
     // Habilitar modo Edge-to-Edge requerido por Android 15+ (SDK 35+)
     try {
       await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+    } catch (_) {}
+
+    // Inicializar idioma del dispositivo/preferencias antes de renderizar
+    try {
+      await LanguageService.instance.initialize();
     } catch (_) {}
 
     FlutterError.onError = (FlutterErrorDetails details) {

@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../core/services/api_client.dart';
+import '../core/services/language_service.dart';
 import '../core/services/session_service.dart';
 
 class AchievementsScreen extends StatefulWidget {
@@ -44,7 +45,14 @@ class _AchievementsScreenState extends State<AchievementsScreen> {
     _count = widget.referralCount;
     _claimed = widget.referralRewardsClaimed;
     _hasRedeemed = widget.hasRedeemedReferral;
+    LanguageService.instance.languageNotifier.addListener(_onLanguageChanged);
     _checkClipboardForCode();
+  }
+
+  void _onLanguageChanged() {
+    if (mounted) {
+      setState(() {});
+    }
   }
 
   @override
@@ -95,15 +103,17 @@ class _AchievementsScreenState extends State<AchievementsScreen> {
 
   @override
   void dispose() {
+    LanguageService.instance.languageNotifier.removeListener(_onLanguageChanged);
     _codeController.dispose();
     super.dispose();
   }
 
   Future<void> _redeemCode() async {
+    final lang = LanguageService.instance;
     final code = _extractReferralCode(_codeController.text);
     if (code.isEmpty) {
       setState(() {
-        _errorMessage = 'Por favor ingresa un código.';
+        _errorMessage = lang.tr('ach_enter_code_err');
       });
       return;
     }
@@ -130,7 +140,7 @@ class _AchievementsScreenState extends State<AchievementsScreen> {
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         setState(() {
-          _successMessage = data['message'] ?? '¡Código canjeado con éxito! (+2 consultas)';
+          _successMessage = data['message'] ?? lang.tr('ach_redeem_ok');
           _hasRedeemed = true;
           _codeController.clear();
         });
@@ -143,7 +153,7 @@ class _AchievementsScreenState extends State<AchievementsScreen> {
     } catch (e) {
       if (mounted) {
         setState(() {
-          _errorMessage = 'Error de conexión. Inténtalo de nuevo.';
+          _errorMessage = lang.tr('ach_net_err');
         });
       }
     } finally {
@@ -156,8 +166,9 @@ class _AchievementsScreenState extends State<AchievementsScreen> {
   }
 
   void _copyToClipboard(String text, {bool isFullMessage = false}) {
+    final lang = LanguageService.instance;
     final toCopy = isFullMessage
-        ? '🎮 ¡Descarga Drafting para Wild Rift y canjea mi código $text para ganar +2 consultas gratis de bienvenida!'
+        ? lang.tr('ach_invite_msg', {'code': text})
         : text;
     Clipboard.setData(ClipboardData(text: toCopy));
     HapticFeedback.lightImpact();
@@ -170,7 +181,9 @@ class _AchievementsScreenState extends State<AchievementsScreen> {
           children: [
             const Icon(Icons.check_circle, color: Colors.white, size: 20),
             const SizedBox(width: 8),
-            Text(isFullMessage ? '¡Mensaje de invitación copiado!' : '¡Código copiado al portapapeles!'),
+            Expanded(
+              child: Text(isFullMessage ? lang.tr('ach_msg_copied') : lang.tr('ach_code_copied')),
+            ),
           ],
         ),
         duration: const Duration(seconds: 2),
@@ -180,6 +193,7 @@ class _AchievementsScreenState extends State<AchievementsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final lang = LanguageService.instance;
     final int currentFriends = _count.clamp(0, 10);
     final int friendsNeeded = (10 - currentFriends).clamp(0, 10);
     final bool isMaxedOut = currentFriends >= 10 || _claimed >= 10;
@@ -203,7 +217,7 @@ class _AchievementsScreenState extends State<AchievementsScreen> {
             const Icon(Icons.emoji_events_rounded, color: Color(0xFF10B981), size: 22),
             const SizedBox(width: 8),
             Text(
-              'Logros & Referidos',
+              lang.tr('ach_appbar'),
               style: GoogleFonts.outfit(
                 fontSize: 20,
                 fontWeight: FontWeight.bold,
@@ -216,7 +230,7 @@ class _AchievementsScreenState extends State<AchievementsScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh_rounded, color: Colors.white70),
-            tooltip: 'Actualizar logros',
+            tooltip: lang.tr('ach_refresh_tooltip'),
             onPressed: () {
               HapticFeedback.lightImpact();
               widget.onDataChanged();
@@ -294,7 +308,7 @@ class _AchievementsScreenState extends State<AchievementsScreen> {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
-                                    'Reclutador Wild Rift',
+                                    lang.tr('ach_hero_title'),
                                     style: GoogleFonts.outfit(
                                       fontSize: 18,
                                       fontWeight: FontWeight.bold,
@@ -303,7 +317,7 @@ class _AchievementsScreenState extends State<AchievementsScreen> {
                                   ),
                                   const SizedBox(height: 2),
                                   Text(
-                                    'Cada amigo invitado te da +5 consultas (máx +50)',
+                                    lang.tr('ach_hero_sub'),
                                     style: TextStyle(
                                       fontSize: 12,
                                       color: Colors.white.withValues(alpha: 0.7),
@@ -347,8 +361,8 @@ class _AchievementsScreenState extends State<AchievementsScreen> {
                             Expanded(
                               child: Text(
                                 isMaxedOut
-                                    ? '🏆 ¡Todos los logros completados! (+50 consultas)'
-                                    : 'Ganadas: +$earnedQueries consultas • Faltan $friendsNeeded ${friendsNeeded == 1 ? "amigo" : "amigos"} para el máximo',
+                                    ? lang.tr('ach_maxed')
+                                    : lang.tr('ach_progress', {'earned': '$earnedQueries', 'needed': '$friendsNeeded'}),
                                 style: TextStyle(
                                   fontSize: 12,
                                   fontWeight: FontWeight.w600,
@@ -358,7 +372,7 @@ class _AchievementsScreenState extends State<AchievementsScreen> {
                             ),
                             const SizedBox(width: 8),
                             Text(
-                              '$currentFriends/10 amigos',
+                              lang.tr('ach_friends_count', {'count': '$currentFriends'}),
                               style: TextStyle(
                                 fontSize: 11,
                                 color: Colors.white.withValues(alpha: 0.5),
@@ -463,7 +477,7 @@ class _AchievementsScreenState extends State<AchievementsScreen> {
                           const Icon(Icons.share_rounded, color: Color(0xFF00E5FF), size: 20),
                           const SizedBox(width: 8),
                           Text(
-                            'Comparte tu Código con Amigos',
+                            lang.tr('ach_share_title'),
                             style: GoogleFonts.outfit(
                               fontSize: 16,
                               fontWeight: FontWeight.bold,
@@ -474,7 +488,7 @@ class _AchievementsScreenState extends State<AchievementsScreen> {
                       ),
                       const SizedBox(height: 6),
                       Text(
-                        'Tus amigos reciben +2 consultas de bienvenida y tú avanzas hacia tu próximo bono de +5 consultas.',
+                        lang.tr('ach_share_sub'),
                         style: TextStyle(
                           fontSize: 12,
                           color: Colors.white.withValues(alpha: 0.6),
@@ -493,7 +507,7 @@ class _AchievementsScreenState extends State<AchievementsScreen> {
                           children: [
                             Expanded(
                               child: Text(
-                                widget.referralCode.isNotEmpty ? widget.referralCode : 'Generando...',
+                                widget.referralCode.isNotEmpty ? widget.referralCode : lang.tr('ach_generating'),
                                 style: GoogleFonts.outfit(
                                   fontSize: 22,
                                   fontWeight: FontWeight.w800,
@@ -514,7 +528,7 @@ class _AchievementsScreenState extends State<AchievementsScreen> {
                                   ? () => _copyToClipboard(widget.referralCode)
                                   : null,
                               icon: const Icon(Icons.copy_rounded, size: 16),
-                              label: const Text('Copiar', style: TextStyle(fontWeight: FontWeight.bold)),
+                              label: Text(lang.tr('ach_copy_btn'), style: const TextStyle(fontWeight: FontWeight.bold)),
                             ),
                           ],
                         ),
@@ -533,9 +547,9 @@ class _AchievementsScreenState extends State<AchievementsScreen> {
                               ? () => _copyToClipboard(widget.referralCode, isFullMessage: true)
                               : null,
                           icon: const Icon(Icons.share_rounded, size: 16),
-                          label: const Text(
-                            'Copiar mensaje para WhatsApp / Discord',
-                            style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                          label: Text(
+                            lang.tr('ach_share_msg_btn'),
+                            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
                           ),
                         ),
                       ),
@@ -561,7 +575,7 @@ class _AchievementsScreenState extends State<AchievementsScreen> {
                           const Icon(Icons.card_giftcard_rounded, color: Color(0xFFF59E0B), size: 20),
                           const SizedBox(width: 8),
                           Text(
-                            '¿Tienes un Código de Invitación?',
+                            lang.tr('ach_redeem_title'),
                             style: GoogleFonts.outfit(
                               fontSize: 16,
                               fontWeight: FontWeight.bold,
@@ -572,7 +586,7 @@ class _AchievementsScreenState extends State<AchievementsScreen> {
                       ),
                       const SizedBox(height: 6),
                       Text(
-                        'Canjea el código de un amigo para recibir +2 consultas gratis de bienvenida.',
+                        lang.tr('ach_redeem_sub'),
                         style: TextStyle(
                           fontSize: 12,
                           color: Colors.white.withValues(alpha: 0.6),
@@ -589,14 +603,14 @@ class _AchievementsScreenState extends State<AchievementsScreen> {
                             borderRadius: BorderRadius.circular(14),
                             border: Border.all(color: const Color(0xFF10B981).withValues(alpha: 0.3)),
                           ),
-                          child: const Row(
+                          child: Row(
                             children: [
-                              Icon(Icons.check_circle_rounded, color: Color(0xFF10B981), size: 22),
-                              SizedBox(width: 10),
+                              const Icon(Icons.check_circle_rounded, color: Color(0xFF10B981), size: 22),
+                              const SizedBox(width: 10),
                               Expanded(
                                 child: Text(
-                                  '¡Ya canjeaste tu código de bienvenida! Disfruta de tus partidas.',
-                                  style: TextStyle(
+                                  lang.tr('ach_already_redeemed'),
+                                  style: const TextStyle(
                                     fontSize: 13,
                                     fontWeight: FontWeight.w600,
                                     color: Colors.white,
@@ -615,7 +629,7 @@ class _AchievementsScreenState extends State<AchievementsScreen> {
                                 textCapitalization: TextCapitalization.characters,
                                 style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
                                 decoration: InputDecoration(
-                                  hintText: 'Ej: WR9A2F4B',
+                                  hintText: lang.tr('ach_code_hint'),
                                   hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.3)),
                                   filled: true,
                                   fillColor: const Color(0xFF0F172A),
@@ -643,7 +657,7 @@ class _AchievementsScreenState extends State<AchievementsScreen> {
                                       height: 18,
                                       child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                                     )
-                                  : const Text('Canjear', style: TextStyle(fontWeight: FontWeight.bold)),
+                                  : Text(lang.tr('ach_redeem_btn'), style: const TextStyle(fontWeight: FontWeight.bold)),
                             ),
                           ],
                         ),
@@ -672,7 +686,7 @@ class _AchievementsScreenState extends State<AchievementsScreen> {
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 4),
                   child: Text(
-                    'PRÓXIMOS LOGROS EN CAMINO',
+                    lang.tr('ach_upcoming_header'),
                     style: GoogleFonts.inter(
                       fontSize: 11,
                       fontWeight: FontWeight.bold,
@@ -682,9 +696,9 @@ class _AchievementsScreenState extends State<AchievementsScreen> {
                   ),
                 ),
                 const SizedBox(height: 10),
-                _buildUpcomingAchievement('Racha Diaria', 'Inicia sesión 7 días seguidos para bonus especial', Icons.local_fire_department_rounded),
+                _buildUpcomingAchievement(lang.tr('ach_up1_title'), lang.tr('ach_up1_sub'), Icons.local_fire_department_rounded),
                 const SizedBox(height: 10),
-                _buildUpcomingAchievement('Estratega Maestro', 'Completa 25 análisis de draft en partidas clasificatorias', Icons.shield_rounded),
+                _buildUpcomingAchievement(lang.tr('ach_up2_title'), lang.tr('ach_up2_sub'), Icons.shield_rounded),
                 const SizedBox(height: 100),
               ],
             ),
@@ -736,9 +750,9 @@ class _AchievementsScreenState extends State<AchievementsScreen> {
               color: Colors.white.withValues(alpha: 0.05),
               borderRadius: BorderRadius.circular(8),
             ),
-            child: const Text(
-              'Pronto',
-              style: TextStyle(color: Colors.white38, fontSize: 10, fontWeight: FontWeight.bold),
+            child: Text(
+              LanguageService.instance.tr('ach_soon'),
+              style: const TextStyle(color: Colors.white38, fontSize: 10, fontWeight: FontWeight.bold),
             ),
           ),
         ],

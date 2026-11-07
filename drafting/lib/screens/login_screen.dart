@@ -4,7 +4,9 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import '../core/services/api_client.dart';
+import '../core/services/language_service.dart';
 import '../core/services/session_service.dart';
+import '../core/services/update_service.dart';
 import '../theme/app_theme.dart';
 import 'index_screen.dart';
 
@@ -23,6 +25,14 @@ class _LoginScreenState extends State<LoginScreen> {
   void initState() {
     super.initState();
     _initGoogleSignInSafely();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        UpdateService.instance.checkAndPromptIfNeeded(
+          context,
+          langCode: LanguageService.instance.currentLanguage,
+        );
+      }
+    });
   }
 
   Future<void> _initGoogleSignInSafely() async {
@@ -70,24 +80,24 @@ class _LoginScreenState extends State<LoginScreen> {
             ),
           );
         } else {
-          _showError('Error del servidor (${response.statusCode}): ${response.body}');
+          _showError('${LanguageService.instance.tr('login_err_auth')} (${response.statusCode})');
           debugPrint('Backend auth error: ${response.statusCode} - ${response.body}');
         }
       } else {
-        _showError('Google no devolvió un idToken válido. Verifica tu cuenta de Google.');
+        _showError(LanguageService.instance.tr('login_err_token'));
       }
     } on PlatformException catch (e) {
       if (e.code == 'network_error') {
-        _showError('No se pudo conectar. Verifica tu internet e inténtalo de nuevo.');
+        _showError(LanguageService.instance.tr('login_err_net'));
       } else {
-        _showError('Error de Google Play: [${e.code}] ${e.message}');
+        _showError('${LanguageService.instance.tr('login_err_auth')} [${e.code}]');
       }
       debugPrint('PlatformException: ${e.toString()}');
     } on ApiException catch (e) {
-      _showError('Error de API: ${e.message}');
+      _showError(e.message);
       debugPrint('ApiException: ${e.message}');
     } catch (error) {
-      _showError('Error al iniciar sesión: $error');
+      _showError(LanguageService.instance.tr('login_err_net'));
       debugPrint('Unexpected error: ${error.toString()}');
     } finally {
       if (mounted) {
@@ -100,6 +110,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
   void _showError(String message) {
     if (!mounted) return;
+    final lang = LanguageService.instance;
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -109,7 +120,7 @@ class _LoginScreenState extends State<LoginScreen> {
           children: [
             const Icon(Icons.error_outline, color: AppTheme.accent),
             const SizedBox(width: 8),
-            Text('¡Ups!', style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold)),
+            Text(lang.tr('login_oops'), style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold)),
           ],
         ),
         content: Text(
@@ -119,7 +130,7 @@ class _LoginScreenState extends State<LoginScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
-            child: Text('Entendido', style: GoogleFonts.inter(color: AppTheme.primary, fontWeight: FontWeight.bold)),
+            child: Text(lang.tr('login_understood'), style: GoogleFonts.inter(color: AppTheme.primary, fontWeight: FontWeight.bold)),
           ),
         ],
       ),
@@ -128,100 +139,141 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: Container(
-        width: double.infinity,
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              AppTheme.background,
-              AppTheme.surface,
-            ],
-          ),
-        ),
-        child: SafeArea(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Spacer(flex: 2),
-              // Título "Drafting"
-              Text(
-                'Drafting',
-                style: GoogleFonts.outfit(
-                  fontSize: 56,
-                  fontWeight: FontWeight.bold,
-                  color: AppTheme.textLight,
-                  letterSpacing: 2.0,
-                  shadows: [
-                    Shadow(
-                      color: AppTheme.primary.withValues(alpha: 0.5),
-                      blurRadius: 20,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
-                ),
+    return ValueListenableBuilder<String>(
+      valueListenable: LanguageService.instance.languageNotifier,
+      builder: (context, _, __) {
+        final lang = LanguageService.instance;
+        final opt = lang.currentOption;
+        return Scaffold(
+          body: Container(
+            width: double.infinity,
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  AppTheme.background,
+                  AppTheme.surface,
+                ],
               ),
-              const SizedBox(height: 16),
-              Text(
-                'Tus mejores picks, al instante.',
-                style: GoogleFonts.inter(
-                  fontSize: 16,
-                  color: AppTheme.textMuted,
-                ),
-              ),
-              const Spacer(flex: 1),
-              
-              // Botón de Google Principal
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 32.0),
-                child: SizedBox(
-                  width: double.infinity,
-                  child: _isLoading
-                      ? const Center(child: CircularProgressIndicator(color: AppTheme.primary))
-                      : ElevatedButton(
-                          onPressed: _handleGoogleSignIn,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.white,
-                            foregroundColor: Colors.black87,
-                            padding: const EdgeInsets.symmetric(vertical: 16),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(30),
-                            ),
-                            elevation: 8,
-                            shadowColor: AppTheme.primary.withValues(alpha: 0.3),
+            ),
+            child: SafeArea(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Align(
+                    alignment: Alignment.topRight,
+                    child: Padding(
+                      padding: const EdgeInsets.only(top: 12, right: 20),
+                      child: InkWell(
+                        onTap: () => lang.showLanguagePickerModal(context),
+                        borderRadius: BorderRadius.circular(20),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.06),
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(color: const Color(0xFF00E5FF).withValues(alpha: 0.35)),
                           ),
                           child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
+                            mainAxisSize: MainAxisSize.min,
                             children: [
-                              Image.asset(
-                                'icon/google.img',
-                                height: 24,
-                                width: 24,
-                                errorBuilder: (context, error, stackTrace) => 
-                                  const Icon(Icons.g_mobiledata, size: 36, color: Colors.blue),
-                              ),
-                              const SizedBox(width: 12),
+                              Text(opt.flag, style: const TextStyle(fontSize: 15)),
+                              const SizedBox(width: 6),
                               Text(
-                                'Continuar con Google',
-                                style: GoogleFonts.inter(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.w600,
+                                opt.badge,
+                                style: GoogleFonts.outfit(
+                                  fontSize: 12.5,
+                                  fontWeight: FontWeight.w800,
+                                  color: Colors.white,
                                 ),
                               ),
+                              const SizedBox(width: 3),
+                              const Icon(Icons.keyboard_arrow_down_rounded, color: Color(0xFF00E5FF), size: 16),
                             ],
                           ),
                         ),
-                ),
+                      ),
+                    ),
+                  ),
+                  const Spacer(flex: 2),
+                  // Título "Drafting"
+                  Text(
+                    'Drafting',
+                    style: GoogleFonts.outfit(
+                      fontSize: 56,
+                      fontWeight: FontWeight.bold,
+                      color: AppTheme.textLight,
+                      letterSpacing: 2.0,
+                      shadows: [
+                        Shadow(
+                          color: AppTheme.primary.withValues(alpha: 0.5),
+                          blurRadius: 20,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    lang.tr('login_subtitle'),
+                    style: GoogleFonts.inter(
+                      fontSize: 16,
+                      color: AppTheme.textMuted,
+                    ),
+                  ),
+                  const Spacer(flex: 1),
+
+                  // Botón de Google Principal
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 32.0),
+                    child: SizedBox(
+                      width: double.infinity,
+                      child: _isLoading
+                          ? const Center(child: CircularProgressIndicator(color: AppTheme.primary))
+                          : ElevatedButton(
+                              onPressed: _handleGoogleSignIn,
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.white,
+                                foregroundColor: Colors.black87,
+                                padding: const EdgeInsets.symmetric(vertical: 16),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(30),
+                                ),
+                                elevation: 8,
+                                shadowColor: AppTheme.primary.withValues(alpha: 0.3),
+                              ),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Image.asset(
+                                    'icon/google.img',
+                                    height: 24,
+                                    width: 24,
+                                    errorBuilder: (context, error, stackTrace) =>
+                                        const Icon(Icons.g_mobiledata, size: 36, color: Colors.blue),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Text(
+                                    lang.tr('login_btn_google'),
+                                    style: GoogleFonts.inter(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                    ),
+                  ),
+
+                  const Spacer(flex: 1),
+                ],
               ),
-              
-              const Spacer(flex: 1),
-              
-            ],
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 }
