@@ -47,9 +47,9 @@ func GetCurrentAppVersionInfo() AppVersionInfo {
 		latestCode = 38
 	}
 
-	minRequiredCode, err := strconv.Atoi(config.GetEnv("MIN_REQUIRED_VERSION_CODE", "37"))
+	minRequiredCode, err := strconv.Atoi(config.GetEnv("MIN_REQUIRED_VERSION_CODE", "1"))
 	if err != nil || minRequiredCode <= 0 {
-		minRequiredCode = 37
+		minRequiredCode = 1
 	}
 
 	latestName := config.GetEnv("LATEST_APP_VERSION_NAME", "1.0.6")
