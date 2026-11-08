@@ -26,10 +26,15 @@ upload_certificate.pem
 
 # --- 3. Cloud & Service Credentials ---
 google-services.json
+**/google-services.json
 GoogleService-Info.plist
 *service-account*.json
 *credentials*.json
 gcp-credentials*.json
+*firebase*.json
+*adminsdk*.json
+firebase-*.json
+serviceAccountKey.json
 
 # --- 4. Database Files & Backups ---
 *.db

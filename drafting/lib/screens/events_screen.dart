@@ -8,6 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../core/services/api_client.dart';
 import '../core/services/language_service.dart';
 import '../core/services/native_service.dart';
+import '../core/services/push_notification_service.dart';
 
 class EventsScreen extends StatefulWidget {
   final bool isTab;
@@ -64,7 +65,7 @@ class EventsScreenState extends State<EventsScreen> {
   }
 
   Future<void> _checkNotificationsState() async {
-    final enabled = await NativeService.areNotificationsEnabled();
+    final enabled = await PushNotificationService.instance.isLiveNotificationEnabled();
     if (mounted) {
       setState(() {
         _notificationsEnabled = enabled;
@@ -233,8 +234,8 @@ class EventsScreenState extends State<EventsScreen> {
                     onPressed: () async {
                       HapticFeedback.mediumImpact();
                       Navigator.of(ctx).pop();
-                      await NativeService.requestNotificationPermission();
-                      await Future.delayed(const Duration(milliseconds: 600));
+                      await PushNotificationService.instance.enableLiveNotifications();
+                      await Future.delayed(const Duration(milliseconds: 400));
                       await _checkNotificationsState();
                       if (mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(
@@ -864,8 +865,8 @@ class EventsScreenState extends State<EventsScreen> {
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
             ),
             onPressed: () async {
-              await NativeService.requestNotificationPermission();
-              await Future.delayed(const Duration(milliseconds: 500));
+              await PushNotificationService.instance.enableLiveNotifications();
+              await Future.delayed(const Duration(milliseconds: 400));
               await _checkNotificationsState();
             },
             child: Text(

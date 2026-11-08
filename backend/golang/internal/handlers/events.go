@@ -10,6 +10,7 @@ import (
 	"backend/internal/database"
 	"backend/internal/middleware"
 	"backend/internal/models"
+	"backend/internal/notifications"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
@@ -557,6 +558,17 @@ func ManageEventsHub(w http.ResponseWriter, r *http.Request) {
 			db.Create(&ev)
 		} else {
 			db.Save(&ev)
+		}
+
+		// Si es un directo en vivo o evento destacado, despachar Notificación Push masiva a todos los usuarios
+		if ev.IsLive {
+			notifications.SendLiveStreamPush(
+				ev.Title,
+				ev.Subtitle,
+				ev.ActionURL,
+				ev.Platform,
+				true,
+			)
 		}
 
 		w.Header().Set("Content-Type", "application/json")

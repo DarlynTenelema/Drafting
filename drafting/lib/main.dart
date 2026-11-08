@@ -9,6 +9,7 @@ import 'core/services/ad_service.dart';
 import 'core/services/api_client.dart';
 import 'core/services/iap_service.dart';
 import 'core/services/language_service.dart';
+import 'core/services/push_notification_service.dart';
 
 void main() async {
   if (kReleaseMode) {
@@ -74,6 +75,11 @@ Future<void> _initializeBackgroundServices() async {
   // 4. Inicializar Google AdMob para anuncios bonificados
   try {
     await AdService.initialize();
+  } catch (_) {}
+
+  // 5. Inicializar Notificaciones Push en Tiempo Real (Firebase Cloud Messaging)
+  try {
+    await PushNotificationService.instance.initialize();
   } catch (_) {}
 }
 

@@ -60,7 +60,10 @@ class _IndexScreenState extends State<IndexScreen> with WidgetsBindingObserver {
   final GlobalKey<EventsScreenState> _eventsKey = GlobalKey<EventsScreenState>();
   Map<String, dynamic>? _liveEvent;
 
-  int _currentTab = 2; // 0: Eventos, 1: Logros, 2: Home, 3: Donaciones, 4: Tienda
+  /// Control de visibilidad de la pestaña de Donaciones (oculto temporalmente para lanzamiento)
+  static const bool showDonationsTab = false;
+
+  int _currentTab = 2; // 0: Eventos, 1: Logros, 2: Home, 3: Tienda (o 3: Donaciones, 4: Tienda si showDonationsTab=true)
 
   @override
   void initState() {
@@ -298,7 +301,7 @@ class _IndexScreenState extends State<IndexScreen> with WidgetsBindingObserver {
 
   void _openStoreScreen() {
     HapticFeedback.selectionClick();
-    setState(() => _currentTab = 4);
+    setState(() => _currentTab = showDonationsTab ? 4 : 3);
   }
 
   void _showQueriesBreakdownDialog() {
@@ -900,10 +903,11 @@ class _IndexScreenState extends State<IndexScreen> with WidgetsBindingObserver {
                 isTab: true,
               ),
               _buildHomeContent(),
-              DonationsScreen(
-                onDataChanged: _fetchUserData,
-                isTab: true,
-              ),
+              if (showDonationsTab)
+                DonationsScreen(
+                  onDataChanged: _fetchUserData,
+                  isTab: true,
+                ),
               StoreScreen(
                 onDataChanged: _fetchUserData,
                 isTab: true,
@@ -1428,14 +1432,15 @@ class _IndexScreenState extends State<IndexScreen> with WidgetsBindingObserver {
                 activeColor: const Color(0xFF00E5FF),
                 tooltip: lang.tr('nav_home'),
               ),
+              if (showDonationsTab)
+                _buildNavItem(
+                  index: 3,
+                  icon: Icons.volunteer_activism_rounded,
+                  activeColor: const Color(0xFFFF0050),
+                  tooltip: lang.tr('nav_donations'),
+                ),
               _buildNavItem(
-                index: 3,
-                icon: Icons.volunteer_activism_rounded,
-                activeColor: const Color(0xFFFF0050),
-                tooltip: lang.tr('nav_donations'),
-              ),
-              _buildNavItem(
-                index: 4,
+                index: showDonationsTab ? 4 : 3,
                 icon: Icons.storefront_rounded,
                 activeColor: const Color(0xFFC89B3C),
                 tooltip: lang.tr('nav_store'),
