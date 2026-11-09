@@ -11,8 +11,13 @@ import 'store_screen.dart';
 
 class TriviaScreen extends StatefulWidget {
   final VoidCallback? onLivesChanged;
+  final bool isTab;
 
-  const TriviaScreen({super.key, this.onLivesChanged});
+  const TriviaScreen({
+    super.key,
+    this.onLivesChanged,
+    this.isTab = false,
+  });
 
   @override
   State<TriviaScreen> createState() => _TriviaScreenState();
@@ -487,6 +492,7 @@ class _TriviaScreenState extends State<TriviaScreen> with SingleTickerProviderSt
     return Scaffold(
       backgroundColor: const Color(0xFF0B0E14),
       appBar: AppBar(
+        automaticallyImplyLeading: !widget.isTab,
         title: Text(
           lang.tr('trivia_appbar'),
           style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 18),

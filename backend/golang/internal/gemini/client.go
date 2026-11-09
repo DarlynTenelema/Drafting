@@ -75,11 +75,31 @@ func NormalizeLanguage(raw string) string {
 func buildDraftPrompt(mainRole, secondaryRole, autofillRole, gameMode, lang string) string {
 	isPC := strings.EqualFold(strings.TrimSpace(gameMode), "lol_pc") || strings.EqualFold(strings.TrimSpace(gameMode), "pc")
 
+	roleClauseEs := "detectando automáticamente la posición asignada y las necesidades de la composición"
+	if mainRole != "" && !strings.EqualFold(mainRole, "Auto") {
+		roleClauseEs = fmt.Sprintf("considerando los roles preferidos: %s, %s, %s", mainRole, secondaryRole, autofillRole)
+	}
+
+	roleClausePt := "detectando automaticamente a rota atribuída e as necessidades da composição"
+	if mainRole != "" && !strings.EqualFold(mainRole, "Auto") {
+		roleClausePt = fmt.Sprintf("considerando as rotas preferidas: %s, %s, %s", mainRole, secondaryRole, autofillRole)
+	}
+
+	roleClauseEn := "automatically detecting the assigned role and composition needs"
+	if mainRole != "" && !strings.EqualFold(mainRole, "Auto") {
+		roleClauseEn = fmt.Sprintf("considering preferred roles: %s, %s, %s", mainRole, secondaryRole, autofillRole)
+	}
+
+	roleClauseFr := "en détectant automatiquement le rôle assigné et les besoins de la composition"
+	if mainRole != "" && !strings.EqualFold(mainRole, "Auto") {
+		roleClauseFr = fmt.Sprintf("en tenant compte des rôles préférés : %s, %s, %s", mainRole, secondaryRole, autofillRole)
+	}
+
 	switch NormalizeLanguage(lang) {
 	case "pt":
 		if isPC {
 			return fmt.Sprintf(`Você é um Analista Mestre e Challenger de League of Legends (PC).
-Analise a foto tirada com a câmera do celular da tela do monitor do computador durante a seleção de campeões (draft) considerando as rotas preferidas: %s, %s, %s.
+Analise a foto tirada com a câmera do celular da tela do monitor do computador durante a seleção de campeões (draft) %s.
 
 Seu objetivo é recomendar os 3 melhores campeões de LoL PC para counterar a equipe inimiga e complementar a equipe aliada no meta atual de PC.
 
@@ -99,7 +119,7 @@ Situação: [Diagnóstico em 1 frase curta do draft inimigo e do que sua equipe 
 • Contribuição: [Por que countera o inimigo ou tem sinergia com sua equipe em 1 única frase]
 
 3. [Campeão 3]
-• Contribuição: [Por que countera o inimigo ou tem sinergia com sua equipe em 1 única frase]`, mainRole, secondaryRole, autofillRole)
+• Contribuição: [Por que countera o inimigo ou tem sinergia com sua equipe em 1 única frase]`, roleClausePt)
 		}
 		return fmt.Sprintf(`Você é um Analista Mestre e Challenger de League of Legends: Wild Rift.
 Analise a tela de seleção de campeões (draft) considerando as rotas preferidas: %s, %s, %s.
@@ -126,7 +146,7 @@ Situação: [Diagnóstico em 1 frase curta do draft inimigo e do que sua equipe 
 	case "en":
 		if isPC {
 			return fmt.Sprintf(`You are a Master and Challenger Analyst for League of Legends (PC).
-Analyze the photo taken with the mobile camera of the computer monitor screen during champion select (draft) considering preferred roles: %s, %s, %s.
+Analyze the photo taken with the mobile camera of the computer monitor screen during champion select (draft) %s.
 
 Your goal is to recommend the top 3 ideal PC League of Legends champions to counter the enemy team and complement the allied team in the current PC meta.
 
@@ -146,7 +166,7 @@ Situation: [1 short sentence diagnosing the enemy draft and what your team needs
 • Key Impact: [Why it counters the enemy or synergizes with your team in 1 single sentence]
 
 3. [Champion 3]
-• Key Impact: [Why it counters the enemy or synergizes with your team in 1 single sentence]`, mainRole, secondaryRole, autofillRole)
+• Key Impact: [Why it counters the enemy or synergizes with your team in 1 single sentence]`, roleClauseEn)
 		}
 		return fmt.Sprintf(`You are a Master and Challenger Analyst for League of Legends: Wild Rift.
 Analyze the champion select (draft) screen considering the preferred roles: %s, %s, %s.
@@ -173,7 +193,7 @@ Situation: [1 short sentence diagnosing the enemy draft and what your team needs
 	case "fr":
 		if isPC {
 			return fmt.Sprintf(`Tu es un Analyste Maître et Challenger de League of Legends (PC).
-Analyse la photo prise avec la caméra du smartphone de l'écran de l'ordinateur pendant la sélection des champions (draft) en tenant compte des rôles préférés : %s, %s, %s.
+Analyse la photo prise avec la caméra du smartphone de l'écran de l'ordinateur pendant la sélection des champions (draft) %s.
 
 Ton objectif est de recommander les 3 meilleurs champions de League of Legends PC pour contrer l'équipe ennemie et compléter l'équipe alliée dans la méta actuelle de PC.
 
@@ -193,7 +213,7 @@ Situation : [Diagnostic en 1 phrase courte de la draft adverse et des besoins de
 • Apport : [Pourquoi il contre l'adversaire ou complète ton équipe en 1 seule phrase]
 
 3. [Champion 3]
-• Apport : [Pourquoi il contre l'adversaire ou complète ton équipe en 1 seule phrase]`, mainRole, secondaryRole, autofillRole)
+• Apport : [Pourquoi il contre l'adversaire ou complète ton équipe en 1 seule phrase]`, roleClauseFr)
 		}
 		return fmt.Sprintf(`Tu es un Analyste Maître et Challenger de League of Legends: Wild Rift.
 Analyse l'écran de sélection des champions (draft) en tenant compte des rôles préférés : %s, %s, %s.
@@ -220,7 +240,7 @@ Situation : [Diagnostic en 1 phrase courte de la draft adverse et des besoins de
 	default:
 		if isPC {
 			return fmt.Sprintf(`Eres un Analista Maestro y Challenger de League of Legends (PC).
-Analiza la fotografía tomada con la cámara del celular a la pantalla del monitor de la computadora durante la selección de campeones (draft) considerando los roles preferidos: %s, %s, %s.
+Analiza la fotografía tomada con la cámara del celular a la pantalla del monitor de la computadora durante la selección de campeones (draft) %s.
 
 Tu objetivo es recomendar los 3 mejores campeones de League of Legends de PC para contrarrestar al equipo rival y complementar al equipo aliado en el meta actual de PC.
 
@@ -240,7 +260,7 @@ Situación: [Diagnóstico en 1 frase corta del draft rival y qué necesita tu eq
 • Aporte: [Por qué contrarresta al rival o sinergiza con tu equipo en 1 sola frase]
 
 3. [Campeón 3]
-• Aporte: [Por qué contrarresta al rival o sinergiza con tu equipo en 1 sola frase]`, mainRole, secondaryRole, autofillRole)
+• Aporte: [Por qué contrarresta al rival o sinergiza con tu equipo en 1 sola frase]`, roleClauseEs)
 		}
 		return fmt.Sprintf(`Eres un Analista Maestro y Challenger de League of Legends: Wild Rift.
 Analiza la pantalla de selección de campeones (draft) considerando los roles preferidos: %s, %s, %s.

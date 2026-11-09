@@ -6,11 +6,19 @@ import '../../core/services/language_service.dart';
 class HextechOrb extends StatefulWidget {
   final bool isActive;
   final VoidCallback onTap;
+  final String? label;
+  final IconData? icon;
+  final Color? customOrbColor;
+  final Color? customGlowColor;
 
   const HextechOrb({
     super.key,
     required this.isActive,
     required this.onTap,
+    this.label,
+    this.icon,
+    this.customOrbColor,
+    this.customGlowColor,
   });
 
   @override
@@ -40,9 +48,14 @@ class _HextechOrbState extends State<HextechOrb> with SingleTickerProviderStateM
   Widget build(BuildContext context) {
     // Paleta Hextech
     // Azul brillante cuando está activo, azul oscuro/apagado cuando está inactivo
-    final Color orbColor = widget.isActive ? const Color(0xFF00E5FF) : const Color(0xFF006064);
-    final Color glowColor = widget.isActive ? const Color(0xFF00B0FF) : const Color(0xFF00363A);
-    final Color textColor = widget.isActive ? Colors.white : const Color(0xFFA0E0E0);
+    final Color orbColor = widget.customOrbColor ??
+        (widget.isActive ? const Color(0xFF00E5FF) : const Color(0xFF006064));
+    final Color glowColor = widget.customGlowColor ??
+        (widget.customOrbColor ??
+            (widget.isActive ? const Color(0xFF00B0FF) : const Color(0xFF00363A)));
+    final Color textColor = widget.customOrbColor != null
+        ? Colors.white
+        : (widget.isActive ? Colors.white : const Color(0xFFA0E0E0));
     
     // Animación de tamaño y brillo
     final double orbSize = widget.isActive ? 220.0 : 180.0;
@@ -118,21 +131,21 @@ class _HextechOrbState extends State<HextechOrb> with SingleTickerProviderStateM
               },
             ),
 
-            // --- 4. TEXTO CON EFECTO NEÓN ---
+            // --- 4. TEXTO CON EFECTO NEÓN / ICONO ---
             AnimatedDefaultTextStyle(
               duration: const Duration(milliseconds: 400),
               style: GoogleFonts.inter(
-                fontSize: widget.isActive ? 26 : 20,
+                fontSize: widget.icon != null ? 18 : (widget.isActive ? 26 : 20),
                 fontWeight: FontWeight.w900,
                 color: textColor,
-                letterSpacing: 2.5,
+                letterSpacing: 2.2,
                 shadows: [
                   Shadow(
                     color: orbColor,
-                    blurRadius: widget.isActive ? 20 : 5,
+                    blurRadius: widget.isActive ? 20 : 8,
                   ),
                   if (widget.isActive)
-                    Shadow(
+                    const Shadow(
                       color: Colors.white,
                       blurRadius: 5,
                     ),
@@ -141,10 +154,36 @@ class _HextechOrbState extends State<HextechOrb> with SingleTickerProviderStateM
               child: ValueListenableBuilder<String>(
                 valueListenable: LanguageService.instance.languageNotifier,
                 builder: (context, _, __) {
-                  return Text(
-                    widget.isActive
-                        ? LanguageService.instance.tr('orb_active')
-                        : LanguageService.instance.tr('orb_activate'),
+                  final String displayText = widget.label ??
+                      (widget.isActive
+                          ? LanguageService.instance.tr('orb_active')
+                          : LanguageService.instance.tr('orb_activate'));
+                  return Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (widget.icon != null) ...[
+                        Icon(
+                          widget.icon,
+                          size: 36,
+                          color: textColor,
+                          shadows: [
+                            Shadow(
+                              color: orbColor,
+                              blurRadius: 18,
+                            ),
+                            const Shadow(
+                              color: Colors.white,
+                              blurRadius: 6,
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 6),
+                      ],
+                      Text(
+                        displayText,
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
                   );
                 },
               ),

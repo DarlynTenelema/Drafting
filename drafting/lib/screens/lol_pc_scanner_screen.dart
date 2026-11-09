@@ -7,15 +7,16 @@ import 'package:image_picker/image_picker.dart';
 
 import '../core/services/api_client.dart';
 import '../core/services/language_service.dart';
-import '../theme/app_theme.dart';
 
 class LolPcScannerScreen extends StatefulWidget {
+  final File initialImage;
   final int availableQueries;
   final VoidCallback onDataChanged;
   final VoidCallback onNoQueries;
 
   const LolPcScannerScreen({
     super.key,
+    required this.initialImage,
     required this.availableQueries,
     required this.onDataChanged,
     required this.onNoQueries,
@@ -27,15 +28,21 @@ class LolPcScannerScreen extends StatefulWidget {
 
 class _LolPcScannerScreenState extends State<LolPcScannerScreen> {
   final ImagePicker _picker = ImagePicker();
-  File? _capturedImage;
+  late File _capturedImage;
   bool _isAnalyzing = false;
   String? _recommendationText;
+  String? _errorMessage;
 
-  // Preferencia de Rol
-  String _selectedRole = 'Auto';
-  final List<String> _availableRoles = ['Auto', 'Top', 'Jungle', 'Mid', 'ADC', 'Support'];
+  @override
+  void initState() {
+    super.initState();
+    _capturedImage = widget.initialImage;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _analyzePhoto();
+    });
+  }
 
-  Future<void> _takePhoto() async {
+  Future<void> _takeNewPhotoAndAnalyze() async {
     if (widget.availableQueries <= 0) {
       widget.onNoQueries();
       return;
@@ -53,8 +60,10 @@ class _LolPcScannerScreenState extends State<LolPcScannerScreen> {
         setState(() {
           _capturedImage = File(photo.path);
           _recommendationText = null;
+          _errorMessage = null;
         });
         HapticFeedback.lightImpact();
+        await _analyzePhoto();
       }
     } catch (e) {
       if (mounted) {
@@ -69,7 +78,7 @@ class _LolPcScannerScreenState extends State<LolPcScannerScreen> {
   }
 
   Future<void> _analyzePhoto() async {
-    if (_capturedImage == null || _isAnalyzing) return;
+    if (_isAnalyzing) return;
 
     if (widget.availableQueries <= 0) {
       widget.onNoQueries();
@@ -79,12 +88,12 @@ class _LolPcScannerScreenState extends State<LolPcScannerScreen> {
     setState(() {
       _isAnalyzing = true;
       _recommendationText = null;
+      _errorMessage = null;
     });
 
     try {
-      final bytes = await _capturedImage!.readAsBytes();
+      final bytes = await _capturedImage.readAsBytes();
       final base64Image = base64Encode(bytes);
-
       final lang = LanguageService.instance.currentLanguage;
 
       final res = await ApiClient.post(
@@ -92,7 +101,7 @@ class _LolPcScannerScreenState extends State<LolPcScannerScreen> {
         authenticated: true,
         body: {
           'image_base64': base64Image,
-          'main_role': _selectedRole,
+          'main_role': 'Auto',
           'secondary_role': 'Auto',
           'autofill_role': 'Auto',
           'game_mode': 'lol_pc',
@@ -117,24 +126,18 @@ class _LolPcScannerScreenState extends State<LolPcScannerScreen> {
         }
       } else {
         if (mounted) {
-          setState(() => _isAnalyzing = false);
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Error del servidor (${res.statusCode}): ${res.body}'),
-              backgroundColor: const Color(0xFFEF4444),
-            ),
-          );
+          setState(() {
+            _isAnalyzing = false;
+            _errorMessage = 'Error del servidor (${res.statusCode}): ${res.body}';
+          });
         }
       }
     } catch (e) {
       if (mounted) {
-        setState(() => _isAnalyzing = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error de conexión al analizar: $e'),
-            backgroundColor: const Color(0xFFEF4444),
-          ),
-        );
+        setState(() {
+          _isAnalyzing = false;
+          _errorMessage = 'Error de conexión al analizar: $e';
+        });
       }
     }
   }
@@ -142,9 +145,12 @@ class _LolPcScannerScreenState extends State<LolPcScannerScreen> {
   @override
   Widget build(BuildContext context) {
     final lang = LanguageService.instance;
+
     return Scaffold(
       backgroundColor: const Color(0xFF090D16),
       appBar: AppBar(
+        backgroundColor: const Color(0xFF0B111E),
+        elevation: 0,
         title: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -163,228 +169,151 @@ class _LolPcScannerScreenState extends State<LolPcScannerScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // Banner Explicativo
+              // Vista Previa de la Pantalla PC capturada
               Container(
-                padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [
-                      const Color(0xFF0284C7).withValues(alpha: 0.18),
-                      const Color(0xFF0369A1).withValues(alpha: 0.08),
-                    ],
-                  ),
                   borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: const Color(0xFF38BDF8).withValues(alpha: 0.35)),
-                ),
-                child: Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF38BDF8).withValues(alpha: 0.15),
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(Icons.photo_camera_rounded, color: Color(0xFF38BDF8), size: 22),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            lang.tr('pc_scanner_banner_title'),
-                            style: GoogleFonts.outfit(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 15,
-                              color: Colors.white,
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            lang.tr('pc_scanner_banner_sub'),
-                            style: GoogleFonts.inter(fontSize: 12, color: Colors.white70),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-              const SizedBox(height: 20),
-
-              // Selector de Rol
-              Text(
-                lang.tr('pc_scanner_role_label'),
-                style: GoogleFonts.outfit(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.white70,
-                ),
-              ),
-              const SizedBox(height: 8),
-              SizedBox(
-                height: 38,
-                child: ListView.separated(
-                  scrollDirection: Axis.horizontal,
-                  itemCount: _availableRoles.length,
-                  separatorBuilder: (_, __) => const SizedBox(width: 8),
-                  itemBuilder: (ctx, idx) {
-                    final role = _availableRoles[idx];
-                    final bool isSelected = _selectedRole == role;
-                    return ChoiceChip(
-                      label: Text(role),
-                      selected: isSelected,
-                      onSelected: (val) {
-                        if (val) setState(() => _selectedRole = role);
-                      },
-                      selectedColor: const Color(0xFF00E5FF),
-                      backgroundColor: const Color(0xFF1E293B),
-                      labelStyle: GoogleFonts.outfit(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 12,
-                        color: isSelected ? const Color(0xFF090D16) : Colors.white70,
-                      ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
-                        side: BorderSide(
-                          color: isSelected ? const Color(0xFF00E5FF) : Colors.white12,
-                        ),
-                      ),
-                    );
-                  },
-                ),
-              ),
-
-              const SizedBox(height: 20),
-
-              // Contenedor de la Imagen / Botón de Captura
-              if (_capturedImage == null) ...[
-                InkWell(
-                  onTap: _takePhoto,
-                  borderRadius: BorderRadius.circular(20),
-                  child: Container(
-                    height: 260,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF1E293B).withValues(alpha: 0.6),
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(
-                        color: const Color(0xFF00E5FF).withValues(alpha: 0.4),
-                        width: 1.5,
-                        strokeAlign: BorderSide.strokeAlignInside,
-                      ),
-                    ),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(20),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF00E5FF).withValues(alpha: 0.12),
-                            shape: BoxShape.circle,
-                          ),
-                          child: const Icon(
-                            Icons.camera_alt_rounded,
-                            color: Color(0xFF00E5FF),
-                            size: 48,
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          lang.tr('pc_scanner_take_photo'),
-                          style: GoogleFonts.outfit(
-                            fontSize: 17,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          lang.tr('pc_scanner_take_photo_hint'),
-                          style: GoogleFonts.inter(fontSize: 13, color: Colors.white54),
-                        ),
-                      ],
-                    ),
+                  border: Border.all(
+                    color: _isAnalyzing
+                        ? const Color(0xFF38BDF8)
+                        : Colors.white.withValues(alpha: 0.15),
+                    width: 1.5,
                   ),
+                  boxShadow: _isAnalyzing
+                      ? [
+                          BoxShadow(
+                            color: const Color(0xFF38BDF8).withValues(alpha: 0.35),
+                            blurRadius: 18,
+                            spreadRadius: 1,
+                          ),
+                        ]
+                      : null,
                 ),
-              ] else ...[
-                // Vista Previa de la Foto Capturada
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(16),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(15),
                   child: Stack(
-                    alignment: Alignment.bottomRight,
+                    alignment: Alignment.center,
                     children: [
                       Image.file(
-                        _capturedImage!,
-                        height: 260,
+                        _capturedImage,
+                        height: 190,
                         width: double.infinity,
                         fit: BoxFit.cover,
                       ),
-                      Padding(
-                        padding: const EdgeInsets.all(12.0),
-                        child: ElevatedButton.icon(
-                          onPressed: _isAnalyzing ? null : _takePhoto,
-                          icon: const Icon(Icons.refresh_rounded, size: 18),
-                          label: Text(lang.tr('pc_scanner_retake_photo')),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.black.withValues(alpha: 0.7),
-                            foregroundColor: Colors.white,
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      Container(
+                        height: 190,
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: [
+                              Colors.black.withValues(alpha: 0.2),
+                              Colors.black.withValues(alpha: 0.6),
+                            ],
                           ),
                         ),
+                      ),
+                      if (_isAnalyzing)
+                        Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const SizedBox(
+                              width: 42,
+                              height: 42,
+                              child: CircularProgressIndicator(
+                                color: Color(0xFF38BDF8),
+                                strokeWidth: 3.5,
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF090D16).withValues(alpha: 0.85),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: const Color(0xFF38BDF8).withValues(alpha: 0.5)),
+                              ),
+                              child: Text(
+                                lang.tr('pc_scanner_analyzing'),
+                                style: GoogleFonts.outfit(
+                                  fontSize: 13.5,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 20),
+
+              // Contenedor de Error si falla
+              if (_errorMessage != null) ...[
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFEF4444).withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: const Color(0xFFEF4444)),
+                  ),
+                  child: Column(
+                    children: [
+                      Row(
+                        children: [
+                          const Icon(Icons.error_outline_rounded, color: Color(0xFFEF4444), size: 24),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              _errorMessage!,
+                              style: GoogleFonts.inter(fontSize: 13, color: Colors.white),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          TextButton.icon(
+                            onPressed: _analyzePhoto,
+                            icon: const Icon(Icons.refresh_rounded, size: 16),
+                            label: Text(lang.tr('pc_scanner_retry_btn')),
+                            style: TextButton.styleFrom(foregroundColor: const Color(0xFF38BDF8)),
+                          ),
+                        ],
                       ),
                     ],
                   ),
                 ),
-                const SizedBox(height: 16),
-
-                // Botón de Analizar Selección
-                ElevatedButton.icon(
-                  onPressed: _isAnalyzing ? null : _analyzePhoto,
-                  icon: _isAnalyzing
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
-                        )
-                      : const Icon(Icons.auto_awesome_rounded),
-                  label: Text(
-                    _isAnalyzing ? lang.tr('pc_scanner_analyzing') : lang.tr('pc_scanner_analyze_btn'),
-                    style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold),
-                  ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF10B981),
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                  ),
-                ),
+                const SizedBox(height: 20),
               ],
 
-              const SizedBox(height: 24),
-
-              // Resultado de la Recomendación
+              // Resultado de la Recomendación Challenger
               if (_recommendationText != null) ...[
                 Container(
                   padding: const EdgeInsets.all(20),
                   decoration: BoxDecoration(
-                    gradient: LinearGradient(
+                    gradient: const LinearGradient(
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
                       colors: [
-                        const Color(0xFF1E293B),
-                        const Color(0xFF0F172A),
+                        Color(0xFF162032),
+                        Color(0xFF0B111E),
                       ],
                     ),
                     borderRadius: BorderRadius.circular(20),
                     border: Border.all(
-                      color: const Color(0xFF00E5FF).withValues(alpha: 0.5),
+                      color: const Color(0xFF38BDF8).withValues(alpha: 0.5),
                       width: 1.5,
                     ),
                     boxShadow: [
                       BoxShadow(
-                        color: const Color(0xFF00E5FF).withValues(alpha: 0.15),
-                        blurRadius: 16,
+                        color: const Color(0xFF38BDF8).withValues(alpha: 0.2),
+                        blurRadius: 20,
                         offset: const Offset(0, 4),
                       ),
                     ],
@@ -394,14 +323,23 @@ class _LolPcScannerScreenState extends State<LolPcScannerScreen> {
                     children: [
                       Row(
                         children: [
-                          const Icon(Icons.workspace_premium_rounded, color: Color(0xFFFBBF24), size: 24),
-                          const SizedBox(width: 8),
-                          Text(
-                            lang.tr('pc_scanner_rec_title'),
-                            style: GoogleFonts.outfit(
-                              fontSize: 17,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
+                          Container(
+                            padding: const EdgeInsets.all(7),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFFBBF24).withValues(alpha: 0.2),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(Icons.workspace_premium_rounded, color: Color(0xFFFBBF24), size: 22),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              lang.tr('pc_scanner_rec_title'),
+                              style: GoogleFonts.outfit(
+                                fontSize: 16.5,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                              ),
                             ),
                           ),
                         ],
@@ -411,24 +349,48 @@ class _LolPcScannerScreenState extends State<LolPcScannerScreen> {
                         _recommendationText!,
                         style: GoogleFonts.inter(
                           fontSize: 14.5,
-                          height: 1.55,
-                          color: Colors.white.withValues(alpha: 0.92),
+                          height: 1.58,
+                          color: Colors.white.withValues(alpha: 0.94),
                         ),
                       ),
                     ],
                   ),
                 ),
+                const SizedBox(height: 24),
               ],
-                        style: GoogleFonts.inter(
-                          fontSize: 14.5,
-                          height: 1.55,
-                          color: Colors.white.withValues(alpha: 0.92),
-                        ),
-                      ),
-                    ],
-                  ),
+
+              // Botones de Acción (Escanear de Nuevo & Volver)
+              ElevatedButton.icon(
+                onPressed: _isAnalyzing ? null : _takeNewPhotoAndAnalyze,
+                icon: const Icon(Icons.camera_alt_rounded, size: 20),
+                label: Text(
+                  lang.tr('pc_scanner_rescan_btn'),
+                  style: GoogleFonts.outfit(fontSize: 15.5, fontWeight: FontWeight.bold),
                 ),
-              ],
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF0284C7),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 15),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  elevation: 4,
+                ),
+              ),
+
+              const SizedBox(height: 10),
+
+              OutlinedButton(
+                onPressed: () => Navigator.of(context).pop(),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Colors.white70,
+                  side: BorderSide(color: Colors.white.withValues(alpha: 0.15)),
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                ),
+                child: Text(
+                  lang.tr('pc_scanner_finish_btn'),
+                  style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600),
+                ),
+              ),
             ],
           ),
         ),
@@ -436,4 +398,3 @@ class _LolPcScannerScreenState extends State<LolPcScannerScreen> {
     );
   }
 }
-

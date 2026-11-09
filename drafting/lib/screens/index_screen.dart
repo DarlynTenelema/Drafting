@@ -1,9 +1,11 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../core/config/app_config.dart';
@@ -66,7 +68,7 @@ class _IndexScreenState extends State<IndexScreen> with WidgetsBindingObserver {
   /// Control de visibilidad de la pestaña de Donaciones (oculto temporalmente para lanzamiento)
   static const bool showDonationsTab = false;
 
-  int _currentTab = 2; // 0: Eventos, 1: Logros, 2: Home, 3: Tienda (o 3: Donaciones, 4: Tienda si showDonationsTab=true)
+  int _currentTab = 2; // 0: Eventos, 1: Logros, 2: Home, 3: Trivia, 4: Tienda (o 4: Donaciones, 5: Tienda si showDonationsTab=true)
 
   @override
   void initState() {
@@ -304,7 +306,7 @@ class _IndexScreenState extends State<IndexScreen> with WidgetsBindingObserver {
 
   void _openStoreScreen() {
     HapticFeedback.selectionClick();
-    setState(() => _currentTab = showDonationsTab ? 4 : 3);
+    setState(() => _currentTab = showDonationsTab ? 5 : 4);
   }
 
   void _showQueriesBreakdownDialog() {
@@ -801,21 +803,47 @@ class _IndexScreenState extends State<IndexScreen> with WidgetsBindingObserver {
     }
   }
 
-  void _openLolPcScanner() {
+  Future<void> _openLolPcScanner() async {
     if (_availableQueries <= 0) {
       _showNoQueriesDialog();
       return;
     }
-    HapticFeedback.lightImpact();
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => LolPcScannerScreen(
-          availableQueries: _availableQueries,
-          onDataChanged: _fetchUserData,
-          onNoQueries: _showNoQueriesDialog,
+    HapticFeedback.selectionClick();
+
+    // Flujo en 2 pasos: abre directamente la cámara para capturar la pantalla del monitor
+    try {
+      final picker = ImagePicker();
+      final XFile? photo = await picker.pickImage(
+        source: ImageSource.camera,
+        maxWidth: 1280,
+        maxHeight: 720,
+        imageQuality: 82,
+      );
+
+      if (photo == null) return; // Cancelado por el usuario
+
+      if (!mounted) return;
+
+      await Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => LolPcScannerScreen(
+            initialImage: File(photo.path),
+            availableQueries: _availableQueries,
+            onDataChanged: _fetchUserData,
+            onNoQueries: _showNoQueriesDialog,
+          ),
         ),
-      ),
-    );
+      );
+      _fetchUserData();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(LanguageService.instance.tr('pc_scanner_camera_error', {'error': '$e'})),
+          backgroundColor: const Color(0xFFEF4444),
+        ),
+      );
+    }
   }
 
   Future<void> _toggleService() async {
@@ -923,6 +951,10 @@ class _IndexScreenState extends State<IndexScreen> with WidgetsBindingObserver {
                 isTab: true,
               ),
               _buildHomeContent(),
+              TriviaScreen(
+                onLivesChanged: _fetchUserData,
+                isTab: true,
+              ),
               if (showDonationsTab)
                 DonationsScreen(
                   onDataChanged: _fetchUserData,
@@ -1329,12 +1361,12 @@ class _IndexScreenState extends State<IndexScreen> with WidgetsBindingObserver {
 
               // --- 2.5 SELECTOR DE SISTEMA: (Wild Rift) (LoL PC) ---
               Container(
-                margin: const EdgeInsets.symmetric(horizontal: 28),
-                padding: const EdgeInsets.all(4),
+                margin: const EdgeInsets.symmetric(horizontal: 24),
+                padding: const EdgeInsets.all(5),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF1E293B).withValues(alpha: 0.9),
-                  borderRadius: BorderRadius.circular(24),
-                  border: Border.all(color: Colors.white12),
+                  color: const Color(0xFF131B2E).withValues(alpha: 0.95),
+                  borderRadius: BorderRadius.circular(22),
+                  border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
                 ),
                 child: Row(
                   children: [
@@ -1344,96 +1376,87 @@ class _IndexScreenState extends State<IndexScreen> with WidgetsBindingObserver {
                           HapticFeedback.selectionClick();
                           setState(() => _selectedGameMode = 'wild_rift');
                         },
-                        borderRadius: BorderRadius.circular(20),
+                        borderRadius: BorderRadius.circular(18),
                         child: AnimatedContainer(
                           duration: const Duration(milliseconds: 250),
-                          padding: const EdgeInsets.symmetric(vertical: 9),
+                          height: 48,
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                           decoration: BoxDecoration(
                             color: _selectedGameMode == 'wild_rift'
-                                ? const Color(0xFF00E5FF)
+                                ? const Color(0xFF00E5FF).withValues(alpha: 0.12)
                                 : Colors.transparent,
-                            borderRadius: BorderRadius.circular(20),
+                            borderRadius: BorderRadius.circular(18),
+                            border: Border.all(
+                              color: _selectedGameMode == 'wild_rift'
+                                  ? const Color(0xFF00E5FF)
+                                  : Colors.transparent,
+                              width: 1.5,
+                            ),
                             boxShadow: _selectedGameMode == 'wild_rift'
                                 ? [
                                     BoxShadow(
-                                      color: const Color(0xFF00E5FF).withValues(alpha: 0.4),
+                                      color: const Color(0xFF00E5FF).withValues(alpha: 0.25),
                                       blurRadius: 10,
                                     ),
                                   ]
                                 : null,
                           ),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(
-                                Icons.phone_android_rounded,
-                                size: 17,
-                                color: _selectedGameMode == 'wild_rift'
-                                    ? const Color(0xFF090D16)
-                                    : Colors.white70,
+                          child: Center(
+                            child: AnimatedOpacity(
+                              duration: const Duration(milliseconds: 250),
+                              opacity: _selectedGameMode == 'wild_rift' ? 1.0 : 0.45,
+                              child: Image.asset(
+                                'assets/images/logo_wild_rift.png',
+                                height: 38,
+                                fit: BoxFit.contain,
                               ),
-                              const SizedBox(width: 6),
-                              Text(
-                                'Wild Rift',
-                                style: GoogleFonts.outfit(
-                                  fontSize: 13.5,
-                                  fontWeight: FontWeight.bold,
-                                  color: _selectedGameMode == 'wild_rift'
-                                      ? const Color(0xFF090D16)
-                                      : Colors.white70,
-                                ),
-                              ),
-                            ],
+                            ),
                           ),
                         ),
                       ),
                     ),
+                    const SizedBox(width: 8),
                     Expanded(
                       child: InkWell(
                         onTap: () {
                           HapticFeedback.selectionClick();
                           setState(() => _selectedGameMode = 'lol_pc');
                         },
-                        borderRadius: BorderRadius.circular(20),
+                        borderRadius: BorderRadius.circular(18),
                         child: AnimatedContainer(
                           duration: const Duration(milliseconds: 250),
-                          padding: const EdgeInsets.symmetric(vertical: 9),
+                          height: 48,
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                           decoration: BoxDecoration(
                             color: _selectedGameMode == 'lol_pc'
-                                ? const Color(0xFF38BDF8)
+                                ? const Color(0xFFC89B3C).withValues(alpha: 0.15)
                                 : Colors.transparent,
-                            borderRadius: BorderRadius.circular(20),
+                            borderRadius: BorderRadius.circular(18),
+                            border: Border.all(
+                              color: _selectedGameMode == 'lol_pc'
+                                  ? const Color(0xFFC89B3C)
+                                  : Colors.transparent,
+                              width: 1.5,
+                            ),
                             boxShadow: _selectedGameMode == 'lol_pc'
                                 ? [
                                     BoxShadow(
-                                      color: const Color(0xFF38BDF8).withValues(alpha: 0.4),
+                                      color: const Color(0xFFC89B3C).withValues(alpha: 0.25),
                                       blurRadius: 10,
                                     ),
                                   ]
                                 : null,
                           ),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(
-                                Icons.computer_rounded,
-                                size: 17,
-                                color: _selectedGameMode == 'lol_pc'
-                                    ? const Color(0xFF090D16)
-                                    : Colors.white70,
+                          child: Center(
+                            child: AnimatedOpacity(
+                              duration: const Duration(milliseconds: 250),
+                              opacity: _selectedGameMode == 'lol_pc' ? 1.0 : 0.45,
+                              child: Image.asset(
+                                'assets/images/logo_lol_pc.png',
+                                height: 38,
+                                fit: BoxFit.contain,
                               ),
-                              const SizedBox(width: 6),
-                              Text(
-                                'LoL PC',
-                                style: GoogleFonts.outfit(
-                                  fontSize: 13.5,
-                                  fontWeight: FontWeight.bold,
-                                  color: _selectedGameMode == 'lol_pc'
-                                      ? const Color(0xFF090D16)
-                                      : Colors.white70,
-                                ),
-                              ),
-                            ],
+                            ),
                           ),
                         ),
                       ),
@@ -1451,46 +1474,13 @@ class _IndexScreenState extends State<IndexScreen> with WidgetsBindingObserver {
                         isActive: _isActive,
                         onTap: _toggleService,
                       )
-                    : InkWell(
+                    : HextechOrb(
+                        isActive: true,
                         onTap: _openLolPcScanner,
-                        borderRadius: BorderRadius.circular(100),
-                        child: Container(
-                          width: 140,
-                          height: 140,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            gradient: const RadialGradient(
-                              colors: [
-                                Color(0xFF38BDF8),
-                                Color(0xFF0284C7),
-                                Color(0xFF0369A1),
-                              ],
-                            ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: const Color(0xFF38BDF8).withValues(alpha: 0.5),
-                                blurRadius: 28,
-                                spreadRadius: 3,
-                              ),
-                            ],
-                            border: Border.all(color: Colors.white, width: 2),
-                          ),
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              const Icon(Icons.photo_camera_rounded, color: Colors.white, size: 44),
-                              const SizedBox(height: 6),
-                              Text(
-                                'Escanear PC',
-                                style: GoogleFonts.outfit(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w800,
-                                  color: Colors.white,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
+                        label: 'ESCANEAR',
+                        icon: Icons.photo_camera_rounded,
+                        customOrbColor: const Color(0xFF38BDF8),
+                        customGlowColor: const Color(0xFF0284C7),
                       ),
               ),
 
@@ -1554,69 +1544,6 @@ class _IndexScreenState extends State<IndexScreen> with WidgetsBindingObserver {
                       ),
                     ),
                   ],
-                ),
-              ),
-
-              const SizedBox(height: 18),
-
-              // --- ACCESO AL MINIJUEGO DE TRIVIA ---
-              InkWell(
-                onTap: () {
-                  HapticFeedback.lightImpact();
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => TriviaScreen(onLivesChanged: _fetchUserData),
-                    ),
-                  );
-                },
-                borderRadius: BorderRadius.circular(16),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [Color(0xFF8B5CF6), Color(0xFF6D28D9)],
-                    ),
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: const Color(0xFFA78BFA).withValues(alpha: 0.5)),
-                    boxShadow: [
-                      BoxShadow(
-                        color: const Color(0xFF8B5CF6).withValues(alpha: 0.35),
-                        blurRadius: 12,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(Icons.quiz_rounded, color: Colors.white, size: 20),
-                      const SizedBox(width: 8),
-                      Text(
-                        'Minijuego de Trivia',
-                        style: GoogleFonts.outfit(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w700,
-                          color: Colors.white,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.2),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Text(
-                          'Nuevo',
-                          style: GoogleFonts.outfit(
-                            fontSize: 10,
-                            fontWeight: FontWeight.w800,
-                            color: Colors.white,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
                 ),
               ),
 
@@ -1685,15 +1612,21 @@ class _IndexScreenState extends State<IndexScreen> with WidgetsBindingObserver {
                 activeColor: const Color(0xFF00E5FF),
                 tooltip: lang.tr('nav_home'),
               ),
+              _buildNavItem(
+                index: 3,
+                icon: Icons.quiz_rounded,
+                activeColor: const Color(0xFFA855F7),
+                tooltip: lang.tr('nav_trivia'),
+              ),
               if (showDonationsTab)
                 _buildNavItem(
-                  index: 3,
+                  index: 4,
                   icon: Icons.volunteer_activism_rounded,
                   activeColor: const Color(0xFFFF0050),
                   tooltip: lang.tr('nav_donations'),
                 ),
               _buildNavItem(
-                index: showDonationsTab ? 4 : 3,
+                index: showDonationsTab ? 5 : 4,
                 icon: Icons.storefront_rounded,
                 activeColor: const Color(0xFFC89B3C),
                 tooltip: lang.tr('nav_store'),
