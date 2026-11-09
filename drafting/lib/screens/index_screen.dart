@@ -21,6 +21,8 @@ import 'donations_screen.dart';
 import 'events_screen.dart';
 import 'login_screen.dart';
 import 'store_screen.dart';
+import 'trivia_screen.dart';
+import 'lol_pc_scanner_screen.dart';
 
 class IndexScreen extends StatefulWidget {
   final String sessionToken;
@@ -47,6 +49,7 @@ class _IndexScreenState extends State<IndexScreen> with WidgetsBindingObserver {
   int _subscriptionQueries = 0;
   String _subscriptionPlan = 'none';
   bool _isSubscribed = false;
+  String _selectedGameMode = 'wild_rift'; // 'wild_rift' o 'lol_pc'
 
   bool _isLoadingQueries = false;
   String? _userName;
@@ -798,6 +801,23 @@ class _IndexScreenState extends State<IndexScreen> with WidgetsBindingObserver {
     }
   }
 
+  void _openLolPcScanner() {
+    if (_availableQueries <= 0) {
+      _showNoQueriesDialog();
+      return;
+    }
+    HapticFeedback.lightImpact();
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => LolPcScannerScreen(
+          availableQueries: _availableQueries,
+          onDataChanged: _fetchUserData,
+          onNoQueries: _showNoQueriesDialog,
+        ),
+      ),
+    );
+  }
+
   Future<void> _toggleService() async {
     final lang = LanguageService.instance;
     if (_isActive) {
@@ -1307,29 +1327,192 @@ class _IndexScreenState extends State<IndexScreen> with WidgetsBindingObserver {
 
               const Spacer(flex: 2),
 
-              // --- 3. PROTAGONISTA CENTRAL: ESFERA HEXTECH (ACTIVAR ASISTENTE) ---
-              Center(
-                child: HextechOrb(
-                  isActive: _isActive,
-                  onTap: _toggleService,
+              // --- 2.5 SELECTOR DE SISTEMA: (Wild Rift) (LoL PC) ---
+              Container(
+                margin: const EdgeInsets.symmetric(horizontal: 28),
+                padding: const EdgeInsets.all(4),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1E293B).withValues(alpha: 0.9),
+                  borderRadius: BorderRadius.circular(24),
+                  border: Border.all(color: Colors.white12),
                 ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: InkWell(
+                        onTap: () {
+                          HapticFeedback.selectionClick();
+                          setState(() => _selectedGameMode = 'wild_rift');
+                        },
+                        borderRadius: BorderRadius.circular(20),
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 250),
+                          padding: const EdgeInsets.symmetric(vertical: 9),
+                          decoration: BoxDecoration(
+                            color: _selectedGameMode == 'wild_rift'
+                                ? const Color(0xFF00E5FF)
+                                : Colors.transparent,
+                            borderRadius: BorderRadius.circular(20),
+                            boxShadow: _selectedGameMode == 'wild_rift'
+                                ? [
+                                    BoxShadow(
+                                      color: const Color(0xFF00E5FF).withValues(alpha: 0.4),
+                                      blurRadius: 10,
+                                    ),
+                                  ]
+                                : null,
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                Icons.phone_android_rounded,
+                                size: 17,
+                                color: _selectedGameMode == 'wild_rift'
+                                    ? const Color(0xFF090D16)
+                                    : Colors.white70,
+                              ),
+                              const SizedBox(width: 6),
+                              Text(
+                                'Wild Rift',
+                                style: GoogleFonts.outfit(
+                                  fontSize: 13.5,
+                                  fontWeight: FontWeight.bold,
+                                  color: _selectedGameMode == 'wild_rift'
+                                      ? const Color(0xFF090D16)
+                                      : Colors.white70,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                    Expanded(
+                      child: InkWell(
+                        onTap: () {
+                          HapticFeedback.selectionClick();
+                          setState(() => _selectedGameMode = 'lol_pc');
+                        },
+                        borderRadius: BorderRadius.circular(20),
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 250),
+                          padding: const EdgeInsets.symmetric(vertical: 9),
+                          decoration: BoxDecoration(
+                            color: _selectedGameMode == 'lol_pc'
+                                ? const Color(0xFF38BDF8)
+                                : Colors.transparent,
+                            borderRadius: BorderRadius.circular(20),
+                            boxShadow: _selectedGameMode == 'lol_pc'
+                                ? [
+                                    BoxShadow(
+                                      color: const Color(0xFF38BDF8).withValues(alpha: 0.4),
+                                      blurRadius: 10,
+                                    ),
+                                  ]
+                                : null,
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                Icons.computer_rounded,
+                                size: 17,
+                                color: _selectedGameMode == 'lol_pc'
+                                    ? const Color(0xFF090D16)
+                                    : Colors.white70,
+                              ),
+                              const SizedBox(width: 6),
+                              Text(
+                                'LoL PC',
+                                style: GoogleFonts.outfit(
+                                  fontSize: 13.5,
+                                  fontWeight: FontWeight.bold,
+                                  color: _selectedGameMode == 'lol_pc'
+                                      ? const Color(0xFF090D16)
+                                      : Colors.white70,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 20),
+
+              // --- 3. PROTAGONISTA CENTRAL: ESFERA HEXTECH (WILD RIFT) O ESCÁNER CÁMARA (LOL PC) ---
+              Center(
+                child: _selectedGameMode == 'wild_rift'
+                    ? HextechOrb(
+                        isActive: _isActive,
+                        onTap: _toggleService,
+                      )
+                    : InkWell(
+                        onTap: _openLolPcScanner,
+                        borderRadius: BorderRadius.circular(100),
+                        child: Container(
+                          width: 140,
+                          height: 140,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            gradient: const RadialGradient(
+                              colors: [
+                                Color(0xFF38BDF8),
+                                Color(0xFF0284C7),
+                                Color(0xFF0369A1),
+                              ],
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: const Color(0xFF38BDF8).withValues(alpha: 0.5),
+                                blurRadius: 28,
+                                spreadRadius: 3,
+                              ),
+                            ],
+                            border: Border.all(color: Colors.white, width: 2),
+                          ),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const Icon(Icons.photo_camera_rounded, color: Colors.white, size: 44),
+                              const SizedBox(height: 6),
+                              Text(
+                                'Escanear PC',
+                                style: GoogleFonts.outfit(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w800,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
               ),
 
               const SizedBox(height: 24),
 
-              // Status indicator below Orb
+              // Status indicator below Orb / Scanner
               AnimatedContainer(
                 duration: const Duration(milliseconds: 300),
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 decoration: BoxDecoration(
-                  color: _isActive
-                      ? const Color(0xFF10B981).withValues(alpha: 0.15)
-                      : Colors.white.withValues(alpha: 0.05),
+                  color: _selectedGameMode == 'lol_pc'
+                      ? const Color(0xFF38BDF8).withValues(alpha: 0.15)
+                      : (_isActive
+                          ? const Color(0xFF10B981).withValues(alpha: 0.15)
+                          : Colors.white.withValues(alpha: 0.05)),
                   borderRadius: BorderRadius.circular(20),
                   border: Border.all(
-                    color: _isActive
-                        ? const Color(0xFF10B981).withValues(alpha: 0.4)
-                        : Colors.white.withValues(alpha: 0.1),
+                    color: _selectedGameMode == 'lol_pc'
+                        ? const Color(0xFF38BDF8).withValues(alpha: 0.4)
+                        : (_isActive
+                            ? const Color(0xFF10B981).withValues(alpha: 0.4)
+                            : Colors.white.withValues(alpha: 0.1)),
                   ),
                 ),
                 child: Row(
@@ -1340,30 +1523,100 @@ class _IndexScreenState extends State<IndexScreen> with WidgetsBindingObserver {
                       height: 8,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        color: _isActive ? const Color(0xFF10B981) : Colors.white54,
-                        boxShadow: _isActive
-                            ? [
-                                BoxShadow(
-                                  color: const Color(0xFF10B981).withValues(alpha: 0.8),
-                                  blurRadius: 8,
-                                )
-                              ]
-                            : null,
+                        color: _selectedGameMode == 'lol_pc'
+                            ? const Color(0xFF38BDF8)
+                            : (_isActive ? const Color(0xFF10B981) : Colors.white54),
+                        boxShadow: [
+                          BoxShadow(
+                            color: (_selectedGameMode == 'lol_pc'
+                                    ? const Color(0xFF38BDF8)
+                                    : (_isActive ? const Color(0xFF10B981) : Colors.white24))
+                                .withValues(alpha: 0.8),
+                            blurRadius: 8,
+                          ),
+                        ],
                       ),
                     ),
                     const SizedBox(width: 8),
                     Text(
-                      _isActive
-                          ? lang.tr('home_status_active')
-                          : lang.tr('home_status_idle'),
+                      _selectedGameMode == 'lol_pc'
+                          ? 'Apunta la cámara al monitor de tu PC'
+                          : (_isActive
+                              ? lang.tr('home_status_active')
+                              : lang.tr('home_status_idle')),
                       style: GoogleFonts.inter(
                         fontSize: 12,
                         fontWeight: FontWeight.w700,
                         letterSpacing: 0.8,
-                        color: _isActive ? const Color(0xFF10B981) : Colors.white70,
+                        color: _selectedGameMode == 'lol_pc'
+                            ? const Color(0xFF38BDF8)
+                            : (_isActive ? const Color(0xFF10B981) : Colors.white70),
                       ),
                     ),
                   ],
+                ),
+              ),
+
+              const SizedBox(height: 18),
+
+              // --- ACCESO AL MINIJUEGO DE TRIVIA ---
+              InkWell(
+                onTap: () {
+                  HapticFeedback.lightImpact();
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => TriviaScreen(onLivesChanged: _fetchUserData),
+                    ),
+                  );
+                },
+                borderRadius: BorderRadius.circular(16),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFF8B5CF6), Color(0xFF6D28D9)],
+                    ),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: const Color(0xFFA78BFA).withValues(alpha: 0.5)),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFF8B5CF6).withValues(alpha: 0.35),
+                        blurRadius: 12,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.quiz_rounded, color: Colors.white, size: 20),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Minijuego de Trivia',
+                        style: GoogleFonts.outfit(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.white,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.2),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          'Nuevo',
+                          style: GoogleFonts.outfit(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w800,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
 

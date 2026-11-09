@@ -25,6 +25,7 @@ type PackConfig struct {
 	TotalQueries int     `json:"queries"`
 	BaseQueries  int     `json:"base_queries"`
 	BonusQueries int     `json:"bonus_queries"`
+	TriviaLives  int     `json:"trivia_lives,omitempty"`
 	Tag          string  `json:"tag"`
 	IsStarter    bool    `json:"is_starter"`
 	Description  string  `json:"description"`
@@ -85,6 +86,42 @@ var AvailablePacks = map[string]PackConfig{
 		IsStarter:    false,
 		Description:  "100 consultas permanentes sin fecha de vencimiento",
 	},
+	"pack_trivia_plus": {
+		ID:           "pack_trivia_plus",
+		Name:         "Pack Trivia Plus",
+		PriceUSD:     0.19,
+		TotalQueries: 0,
+		BaseQueries:  0,
+		BonusQueries: 0,
+		TriviaLives:  20,
+		Tag:          "20 Vidas",
+		IsStarter:    false,
+		Description:  "20 vidas para continuar jugando en las pantallas de Trivia",
+	},
+	"pack_trivia_pro": {
+		ID:           "pack_trivia_pro",
+		Name:         "Pack Trivia Pro",
+		PriceUSD:     0.49,
+		TotalQueries: 0,
+		BaseQueries:  0,
+		BonusQueries: 0,
+		TriviaLives:  50,
+		Tag:          "50 Vidas",
+		IsStarter:    false,
+		Description:  "50 vidas para continuar jugando en las pantallas de Trivia",
+	},
+	"pack_trivia_ultra": {
+		ID:           "pack_trivia_ultra",
+		Name:         "Pack Trivia Ultra",
+		PriceUSD:     0.99,
+		TotalQueries: 0,
+		BaseQueries:  0,
+		BonusQueries: 0,
+		TriviaLives:  100,
+		Tag:          "100 Vidas",
+		IsStarter:    false,
+		Description:  "100 vidas para continuar jugando en las pantallas de Trivia",
+	},
 }
 
 var AvailableSubscriptions = map[string]SubscriptionConfig{
@@ -129,9 +166,29 @@ func ResolvePack(id string) (PackConfig, bool) {
 	case "ultra", "pack_ultra":
 		p, ok := AvailablePacks["pack_ultra"]
 		return p, ok
+	case "trivia_plus", "pack_trivia_plus":
+		p, ok := AvailablePacks["pack_trivia_plus"]
+		return p, ok
+	case "trivia_pro", "pack_trivia_pro":
+		p, ok := AvailablePacks["pack_trivia_pro"]
+		return p, ok
+	case "trivia_ultra", "pack_trivia_ultra":
+		p, ok := AvailablePacks["pack_trivia_ultra"]
+		return p, ok
 	default:
 		if p, ok := AvailablePacks[id]; ok {
 			return p, true
+		}
+		if strings.Contains(id, "trivia") {
+			if strings.Contains(id, "ultra") {
+				return AvailablePacks["pack_trivia_ultra"], true
+			}
+			if strings.Contains(id, "pro") {
+				return AvailablePacks["pack_trivia_pro"], true
+			}
+			if strings.Contains(id, "plus") {
+				return AvailablePacks["pack_trivia_plus"], true
+			}
 		}
 		if strings.Contains(id, "starter") {
 			return AvailablePacks["pack_starter"], true
@@ -207,6 +264,18 @@ func localizePack(p PackConfig, lang string) PackConfig {
 		case "pack_ultra":
 			p.Tag = "Melhor Valor"
 			p.Description = "100 consultas permanentes sem data de validade"
+		case "pack_trivia_plus":
+			p.Name = "Pack Trivia Plus"
+			p.Tag = "20 Vidas"
+			p.Description = "20 vidas para continuar jogando no Minijogo de Trivia"
+		case "pack_trivia_pro":
+			p.Name = "Pack Trivia Pro"
+			p.Tag = "50 Vidas"
+			p.Description = "50 vidas para continuar jogando no Minijogo de Trivia"
+		case "pack_trivia_ultra":
+			p.Name = "Pack Trivia Ultra"
+			p.Tag = "100 Vidas"
+			p.Description = "100 vidas para continuar jogando no Minijogo de Trivia"
 		}
 	case "en":
 		switch p.ID {
@@ -222,6 +291,18 @@ func localizePack(p PackConfig, lang string) PackConfig {
 		case "pack_ultra":
 			p.Tag = "Best Value"
 			p.Description = "100 permanent queries that never expire"
+		case "pack_trivia_plus":
+			p.Name = "Trivia Plus Pack"
+			p.Tag = "20 Lives"
+			p.Description = "20 lives to keep playing in the Trivia Minigame"
+		case "pack_trivia_pro":
+			p.Name = "Trivia Pro Pack"
+			p.Tag = "50 Lives"
+			p.Description = "50 lives to keep playing in the Trivia Minigame"
+		case "pack_trivia_ultra":
+			p.Name = "Trivia Ultra Pack"
+			p.Tag = "100 Lives"
+			p.Description = "100 lives to keep playing in the Trivia Minigame"
 		}
 	case "fr":
 		switch p.ID {
@@ -237,6 +318,18 @@ func localizePack(p PackConfig, lang string) PackConfig {
 		case "pack_ultra":
 			p.Tag = "Meilleure Offre"
 			p.Description = "100 consultations permanentes sans date d'expiration"
+		case "pack_trivia_plus":
+			p.Name = "Pack Trivia Plus"
+			p.Tag = "20 Vies"
+			p.Description = "20 vies pour continuer à jouer au Minijeu de Trivia"
+		case "pack_trivia_pro":
+			p.Name = "Pack Trivia Pro"
+			p.Tag = "50 Vies"
+			p.Description = "50 vies pour continuer à jouer au Minijeu de Trivia"
+		case "pack_trivia_ultra":
+			p.Name = "Pack Trivia Ultra"
+			p.Tag = "100 Vies"
+			p.Description = "100 vies pour continuer à jouer au Minijeu de Trivia"
 		}
 	}
 	return p
@@ -329,7 +422,10 @@ func GetStoreCatalog(w http.ResponseWriter, r *http.Request) {
 
 	// Filtrar catálogo: si ya compró el starter pack, no se muestra
 	packsList := make([]PackConfig, 0)
-	orderPacks := []string{"pack_starter", "pack_plus", "pack_pro", "pack_ultra"}
+	orderPacks := []string{
+		"pack_starter", "pack_plus", "pack_pro", "pack_ultra",
+		"pack_trivia_plus", "pack_trivia_pro", "pack_trivia_ultra",
+	}
 	for _, id := range orderPacks {
 		pack := localizePack(AvailablePacks[id], lang)
 		if pack.IsStarter && user.HasPurchasedStarter {
@@ -358,6 +454,7 @@ func GetStoreCatalog(w http.ResponseWriter, r *http.Request) {
 		"subscription_queries":     user.SubscriptionQueries,
 		"purchased_queries":        user.PurchasedQueries,
 		"gift_queries":             user.GiftQueries,
+		"trivia_lives":             user.TriviaLives,
 		"available_queries":        user.AvailableQueries,
 		"daily_transferred_today":  user.DailyTransferredToday,
 		"remaining_transfer_quota": remainingTransferQuota,
@@ -519,8 +616,13 @@ func PurchasePack(w http.ResponseWriter, r *http.Request) {
 		giftAdded = 25
 		lockedUser.GiftQueries += giftAdded
 	}
+	if pack.TriviaLives > 0 {
+		lockedUser.AddTriviaLives(pack.TriviaLives)
+	}
 	lockedUser.RecalculateAvailableQueries()
-	lockedUser.AddPurchasedQueries(pack.TotalQueries)
+	if pack.TotalQueries > 0 {
+		lockedUser.AddPurchasedQueries(pack.TotalQueries)
+	}
 
 	// 3. Registrar primero la transacción dentro de la transacción SQL atómica
 	transactionRecord := models.Transaction{
@@ -549,6 +651,7 @@ func PurchasePack(w http.ResponseWriter, r *http.Request) {
 		"gift_queries":          lockedUser.GiftQueries,
 		"available_queries":     lockedUser.AvailableQueries,
 		"has_purchased_starter": lockedUser.HasPurchasedStarter,
+		"trivia_lives":          lockedUser.TriviaLives,
 	}).Error; err != nil {
 		tx.Rollback()
 		log.Printf("[STORE] Error actualizando usuario tras compra: %v", err)
@@ -570,6 +673,8 @@ func PurchasePack(w http.ResponseWriter, r *http.Request) {
 	successMsg := fmt.Sprintf("¡Compra exitosa! Se han añadido %d consultas a tu cuenta.", pack.TotalQueries)
 	if giftAdded > 0 {
 		successMsg = fmt.Sprintf("¡Compra exitosa! Tienes +%d consultas para ti y +%d consultas de regalo para compartir con tus amigos.", pack.TotalQueries, giftAdded)
+	} else if pack.TriviaLives > 0 {
+		successMsg = fmt.Sprintf("¡Compra exitosa! Tienes +%d vidas para continuar jugando en Trivia.", pack.TriviaLives)
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -580,6 +685,8 @@ func PurchasePack(w http.ResponseWriter, r *http.Request) {
 		"pack_id":               pack.ID,
 		"queries_added":         pack.TotalQueries,
 		"gift_queries_added":    giftAdded,
+		"trivia_lives_added":    pack.TriviaLives,
+		"trivia_lives":          lockedUser.TriviaLives,
 		"available_queries":     lockedUser.AvailableQueries,
 		"purchased_queries":     lockedUser.PurchasedQueries,
 		"gift_queries":          lockedUser.GiftQueries,

@@ -72,9 +72,35 @@ func NormalizeLanguage(raw string) string {
 	return "es"
 }
 
-func buildDraftPrompt(mainRole, secondaryRole, autofillRole, lang string) string {
+func buildDraftPrompt(mainRole, secondaryRole, autofillRole, gameMode, lang string) string {
+	isPC := strings.EqualFold(strings.TrimSpace(gameMode), "lol_pc") || strings.EqualFold(strings.TrimSpace(gameMode), "pc")
+
 	switch NormalizeLanguage(lang) {
 	case "pt":
+		if isPC {
+			return fmt.Sprintf(`Você é um Analista Mestre e Challenger de League of Legends (PC).
+Analise a foto tirada com a câmera do celular da tela do monitor do computador durante a seleção de campeões (draft) considerando as rotas preferidas: %s, %s, %s.
+
+Seu objetivo é recomendar os 3 melhores campeões de LoL PC para counterar a equipe inimiga e complementar a equipe aliada no meta atual de PC.
+
+Regras CRÍTICAS:
+- IDIOMA: Português (natural e profissional).
+- VISÃO: A imagem é uma fotografia tirada da tela de um monitor de PC. Identifique os campeões escolhidos e banidos ignorando reflexos na tela, ângulo ou linhas de varredura (moiré).
+- FORMATO: PROIBIDO USAR ASTERISCOS (**) OU ESTILOS MARKDOWN. Apenas texto limpo e tópicos com ponto (•).
+- CONCISÃO: O jogador tem apenas 30 segundos. Seja claro, direto e objetivo sem enrolação.
+
+ESTRUTURA EXATA:
+Situação: [Diagnóstico em 1 frase curta do draft inimigo e do que sua equipe precisa]
+
+1. [Campeão 1]
+• Contribuição: [Por que countera o inimigo ou tem sinergia com sua equipe em 1 única frase]
+
+2. [Campeão 2]
+• Contribuição: [Por que countera o inimigo ou tem sinergia com sua equipe em 1 única frase]
+
+3. [Campeão 3]
+• Contribuição: [Por que countera o inimigo ou tem sinergia com sua equipe em 1 única frase]`, mainRole, secondaryRole, autofillRole)
+		}
 		return fmt.Sprintf(`Você é um Analista Mestre e Challenger de League of Legends: Wild Rift.
 Analise a tela de seleção de campeões (draft) considerando as rotas preferidas: %s, %s, %s.
 
@@ -98,6 +124,30 @@ Situação: [Diagnóstico em 1 frase curta do draft inimigo e do que sua equipe 
 • Contribuição: [Por que countera o inimigo ou tem sinergia com sua equipe em 1 única frase]`, mainRole, secondaryRole, autofillRole)
 
 	case "en":
+		if isPC {
+			return fmt.Sprintf(`You are a Master and Challenger Analyst for League of Legends (PC).
+Analyze the photo taken with the mobile camera of the computer monitor screen during champion select (draft) considering preferred roles: %s, %s, %s.
+
+Your goal is to recommend the top 3 ideal PC League of Legends champions to counter the enemy team and complement the allied team in the current PC meta.
+
+CRITICAL Rules:
+- LANGUAGE: English (natural and professional).
+- VISION: The image is a photo taken of a PC monitor screen. Accurately identify picked and banned champions while ignoring screen reflections, angles, or moiré scanlines.
+- FORMAT: DO NOT USE ASTERISKS (**) OR MARKDOWN STYLES. Plain text and bullet points (•) only.
+- CONCISENESS: The player only has 30 seconds. Be sharp, direct, and actionable without fluff.
+
+EXACT STRUCTURE:
+Situation: [1 short sentence diagnosing the enemy draft and what your team needs]
+
+1. [Champion 1]
+• Key Impact: [Why it counters the enemy or synergizes with your team in 1 single sentence]
+
+2. [Champion 2]
+• Key Impact: [Why it counters the enemy or synergizes with your team in 1 single sentence]
+
+3. [Champion 3]
+• Key Impact: [Why it counters the enemy or synergizes with your team in 1 single sentence]`, mainRole, secondaryRole, autofillRole)
+		}
 		return fmt.Sprintf(`You are a Master and Challenger Analyst for League of Legends: Wild Rift.
 Analyze the champion select (draft) screen considering the preferred roles: %s, %s, %s.
 
@@ -121,6 +171,30 @@ Situation: [1 short sentence diagnosing the enemy draft and what your team needs
 • Key Impact: [Why it counters the enemy or synergizes with your team in 1 single sentence]`, mainRole, secondaryRole, autofillRole)
 
 	case "fr":
+		if isPC {
+			return fmt.Sprintf(`Tu es un Analyste Maître et Challenger de League of Legends (PC).
+Analyse la photo prise avec la caméra du smartphone de l'écran de l'ordinateur pendant la sélection des champions (draft) en tenant compte des rôles préférés : %s, %s, %s.
+
+Ton objectif est de recommander les 3 meilleurs champions de League of Legends PC pour contrer l'équipe ennemie et compléter l'équipe alliée dans la méta actuelle de PC.
+
+Règles CRITIQUES :
+- LANGUE : Français (naturel et professionnel).
+- VISION : L'image est une photo prise d'un écran d'ordinateur. Identifie avec précision les champions choisis et bannis en ignorant les reflets, les angles et les lignes de balayage.
+- FORMAT : INTERDICTION D'UTILISER DES ASTÉRISQUES (**) OU DU MARKDOWN. Texte brut et puces (•) uniquement.
+- CONCISION : Le joueur n'a que 30 secondes. Sois clair, direct et précis sans détour.
+
+STRUCTURE EXACTE :
+Situation : [Diagnostic en 1 phrase courte de la draft adverse et des besoins de ton équipe]
+
+1. [Champion 1]
+• Apport : [Pourquoi il contre l'adversaire ou complète ton équipe en 1 seule phrase]
+
+2. [Champion 2]
+• Apport : [Pourquoi il contre l'adversaire ou complète ton équipe en 1 seule phrase]
+
+3. [Champion 3]
+• Apport : [Pourquoi il contre l'adversaire ou complète ton équipe en 1 seule phrase]`, mainRole, secondaryRole, autofillRole)
+		}
 		return fmt.Sprintf(`Tu es un Analyste Maître et Challenger de League of Legends: Wild Rift.
 Analyse l'écran de sélection des champions (draft) en tenant compte des rôles préférés : %s, %s, %s.
 
@@ -144,6 +218,30 @@ Situation : [Diagnostic en 1 phrase courte de la draft adverse et des besoins de
 • Apport : [Pourquoi il contre l'adversaire ou complète ton équipe en 1 seule phrase]`, mainRole, secondaryRole, autofillRole)
 
 	default:
+		if isPC {
+			return fmt.Sprintf(`Eres un Analista Maestro y Challenger de League of Legends (PC).
+Analiza la fotografía tomada con la cámara del celular a la pantalla del monitor de la computadora durante la selección de campeones (draft) considerando los roles preferidos: %s, %s, %s.
+
+Tu objetivo es recomendar los 3 mejores campeones de League of Legends de PC para contrarrestar al equipo rival y complementar al equipo aliado en el meta actual de PC.
+
+Reglas CRÍTICAS:
+- IDIOMA: Español.
+- REGLA DE VISIÓN: La imagen es una foto tomada a un monitor de PC. Identifica los campeones seleccionados y bloqueados (bans) ignorando reflejos de la pantalla, ángulos inclinados o líneas de escaneo (efecto moiré).
+- FORMATO: PROIBIDO USAR ASTERISCOS (**) O ESTILOS MARKDOWN. Solo texto limpio y viñetas con punto (•).
+- CONCISIÓN: El jugador solo tiene 30 segundos. Sé claro, directo y accionable sin rodeos.
+
+ESTRUCTURA EXACTA:
+Situación: [Diagnóstico en 1 frase corta del draft rival y qué necesita tu equipo]
+
+1. [Campeón 1]
+• Aporte: [Por qué contrarresta al rival o sinergiza con tu equipo en 1 sola frase]
+
+2. [Campeón 2]
+• Aporte: [Por qué contrarresta al rival o sinergiza con tu equipo en 1 sola frase]
+
+3. [Campeón 3]
+• Aporte: [Por qué contrarresta al rival o sinergiza con tu equipo en 1 sola frase]`, mainRole, secondaryRole, autofillRole)
+		}
 		return fmt.Sprintf(`Eres un Analista Maestro y Challenger de League of Legends: Wild Rift.
 Analiza la pantalla de selección de campeones (draft) considerando los roles preferidos: %s, %s, %s.
 
@@ -168,7 +266,7 @@ Situación: [Diagnóstico en 1 frase corta del draft rival y qué necesita tu eq
 	}
 }
 
-func AnalyzeDraft(ctx context.Context, base64Image string, mainRole, secondaryRole, autofillRole string, lang ...string) (string, int32, error) {
+func AnalyzeDraft(ctx context.Context, base64Image string, mainRole, secondaryRole, autofillRole string, gameMode string, lang ...string) (string, int32, error) {
 	if aiClient == nil {
 		return "", 0, fmt.Errorf("el cliente de IA no ha sido inicializado")
 	}
@@ -185,7 +283,7 @@ func AnalyzeDraft(ctx context.Context, base64Image string, mainRole, secondaryRo
 		selectedLang = NormalizeLanguage(lang[0])
 	}
 
-	prompt := buildDraftPrompt(mainRole, secondaryRole, autofillRole, selectedLang)
+	prompt := buildDraftPrompt(mainRole, secondaryRole, autofillRole, gameMode, selectedLang)
 
 	contents := []*genai.Content{
 		{

@@ -29,6 +29,7 @@ type User struct {
 	PurchasedQueries       int            `gorm:"default:0" json:"purchased_queries"`        // Consultas compradas en paquetes (permanentes)
 	SubscriptionQueries    int            `gorm:"default:0" json:"subscription_queries"`     // Consultas del mes por suscripción activa
 	GiftQueries            int            `gorm:"default:0" json:"gift_queries"`             // Consultas exclusivas para regalar a amigos (ej. 25 del Pack Starter)
+	TriviaLives            int            `gorm:"default:5" json:"trivia_lives"`            // Vidas para el minijuego de trivia (5 iniciales)
 
 	// Suscripción mensual
 	SubscriptionPlan       string         `gorm:"type:varchar(50);default:'none'" json:"subscription_plan"` // 'none', 'plus', 'pro', 'ultra'
@@ -197,9 +198,28 @@ func (user *User) ResetDailyLimitsIfNewDay(today string) {
 	}
 }
 
+// ConsumeTriviaLife descuenta 1 vida de trivia si el usuario tiene vidas disponibles
+func (user *User) ConsumeTriviaLife() bool {
+	if user.TriviaLives <= 0 {
+		return false
+	}
+	user.TriviaLives--
+	return true
+}
+
+// AddTriviaLives suma vidas de trivia (por anuncios o compras de paquetes)
+func (user *User) AddTriviaLives(amount int) {
+	if amount > 0 {
+		user.TriviaLives += amount
+	}
+}
+
 func (user *User) BeforeCreate(tx *gorm.DB) (err error) {
 	if user.ID == uuid.Nil {
 		user.ID = uuid.New()
+	}
+	if user.TriviaLives == 0 {
+		user.TriviaLives = 5
 	}
 	if user.BonusQueries == 0 && user.AvailableQueries == 0 {
 		user.BonusQueries = 5

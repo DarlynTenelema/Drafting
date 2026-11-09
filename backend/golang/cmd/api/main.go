@@ -139,6 +139,18 @@ func main() {
 
 			// Exclusive Admin Control Panel for Events & Live Alerts (0805409802d@gmail.com only)
 			r.Post("/events/manage", handlers.ManageEventsHub)
+
+			// Minijuego Trivia: Preguntas Aleatorias, Respuestas y Vidas
+			r.Get("/trivia/status", handlers.GetTriviaStatus)
+			r.Get("/trivia/question", handlers.GetTriviaQuestion)
+			r.Post("/trivia/answer", handlers.SubmitTriviaAnswer)
+			r.Post("/trivia/reward-ad", handlers.RewardAdLives)
+			r.Delete("/trivia/progress/reset", handlers.ResetCategoryProgress)
+
+			// Panel de Administración de Trivia (Carga mensual por lote y edición)
+			r.Post("/trivia/admin/batch", handlers.AdminBatchUpsertQuestions)
+			r.Get("/trivia/admin/questions", handlers.AdminListQuestions)
+			r.Put("/trivia/admin/questions/{id}", handlers.AdminUpdateQuestion)
 		})
 	}
 

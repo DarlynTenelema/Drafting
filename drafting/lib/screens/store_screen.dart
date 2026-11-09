@@ -81,12 +81,15 @@ class _StoreScreenState extends State<StoreScreen> {
         widget.onDataChanged();
         _fetchCatalog(silent: true);
 
-        if (!result.alreadyProcessed && result.queriesAdded > 0) {
+        if (!result.alreadyProcessed && (result.queriesAdded > 0 || result.triviaLivesAdded > 0)) {
           HapticFeedback.heavyImpact();
           _showCelebrationDialog(
-            title: result.isSubscription ? lang.tr('st_sub_active_title') : lang.tr('st_pack_bought_title'),
+            title: result.triviaLivesAdded > 0
+                ? lang.tr('st_trivia_bought_title')
+                : (result.isSubscription ? lang.tr('st_sub_active_title') : lang.tr('st_pack_bought_title')),
             message: result.message ?? lang.tr('st_queries_credited'),
             queries: result.queriesAdded,
+            triviaLives: result.triviaLivesAdded,
           );
         } else if (result.message != null && result.message!.isNotEmpty) {
           _showInfoSnackBar(result.message!);
@@ -314,17 +317,22 @@ class _StoreScreenState extends State<StoreScreen> {
   void _showCelebrationDialog({
     required String title,
     required String message,
-    required int queries,
+    int queries = 0,
+    int triviaLives = 0,
   }) {
     if (!mounted || _isShowingCelebrationDialog) return;
     _isShowingCelebrationDialog = true;
+    final bool isLives = triviaLives > 0;
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: const Color(0xFF0F172A),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(24),
-          side: const BorderSide(color: Color(0xFFC89B3C), width: 1.5),
+          side: BorderSide(
+            color: isLives ? const Color(0xFFEF4444) : const Color(0xFFC89B3C),
+            width: 1.5,
+          ),
         ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
@@ -333,9 +341,13 @@ class _StoreScreenState extends State<StoreScreen> {
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: const Color(0xFFC89B3C).withValues(alpha: 0.15),
+                color: (isLives ? const Color(0xFFEF4444) : const Color(0xFFC89B3C)).withValues(alpha: 0.15),
               ),
-              child: const Icon(Icons.bolt_rounded, size: 48, color: Color(0xFF00E5FF)),
+              child: Icon(
+                isLives ? Icons.favorite_rounded : Icons.bolt_rounded,
+                size: 48,
+                color: isLives ? const Color(0xFFEF4444) : const Color(0xFF00E5FF),
+              ),
             ),
             const SizedBox(height: 16),
             Text(
@@ -350,15 +362,17 @@ class _StoreScreenState extends State<StoreScreen> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
               decoration: BoxDecoration(
-                color: const Color(0xFF10B981).withValues(alpha: 0.2),
+                color: (isLives ? const Color(0xFFEF4444) : const Color(0xFF10B981)).withValues(alpha: 0.2),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Text(
-                LanguageService.instance.tr('st_queries_ready_badge', {'count': '$queries'}),
+                isLives
+                    ? LanguageService.instance.tr('st_trivia_lives_badge', {'count': '$triviaLives'})
+                    : LanguageService.instance.tr('st_queries_ready_badge', {'count': '$queries'}),
                 style: GoogleFonts.outfit(
                   fontSize: 15,
                   fontWeight: FontWeight.bold,
-                  color: const Color(0xFF10B981),
+                  color: isLives ? const Color(0xFFEF4444) : const Color(0xFF10B981),
                 ),
               ),
             ),
@@ -378,8 +392,8 @@ class _StoreScreenState extends State<StoreScreen> {
               child: ElevatedButton(
                 onPressed: () => Navigator.pop(ctx),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFFC89B3C),
-                  foregroundColor: Colors.black,
+                  backgroundColor: isLives ? const Color(0xFFEF4444) : const Color(0xFFC89B3C),
+                  foregroundColor: Colors.white,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                 ),
                 child: Text(
@@ -536,8 +550,21 @@ class _StoreScreenState extends State<StoreScreen> {
                       ),
                       const SizedBox(height: 14),
 
-                      // Tarjetas de Paquetes
-                      ..._packs.map((pack) => _buildPackCard(pack)),
+                      // Tarjetas de Paquetes de Consultas
+                      ..._packs.where((p) => (p['trivia_lives'] ?? 0) == 0).map((pack) => _buildPackCard(pack)),
+
+                      // --- 1.5 PAQUETES DE VIDAS PARA TRIVIA ---
+                      if (_packs.any((p) => (p['trivia_lives'] ?? 0) > 0)) ...[
+                        const SizedBox(height: 28),
+                        _buildSectionHeader(
+                          title: lang.tr('st_trivia_packs_header'),
+                          subtitle: lang.tr('st_trivia_packs_sub'),
+                          icon: Icons.favorite_rounded,
+                          color: const Color(0xFFEF4444),
+                        ),
+                        const SizedBox(height: 14),
+                        ..._packs.where((p) => (p['trivia_lives'] ?? 0) > 0).map((pack) => _buildPackCard(pack)),
+                      ],
 
                       const SizedBox(height: 28),
 
@@ -742,13 +769,19 @@ class _StoreScreenState extends State<StoreScreen> {
     final String tag = pack['tag'] ?? '';
     final int queries = pack['queries'] ?? 0;
     final int bonus = pack['bonus_queries'] ?? 0;
+    final int triviaLives = pack['trivia_lives'] ?? 0;
+    final bool isTrivia = triviaLives > 0;
     final double price = (pack['price_usd'] as num).toDouble();
 
     Color borderColor = Colors.white.withValues(alpha: 0.08);
     Color tagBgColor = const Color(0xFF00E5FF).withValues(alpha: 0.15);
     Color tagTextColor = const Color(0xFF00E5FF);
 
-    if (isStarter) {
+    if (isTrivia) {
+      borderColor = const Color(0xFFEF4444).withValues(alpha: 0.45);
+      tagBgColor = const Color(0xFFEF4444).withValues(alpha: 0.2);
+      tagTextColor = const Color(0xFFEF4444);
+    } else if (isStarter) {
       borderColor = const Color(0xFF10B981).withValues(alpha: 0.4);
       tagBgColor = const Color(0xFF10B981).withValues(alpha: 0.2);
       tagTextColor = const Color(0xFF10B981);
@@ -788,13 +821,15 @@ class _StoreScreenState extends State<StoreScreen> {
                     border: Border.all(color: tagTextColor.withValues(alpha: 0.3)),
                   ),
                   child: Icon(
-                    isStarter
-                        ? Icons.card_giftcard_rounded
-                        : (pack['id'] == 'pack_pro' || pack['id'] == 'pro')
-                            ? Icons.auto_awesome_rounded
-                            : (pack['id'] == 'pack_ultra' || pack['id'] == 'ultra')
-                                ? Icons.diamond_rounded
-                                : Icons.bolt_rounded,
+                    isTrivia
+                        ? Icons.favorite_rounded
+                        : isStarter
+                            ? Icons.card_giftcard_rounded
+                            : (pack['id'] == 'pack_pro' || pack['id'] == 'pro')
+                                ? Icons.auto_awesome_rounded
+                                : (pack['id'] == 'pack_ultra' || pack['id'] == 'ultra')
+                                    ? Icons.diamond_rounded
+                                    : Icons.bolt_rounded,
                     color: tagTextColor,
                     size: 22,
                   ),
@@ -841,11 +876,13 @@ class _StoreScreenState extends State<StoreScreen> {
                       Row(
                         children: [
                           Text(
-                            LanguageService.instance.tr('st_pack_queries', {'count': '$queries'}),
+                            isTrivia
+                                ? '$triviaLives Vidas ❤️'
+                                : LanguageService.instance.tr('st_pack_queries', {'count': '$queries'}),
                             style: GoogleFonts.outfit(
                               fontSize: 18,
                               fontWeight: FontWeight.bold,
-                              color: const Color(0xFF00E5FF),
+                              color: isTrivia ? const Color(0xFFEF4444) : const Color(0xFF00E5FF),
                             ),
                           ),
                           if (bonus > 0) ...[
@@ -872,8 +909,10 @@ class _StoreScreenState extends State<StoreScreen> {
                 ElevatedButton(
                   onPressed: _isPurchasing ? null : () => _buyPack(pack),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: isStarter ? const Color(0xFF10B981) : const Color(0xFF00E5FF),
-                    foregroundColor: Colors.black,
+                    backgroundColor: isTrivia
+                        ? const Color(0xFFEF4444)
+                        : (isStarter ? const Color(0xFF10B981) : const Color(0xFF00E5FF)),
+                    foregroundColor: isTrivia ? Colors.white : Colors.black,
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   ),

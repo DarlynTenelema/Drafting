@@ -20,6 +20,7 @@ type DraftRequest struct {
 	SecondaryRole string `json:"secondary_role"`
 	AutofillRole  string `json:"autofill_role"`
 	Language      string `json:"language,omitempty"`
+	GameMode      string `json:"game_mode,omitempty"` // "wild_rift" o "lol_pc"
 }
 
 type DraftResponse struct {
@@ -88,13 +89,20 @@ func AnalyzeDraft(w http.ResponseWriter, r *http.Request) {
 	}
 	// -----------------------------------
 
-	// Call Gemini API in the user's selected language (es, pt, en, fr)
+	// Determine game mode (wild_rift o lol_pc)
+	gameMode := strings.TrimSpace(strings.ToLower(req.GameMode))
+	if gameMode == "" {
+		gameMode = "wild_rift"
+	}
+
+	// Call Gemini API in the user's selected language (es, pt, en, fr) and game mode
 	recommendation, tokens, err := gemini.AnalyzeDraft(
 		r.Context(),
 		req.ImageBase64,
 		req.MainRole,
 		req.SecondaryRole,
 		req.AutofillRole,
+		gameMode,
 		lang,
 	)
 	if err != nil {

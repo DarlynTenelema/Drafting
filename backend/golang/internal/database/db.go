@@ -149,6 +149,43 @@ func Connect() {
 	db.Exec(`ALTER TABLE users ADD COLUMN IF NOT EXISTS referred_by_streamer_code varchar(32) DEFAULT ''`)
 	db.Exec(`CREATE INDEX IF NOT EXISTS idx_users_referred_by_streamer ON users(referred_by_streamer_code)`)
 
+	// Sistema de Trivia: Vidas y Tablas
+	db.Exec(`ALTER TABLE users ADD COLUMN IF NOT EXISTS trivia_lives integer DEFAULT 5`)
+	db.Exec(`UPDATE users SET trivia_lives = 5 WHERE trivia_lives IS NULL OR trivia_lives < 0`)
+
+	db.Exec(`CREATE TABLE IF NOT EXISTS trivia_questions (
+		id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+		category varchar(32) NOT NULL,
+		game varchar(32) DEFAULT 'wild_rift',
+		question_text text NOT NULL,
+		target_name varchar(128) NOT NULL,
+		clues text DEFAULT '',
+		options text DEFAULT '[]',
+		correct_answer text NOT NULL,
+		tolerance integer DEFAULT 0,
+		month_tag varchar(32) DEFAULT 'general',
+		active boolean DEFAULT true,
+		created_at timestamp with time zone,
+		updated_at timestamp with time zone,
+		deleted_at timestamp with time zone
+	)`)
+	db.Exec(`CREATE INDEX IF NOT EXISTS idx_trivia_questions_cat_act ON trivia_questions(category, active)`)
+	db.Exec(`CREATE INDEX IF NOT EXISTS idx_trivia_questions_month ON trivia_questions(month_tag)`)
+
+	db.Exec(`CREATE TABLE IF NOT EXISTS trivia_user_progress (
+		id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+		user_id uuid NOT NULL,
+		question_id uuid NOT NULL,
+		category varchar(32) NOT NULL,
+		is_correct boolean DEFAULT false,
+		attempts_count integer DEFAULT 1,
+		last_attempt_at timestamp with time zone,
+		created_at timestamp with time zone,
+		updated_at timestamp with time zone
+	)`)
+	db.Exec(`CREATE INDEX IF NOT EXISTS idx_trivia_user_progress_user ON trivia_user_progress(user_id, category)`)
+	db.Exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_trivia_user_question ON trivia_user_progress(user_id, question_id)`)
+
 	// Auto Migrate seguro para sincronizar modelos (incluyendo Fase 2: Streamers, Patrocinadores, Torneo C.L.A y Comunidad)
 	err = db.AutoMigrate(
 		&models.User{},
@@ -166,6 +203,8 @@ func Connect() {
 		&models.SocialLinkConfig{},
 		&models.AppVersionConfig{},
 		&models.DonorProfile{},
+		&models.TriviaQuestion{},
+		&models.TriviaUserProgress{},
 	)
 	if err != nil {
 		log.Printf("Warning: Non-fatal AutoMigrate notice: %v", err)
@@ -204,5 +243,275 @@ func Connect() {
 		}
 	}
 
+	seedInitialTrivia(db)
+
 	DB = db
+}
+
+func seedInitialTrivia(db *gorm.DB) {
+	var count int64
+	db.Model(&models.TriviaQuestion{}).Count(&count)
+	if count > 0 {
+		return
+	}
+
+	initialQuestions := []models.TriviaQuestion{
+		// Criterio 1: ¿Cuánto cuesta este objeto? (item_cost)
+		{
+			Category:      models.TriviaCategoryItemCost,
+			Game:          "wild_rift",
+			QuestionText:  "¿Cuánto cuesta este objeto?",
+			TargetName:    "Fuerza de la Trinidad",
+			CorrectAnswer: "3333",
+			Tolerance:     0,
+			MonthTag:      "general",
+			Active:        true,
+		},
+		{
+			Category:      models.TriviaCategoryItemCost,
+			Game:          "wild_rift",
+			QuestionText:  "¿Cuánto cuesta este objeto?",
+			TargetName:    "Hoja del Rey Arruinado",
+			CorrectAnswer: "3200",
+			Tolerance:     0,
+			MonthTag:      "general",
+			Active:        true,
+		},
+		{
+			Category:      models.TriviaCategoryItemCost,
+			Game:          "wild_rift",
+			QuestionText:  "¿Cuánto cuesta este objeto?",
+			TargetName:    "Filo del Infinito",
+			CorrectAnswer: "3400",
+			Tolerance:     0,
+			MonthTag:      "general",
+			Active:        true,
+		},
+		{
+			Category:      models.TriviaCategoryItemCost,
+			Game:          "wild_rift",
+			QuestionText:  "¿Cuánto cuesta este objeto?",
+			TargetName:    "Sombrero Mortal de Rabadon",
+			CorrectAnswer: "3500",
+			Tolerance:     0,
+			MonthTag:      "general",
+			Active:        true,
+		},
+		{
+			Category:      models.TriviaCategoryItemCost,
+			Game:          "wild_rift",
+			QuestionText:  "¿Cuánto cuesta este objeto?",
+			TargetName:    "Cuchilla Oscura",
+			CorrectAnswer: "3000",
+			Tolerance:     0,
+			MonthTag:      "general",
+			Active:        true,
+		},
+		{
+			Category:      models.TriviaCategoryItemCost,
+			Game:          "wild_rift",
+			QuestionText:  "¿Cuánto cuesta este objeto?",
+			TargetName:    "Guantelete de Hielo",
+			CorrectAnswer: "2700",
+			Tolerance:     0,
+			MonthTag:      "general",
+			Active:        true,
+		},
+		{
+			Category:      models.TriviaCategoryItemCost,
+			Game:          "wild_rift",
+			QuestionText:  "¿Cuánto cuesta este objeto?",
+			TargetName:    "Calibrador de Sterak",
+			CorrectAnswer: "3200",
+			Tolerance:     0,
+			MonthTag:      "general",
+			Active:        true,
+		},
+		{
+			Category:      models.TriviaCategoryItemCost,
+			Game:          "wild_rift",
+			QuestionText:  "¿Cuánto cuesta este objeto?",
+			TargetName:    "Morellonomicón",
+			CorrectAnswer: "2600",
+			Tolerance:     0,
+			MonthTag:      "general",
+			Active:        true,
+		},
+		{
+			Category:      models.TriviaCategoryItemCost,
+			Game:          "wild_rift",
+			QuestionText:  "¿Cuánto cuesta este objeto?",
+			TargetName:    "Corazón de Hielo",
+			CorrectAnswer: "2700",
+			Tolerance:     0,
+			MonthTag:      "general",
+			Active:        true,
+		},
+		{
+			Category:      models.TriviaCategoryItemCost,
+			Game:          "wild_rift",
+			QuestionText:  "¿Cuánto cuesta este objeto?",
+			TargetName:    "Sanguinaria",
+			CorrectAnswer: "3300",
+			Tolerance:     0,
+			MonthTag:      "general",
+			Active:        true,
+		},
+
+		// Criterio 2: ¿Qué se está armando? (build_path)
+		{
+			Category:      models.TriviaCategoryBuildPath,
+			Game:          "wild_rift",
+			QuestionText:  "¿Qué se está armando?",
+			TargetName:    "Red de armado",
+			Clues:         "Brillo + Bacteriófago + Furia",
+			Options:       `["Fuerza de la Trinidad", "Cuchilla Oscura", "Guantelete de Hielo", "Calibrador de Sterak"]`,
+			CorrectAnswer: "Fuerza de la Trinidad",
+			MonthTag:      "general",
+			Active:        true,
+		},
+		{
+			Category:      models.TriviaCategoryBuildPath,
+			Game:          "wild_rift",
+			QuestionText:  "¿Qué se está armando?",
+			TargetName:    "Red de armado",
+			Clues:         "Espadón + Capa de Agilidad + Picacha",
+			Options:       `["Filo del Infinito", "Sanguinaria", "Huracán de Runaan", "Cañón de Fuego Rápido"]`,
+			CorrectAnswer: "Filo del Infinito",
+			MonthTag:      "general",
+			Active:        true,
+		},
+		{
+			Category:      models.TriviaCategoryBuildPath,
+			Game:          "wild_rift",
+			QuestionText:  "¿Qué se está armando?",
+			TargetName:    "Red de armado",
+			Clues:         "Vara Innecesariamente Grande + Vara Innecesariamente Grande",
+			Options:       `["Sombrero Mortal de Rabadon", "Bastón del Vacío", "Impulso Cósmico", "Báculo del Arcángel"]`,
+			CorrectAnswer: "Sombrero Mortal de Rabadon",
+			MonthTag:      "general",
+			Active:        true,
+		},
+		{
+			Category:      models.TriviaCategoryBuildPath,
+			Game:          "wild_rift",
+			QuestionText:  "¿Qué se está armando?",
+			TargetName:    "Red de armado",
+			Clues:         "Bacteriófago + Gemaluz",
+			Options:       `["Cuchilla Oscura", "Rostro Espiritual", "Rompecascos", "Placa del Hombre Muerto"]`,
+			CorrectAnswer: "Cuchilla Oscura",
+			MonthTag:      "general",
+			Active:        true,
+		},
+		{
+			Category:      models.TriviaCategoryBuildPath,
+			Game:          "wild_rift",
+			QuestionText:  "¿Qué se está armando?",
+			TargetName:    "Red de armado",
+			Clues:         "Sable de Aguas Turbias + Arco Curvo",
+			Options:       `["Hoja del Rey Arruinado", "Diente de Nashor", "Final del Ingenio", "Filo de la Noche"]`,
+			CorrectAnswer: "Hoja del Rey Arruinado",
+			MonthTag:      "general",
+			Active:        true,
+		},
+		{
+			Category:      models.TriviaCategoryBuildPath,
+			Game:          "wild_rift",
+			QuestionText:  "¿Qué se está armando?",
+			TargetName:    "Red de armado",
+			Clues:         "Malla del Guardián + Manto Anula-Magia",
+			Options:       `["Fuerza de la Naturaleza", "Máscara Abisal", "Presagio de Randuin", "Malla de Espinas"]`,
+			CorrectAnswer: "Presagio de Randuin",
+			MonthTag:      "general",
+			Active:        true,
+		},
+		{
+			Category:      models.TriviaCategoryBuildPath,
+			Game:          "wild_rift",
+			QuestionText:  "¿Qué se está armando?",
+			TargetName:    "Red de armado",
+			Clues:         "Brillo + Sudario Glacial",
+			Options:       `["Guantelete de Hielo", "Perdición del Liche", "Corazón de Hielo", "Gorgona"]`,
+			CorrectAnswer: "Guantelete de Hielo",
+			MonthTag:      "general",
+			Active:        true,
+		},
+
+		// Criterio 3: ¿Cuál es el counter de este campeón? (counter)
+		{
+			Category:      models.TriviaCategoryCounter,
+			Game:          "wild_rift",
+			QuestionText:  "¿Cuál es el counter de este campeón?",
+			TargetName:    "Darius",
+			Options:       `["Vayne", "Garen", "Nasus", "Sion"]`,
+			CorrectAnswer: "Vayne",
+			MonthTag:      "general",
+			Active:        true,
+		},
+		{
+			Category:      models.TriviaCategoryCounter,
+			Game:          "wild_rift",
+			QuestionText:  "¿Cuál es el counter de este campeón?",
+			TargetName:    "Maestro Yi",
+			Options:       `["Rammus", "Kha'Zix", "Evelynn", "Olaf"]`,
+			CorrectAnswer: "Rammus",
+			MonthTag:      "general",
+			Active:        true,
+		},
+		{
+			Category:      models.TriviaCategoryCounter,
+			Game:          "wild_rift",
+			QuestionText:  "¿Cuál es el counter de este campeón?",
+			TargetName:    "Zed",
+			Options:       `["Lissandra", "Lux", "Veigar", "Ziggs"]`,
+			CorrectAnswer: "Lissandra",
+			MonthTag:      "general",
+			Active:        true,
+		},
+		{
+			Category:      models.TriviaCategoryCounter,
+			Game:          "wild_rift",
+			QuestionText:  "¿Cuál es el counter de este campeón?",
+			TargetName:    "Yasuo",
+			Options:       `["Renekton", "Ahri", "Lux", "Twisted Fate"]`,
+			CorrectAnswer: "Renekton",
+			MonthTag:      "general",
+			Active:        true,
+		},
+		{
+			Category:      models.TriviaCategoryCounter,
+			Game:          "wild_rift",
+			QuestionText:  "¿Cuál es el counter de este campeón?",
+			TargetName:    "Vayne",
+			Options:       `["Caitlyn", "Sivir", "Kai'Sa", "Jinx"]`,
+			CorrectAnswer: "Caitlyn",
+			MonthTag:      "general",
+			Active:        true,
+		},
+		{
+			Category:      models.TriviaCategoryCounter,
+			Game:          "wild_rift",
+			QuestionText:  "¿Cuál es el counter de este campeón?",
+			TargetName:    "Nasus",
+			Options:       `["Teemo", "Kayle", "Kassadin", "Vladimir"]`,
+			CorrectAnswer: "Teemo",
+			MonthTag:      "general",
+			Active:        true,
+		},
+		{
+			Category:      models.TriviaCategoryCounter,
+			Game:          "wild_rift",
+			QuestionText:  "¿Cuál es el counter de este campeón?",
+			TargetName:    "Katarina",
+			Options:       `["Galio", "Veigar", "Vel'Koz", "Lux"]`,
+			CorrectAnswer: "Galio",
+			MonthTag:      "general",
+			Active:        true,
+		},
+	}
+
+	for _, q := range initialQuestions {
+		db.Create(&q)
+	}
+	log.Printf("Seeded %d initial trivia questions successfully.", len(initialQuestions))
 }

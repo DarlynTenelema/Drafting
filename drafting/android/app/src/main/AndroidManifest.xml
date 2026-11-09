@@ -23,6 +23,11 @@
     <!-- Permissions for Ad Networks & AdMob -->
     <uses-permission android:name="com.google.android.gms.permission.AD_ID"/>
 
+    <!-- Camera permission for LoL PC monitor capture -->
+    <uses-permission android:name="android.permission.CAMERA"/>
+    <uses-feature android:name="android.hardware.camera" android:required="false"/>
+    <uses-feature android:name="android.hardware.camera.autofocus" android:required="false"/>
+
     <application
         android:label="Drafting"
         android:name="${applicationName}"

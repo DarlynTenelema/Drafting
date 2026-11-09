@@ -19,6 +19,7 @@ class IapPurchaseResult {
   final String? message;
   final String? productId;
   final int queriesAdded;
+  final int triviaLivesAdded;
   final bool isSubscription;
 
   const IapPurchaseResult({
@@ -27,6 +28,7 @@ class IapPurchaseResult {
     this.message,
     this.productId,
     this.queriesAdded = 0,
+    this.triviaLivesAdded = 0,
     this.isSubscription = false,
   });
 }
@@ -45,6 +47,11 @@ class InAppPurchaseService {
   static const String packPro = 'pack_pro';
   static const String packUltra = 'pack_ultra';
 
+  // IDs de Paquetes de Vidas para Trivia ($0.19, $0.49, $0.99)
+  static const String packTriviaPlus = 'pack_trivia_plus';
+  static const String packTriviaPro = 'pack_trivia_pro';
+  static const String packTriviaUltra = 'pack_trivia_ultra';
+
   static const String subPlus = 'sub_plus';
   static const String subPro = 'sub_pro';
   static const String subUltra = 'sub_ultra';
@@ -56,11 +63,18 @@ class InAppPurchaseService {
   static const String donate75 = 'donate_75';
   static const String donate99 = 'donate_99';
 
+  static const Set<String> triviaPackIds = {
+    packTriviaPlus,
+    packTriviaPro,
+    packTriviaUltra,
+  };
+
   static const Set<String> packIds = {
     packStarter,
     packPlus,
     packPro,
     packUltra,
+    ...triviaPackIds,
   };
 
   static const Set<String> donationIds = {
@@ -740,7 +754,8 @@ class InAppPurchaseService {
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         final int queriesAdded = (data['queries_added'] is int) ? data['queries_added'] : 0;
-        final bool alreadyProcessed = data['already_processed'] == true || queriesAdded == 0;
+        final int triviaLivesAdded = (data['trivia_lives_added'] is int) ? data['trivia_lives_added'] : 0;
+        final bool alreadyProcessed = data['already_processed'] == true || (queriesAdded == 0 && triviaLivesAdded == 0);
 
         _completedPurchaseKeys.add(purchaseKey);
 
@@ -760,22 +775,24 @@ class InAppPurchaseService {
             productId: productId,
             message: data['message'] ?? '¡Acreditación completada con éxito!',
             queriesAdded: queriesAdded,
+            triviaLivesAdded: triviaLivesAdded,
             isSubscription: isSub,
           ));
-        } else if (!alreadyProcessed && queriesAdded > 0) {
+        } else if (!alreadyProcessed && (queriesAdded > 0 || triviaLivesAdded > 0)) {
           // Si durante una limpieza silenciosa se encontró una compra real pagada que no había sido acreditada,
-          // notificar una única vez al usuario de sus nuevas consultas.
+          // notificar una única vez al usuario.
           _purchaseResultController.add(IapPurchaseResult(
             success: true,
             alreadyProcessed: false,
             productId: productId,
             message: data['message'] ?? '¡Compra pendiente acreditada con éxito!',
             queriesAdded: queriesAdded,
+            triviaLivesAdded: triviaLivesAdded,
             isSubscription: isSub,
           ));
         }
 
-        return queriesAdded;
+        return queriesAdded > 0 ? queriesAdded : triviaLivesAdded;
       } else if (response.statusCode == 403 || response.statusCode == 409) {
         // Si el servidor indica que el ítem único (ej. Pack Starter) ya fue canjeado antes,
         // consumirlo en Google Play para que no quede atascado en el dispositivo.
