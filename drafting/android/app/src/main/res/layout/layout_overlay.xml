@@ -102,6 +102,18 @@
                         android:contentDescription="Cambiar tamaño" />
 
                     <ImageButton
+                        android:id="@+id/btnRefreshDraft"
+                        android:layout_width="28dp"
+                        android:layout_height="28dp"
+                        android:layout_marginEnd="4dp"
+                        android:background="?android:attr/selectableItemBackgroundBorderless"
+                        android:src="@android:drawable/ic_popup_sync"
+                        android:tint="#00E5FF"
+                        android:scaleType="fitCenter"
+                        android:padding="5dp"
+                        android:contentDescription="Reconsultar alternativas" />
+
+                    <ImageButton
                         android:id="@+id/btnCopyMessage"
                         android:layout_width="28dp"
                         android:layout_height="28dp"

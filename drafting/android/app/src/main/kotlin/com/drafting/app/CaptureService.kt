@@ -65,6 +65,8 @@ class CaptureService : Service() {
     private var otpChampions: String = ""
     private var activeCreatorId: String? = null
     private var language: String = "es"
+    private var lastCapturedBase64: String? = null
+    private val seenChampionsInDraft = mutableListOf<String>()
 
     private val prefsListener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { sharedPrefs, key ->
         if (key == "language") {
@@ -323,9 +325,27 @@ class CaptureService : Service() {
         val btnClose = floatingView.findViewById<ImageButton>(R.id.btnClose)
         val btnCloseMessage = floatingView.findViewById<ImageButton>(R.id.btnCloseMessage)
         val btnCopyMessage = floatingView.findViewById<ImageButton>(R.id.btnCopyMessage)
+        val btnRefreshDraft = floatingView.findViewById<ImageButton>(R.id.btnRefreshDraft)
 
         btnCaptureGeneral?.setOnClickListener {
+            seenChampionsInDraft.clear()
             captureScreenAndSend("draft", 0)
+        }
+
+        btnRefreshDraft?.setOnClickListener {
+            if (lastCapturedBase64 != null) {
+                Handler(Looper.getMainLooper()).post {
+                    refreshOverlayTexts()
+                    adjustMessageContainerPosition()
+                    floatingView.findViewById<FrameLayout>(R.id.messageContainer).visibility = View.VISIBLE
+                    floatingView.findViewById<LinearLayout>(R.id.loadingLayout).visibility = View.VISIBLE
+                    floatingView.findViewById<ScrollView>(R.id.resultScrollView).visibility = View.GONE
+                }
+                sendToBackend(lastCapturedBase64!!, "draft", seenChampionsInDraft.joinToString(", "))
+            } else {
+                seenChampionsInDraft.clear()
+                captureScreenAndSend("draft", 0)
+            }
         }
         
         btnMinimize.setOnClickListener {
@@ -648,7 +668,28 @@ class CaptureService : Service() {
         sendBroadcast(intent)
     }
 
-    private fun sendToBackend(base64Image: String, queryType: String) {
+    private fun extractChampionsFromRec(text: String) {
+        val patternA = Regex("""(?:PLAN|PLANO)\s*A\s*:\s*([^•\n\r]+)""", RegexOption.IGNORE_CASE)
+        patternA.find(text)?.groupValues?.getOrNull(1)?.trim()?.let { name ->
+            if (name.isNotEmpty() && !seenChampionsInDraft.contains(name)) {
+                seenChampionsInDraft.add(name)
+            }
+        }
+        val patternSim = Regex("""•\s*([^:\n\r]+):""", RegexOption.IGNORE_CASE)
+        patternSim.findAll(text).forEach { match ->
+            val name = match.groupValues.getOrNull(1)?.trim() ?: ""
+            if (name.isNotEmpty() && !seenChampionsInDraft.contains(name)) {
+                val lower = name.lowercase()
+                if (!lower.contains("hechizo") && !lower.contains("runa") && !lower.contains("plan") &&
+                    !lower.contains("spell") && !lower.contains("feitiço") && !lower.contains("sort")) {
+                    seenChampionsInDraft.add(name)
+                }
+            }
+        }
+    }
+
+    private fun sendToBackend(base64Image: String, queryType: String, excludeChampions: String = "") {
+        lastCapturedBase64 = base64Image
         showToast(overlayTr("analyzing_toast"))
         thread {
             val prefs = getSharedPreferences("drafting_prefs", Context.MODE_PRIVATE)
@@ -707,6 +748,9 @@ class CaptureService : Service() {
                         put("query_type", queryType)
                         put("otp_champions", otpChampions)
                         put("language", currentLang)
+                        if (excludeChampions.isNotBlank()) {
+                            put("exclude_champions", excludeChampions)
+                        }
                         if (!activeCreatorId.isNullOrEmpty()) {
                             put("active_creator_id", activeCreatorId)
                         }
@@ -724,6 +768,7 @@ class CaptureService : Service() {
                         val response = conn.inputStream.bufferedReader().use { it.readText() }
                         val jsonResponse = JSONObject(response)
                         val rec = jsonResponse.getString("recommendation")
+                        extractChampionsFromRec(rec)
                         showResultOnUI(rec)
                         sendResultToActivity("success", 200, rec)
                         return@thread

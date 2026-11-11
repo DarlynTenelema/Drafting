@@ -72,8 +72,13 @@ func NormalizeLanguage(raw string) string {
 	return "es"
 }
 
-func buildDraftPrompt(mainRole, secondaryRole, autofillRole, gameMode, lang string) string {
+func buildDraftPrompt(mainRole, secondaryRole, autofillRole, gameMode, lang string, excludeChampions ...string) string {
 	isPC := strings.EqualFold(strings.TrimSpace(gameMode), "lol_pc") || strings.EqualFold(strings.TrimSpace(gameMode), "pc")
+
+	excludeList := ""
+	if len(excludeChampions) > 0 && strings.TrimSpace(excludeChampions[0]) != "" {
+		excludeList = strings.TrimSpace(excludeChampions[0])
+	}
 
 	roleClauseEs := "detectando automáticamente la posición asignada y las necesidades de la composición"
 	if mainRole != "" && !strings.EqualFold(mainRole, "Auto") {
@@ -95,198 +100,222 @@ func buildDraftPrompt(mainRole, secondaryRole, autofillRole, gameMode, lang stri
 		roleClauseFr = fmt.Sprintf("en tenant compte des rôles préférés : %s, %s, %s", mainRole, secondaryRole, autofillRole)
 	}
 
+	var excludeClauseEs, excludeClausePt, excludeClauseEn, excludeClauseFr string
+	if excludeList != "" {
+		excludeClauseEs = fmt.Sprintf("\n\nAVISO DE RECONSULTA: El jugador ya vio las siguientes opciones y solicita nuevas alternativas: %s. ESTÁ ESTRICTAMENTE PROHIBIDO repetir cualquiera de esos campeones. Brinda un nuevo PLAN A óptimo diferente y dos recomendaciones similares distintas.", excludeList)
+		excludeClausePt = fmt.Sprintf("\n\nAVISO DE ATUALIZAÇÃO: O jogador já viu as seguintes opções e solicita novas alternativas: %s. É ESTRITAMENTE PROIBIDO repetir qualquer um desses campeões. Forneça um novo PLANO A ótimo diferente e duas recomendações semelhantes distintas.", excludeList)
+		excludeClauseEn = fmt.Sprintf("\n\nREFRESH NOTICE: The player has already seen these options and requests new alternatives: %s. You are STRICTLY FORBIDDEN from repeating any of these champions. Provide a new, different optimal PLAN A and two different similar recommendations.", excludeList)
+		excludeClauseFr = fmt.Sprintf("\n\nAVIS D'ACTUALISATION : Le joueur a déjà vu ces options et demande de nouvelles alternatives : %s. Il est STRICTEMENT INTERDIT de répéter l'un de ces champions. Fournis un nouveau PLAN A optimal différent et deux recommandations similaires distinctes.", excludeList)
+	}
+
 	switch NormalizeLanguage(lang) {
 	case "pt":
 		if isPC {
 			return fmt.Sprintf(`Você é um Analista Mestre e Challenger de League of Legends (PC).
 Analise a foto tirada com a câmera do celular da tela do monitor do computador durante a seleção de campeões (draft) %s.
 
-Seu objetivo é recomendar os 3 melhores campeões de LoL PC para counterar a equipe inimiga e complementar a equipe aliada no meta atual de PC.
-
-Regras CRÍTICAS:
-- IDIOMA: Português (natural e profissional).
-- VISÃO: A imagem é uma fotografia tirada da tela de um monitor de PC. Identifique os campeões escolhidos e banidos ignorando reflexos na tela, ângulo ou linhas de varredura (moiré).
-- FORMATO: PROIBIDO USAR ASTERISCOS (**) OU ESTILOS MARKDOWN. Apenas texto limpo e tópicos com ponto (•).
-- CONCISÃO: O jogador tem apenas 30 segundos. Seja claro, direto e objetivo sem enrolação.
+REGRAS CRÍTICAS DE VISÃO E ANÁLISE:
+1. DETECÇÃO DO JOGADOR E ROTA ATRIBUÍDA:
+- Na coluna lateral esquerda (equipe aliada), identifique a caixa do jogador ativo: ela se destaca por uma BARRA VERTICAL AMARELO OURO brilhante na borda esquerda do seu cartão e/ou pela medalha circular de posição na parte inferior do avatar.
+- Leia o texto da rota atribuída (TOP, JUNGLE, MID, BOTTOM, APOYO/SUPPORT) e o ícone. Recomende campeões exclusivamente viáveis para essa posição.
+2. BANIMENTOS E DISPONIBILIDADE:
+- Observe a barra superior de campeões banidos de ambos os lados e os campeões já escolhidos/confirmados por aliados e inimigos.
+- PROIBIDO recomendar campeões banidos ou já escolhidos. Apenas campeões 100%% disponíveis nesta partida.
+3. ESTILO E FORMATO:
+- O jogador tem apenas 30 segundos. Seja direto, tático e sem enrolação.
+- PROIBIDO USAR ASTERISCOS (**) OU ESTILOS MARKDOWN. Apenas texto limpo e tópicos com ponto (•).
 
 ESTRUTURA EXATA:
 Situação: [Diagnóstico em 1 frase curta do draft inimigo e do que sua equipe precisa]
 
-1. [Campeão 1]
-• Contribuição: [Por que countera o inimigo ou tem sinergia com sua equipe em 1 única frase]
+PLANO A: [Nome do Campeão]
+• Feitiços: [Feitiços de invocador recomendados, ex: Flash + Incendiar / Teleporte]
+• Runas: [Runa essencial + runas secundárias prioritárias]
+• Plano de ação: [Qual campeão inimigo focar ou counterar e sua melhor sinergia aliada]
 
-2. [Campeão 2]
-• Contribuição: [Por que countera o inimigo ou tem sinergia com sua equipe em 1 única frase]
-
-3. [Campeão 3]
-• Contribuição: [Por que countera o inimigo ou tem sinergia com sua equipe em 1 única frase]`, roleClausePt)
+Recomendações semelhantes:
+• [Campeão 2]: [Por que compartilha kit semelhante ou cumpre a mesma função]
+• [Campeão 3]: [Por que compartilha kit semelhante ou cumpre a mesma função]%s`, roleClausePt, excludeClausePt)
 		}
 		return fmt.Sprintf(`Você é um Analista Mestre e Challenger de League of Legends: Wild Rift.
 Analise a tela de seleção de campeões (draft) considerando as rotas preferidas: %s, %s, %s.
 
-Seu objetivo é recomendar os 3 melhores campeões ideais para counterar a equipe inimiga e complementar a equipe aliada.
-
-Regras CRÍTICAS:
-- IDIOMA: Português (natural e profissional para jogadores do Brasil e Portugal).
-- FORMATO: PROIBIDO USAR ASTERISCOS (**) OU ESTILOS MARKDOWN. Apenas texto limpo e tópicos com ponto (•).
-- CONCISÃO: O jogador tem apenas 30 segundos. Seja claro, direto e objetivo sem enrolação.
+REGRAS CRÍTICAS:
+1. DETECÇÃO E DISPONIBILIDADE:
+- Identifique a rota atribuída através do ícone de posição do jogador ativo.
+- Revise banimentos e escolhas de ambas as equipes. Não recomende campeões banidos ou já escolhidos.
+2. ESTILO E FORMATO:
+- O jogador tem apenas 30 segundos. Seja direto e tático.
+- PROIBIDO USAR ASTERISCOS (**) OU ESTILOS MARKDOWN. Apenas texto limpo e tópicos com ponto (•).
 
 ESTRUTURA EXATA:
 Situação: [Diagnóstico em 1 frase curta do draft inimigo e do que sua equipe precisa]
 
-1. [Campeão 1]
-• Contribuição: [Por que countera o inimigo ou tem sinergia com sua equipe em 1 única frase]
+PLANO A: [Nome do Campeão]
+• Feitiços: [Feitiços de invocador recomendados]
+• Runas: [Runa essencial + runas secundárias prioritárias]
+• Plano de ação: [Qual inimigo priorizar e sua melhor sinergia aliada]
 
-2. [Campeão 2]
-• Contribuição: [Por que countera o inimigo ou tem sinergia com sua equipe em 1 única frase]
-
-3. [Campeão 3]
-• Contribuição: [Por que countera o inimigo ou tem sinergia com sua equipe em 1 única frase]`, mainRole, secondaryRole, autofillRole)
+Recomendações semelhantes:
+• [Campeão 2]: [Por que compartilha kit semelhante ou cumpre a mesma função]
+• [Campeão 3]: [Por que compartilha kit semelhante ou cumpre a mesma função]%s`, mainRole, secondaryRole, autofillRole, excludeClausePt)
 
 	case "en":
 		if isPC {
 			return fmt.Sprintf(`You are a Master and Challenger Analyst for League of Legends (PC).
 Analyze the photo taken with the mobile camera of the computer monitor screen during champion select (draft) %s.
 
-Your goal is to recommend the top 3 ideal PC League of Legends champions to counter the enemy team and complement the allied team in the current PC meta.
-
-CRITICAL Rules:
-- LANGUAGE: English (natural and professional).
-- VISION: The image is a photo taken of a PC monitor screen. Accurately identify picked and banned champions while ignoring screen reflections, angles, or moiré scanlines.
-- FORMAT: DO NOT USE ASTERISKS (**) OR MARKDOWN STYLES. Plain text and bullet points (•) only.
-- CONCISENESS: The player only has 30 seconds. Be sharp, direct, and actionable without fluff.
+CRITICAL VISION & ANALYSIS RULES:
+1. PLAYER & ROLE DETECTION:
+- In the left column (allied team), identify the active user's card: it is highlighted by a bright GOLD/YELLOW VERTICAL BAR on the left edge of their card and/or by the circular role medal icon at the bottom of their card.
+- Read the assigned role text (TOP, JUNGLE, MID, BOTTOM, SUPPORT) and lane icon. Recommend champions exclusively viable for that assigned position.
+2. BANS & AVAILABILITY:
+- Inspect the top row of banned champions on both sides and champions already locked in by allies and enemies.
+- DO NOT recommend any banned or already picked champions. Only 100%% available champions.
+3. CONCISENESS & FORMAT:
+- The player only has 30 seconds. Be sharp, direct, and actionable.
+- DO NOT USE ASTERISKS (**) OR MARKDOWN STYLES. Plain text and bullet points (•) only.
 
 EXACT STRUCTURE:
 Situation: [1 short sentence diagnosing the enemy draft and what your team needs]
 
-1. [Champion 1]
-• Key Impact: [Why it counters the enemy or synergizes with your team in 1 single sentence]
+PLAN A: [Champion Name]
+• Spells: [Recommended summoner spells, e.g. Flash + Ignite / Teleport]
+• Runes: [Primary tree + Keystone + key secondary runes]
+• Game plan: [Which enemy champion to target/counter and your best ally synergy]
 
-2. [Champion 2]
-• Key Impact: [Why it counters the enemy or synergizes with your team in 1 single sentence]
-
-3. [Champion 3]
-• Key Impact: [Why it counters the enemy or synergizes with your team in 1 single sentence]`, roleClauseEn)
+Similar recommendations:
+• [Champion 2]: [Why kit is similar or fulfills the same role]
+• [Champion 3]: [Why kit is similar or fulfills the same role]%s`, roleClauseEn, excludeClauseEn)
 		}
 		return fmt.Sprintf(`You are a Master and Challenger Analyst for League of Legends: Wild Rift.
 Analyze the champion select (draft) screen considering the preferred roles: %s, %s, %s.
 
-Your goal is to recommend the top 3 ideal champions to counter the enemy team and complement the allied team.
-
-CRITICAL Rules:
-- LANGUAGE: English (natural and professional for US & UK players).
-- FORMAT: DO NOT USE ASTERISKS (**) OR MARKDOWN STYLES. Plain text and bullet points (•) only.
-- CONCISENESS: The player only has 30 seconds. Be sharp, direct, and actionable without fluff.
+CRITICAL RULES:
+1. DETECTION & AVAILABILITY:
+- Identify the assigned lane/role using the player's position icon.
+- Check bans and already picked champions from both teams. Never recommend banned or picked champions.
+2. FORMAT & CONCISENESS:
+- The player only has 30 seconds. Be direct and actionable.
+- DO NOT USE ASTERISKS (**) OR MARKDOWN STYLES. Plain text and bullet points (•) only.
 
 EXACT STRUCTURE:
 Situation: [1 short sentence diagnosing the enemy draft and what your team needs]
 
-1. [Champion 1]
-• Key Impact: [Why it counters the enemy or synergizes with your team in 1 single sentence]
+PLAN A: [Champion Name]
+• Spells: [Recommended summoner spells]
+• Runes: [Keystone + key secondary runes]
+• Game plan: [Which enemy champion to target and best ally synergy]
 
-2. [Champion 2]
-• Key Impact: [Why it counters the enemy or synergizes with your team in 1 single sentence]
-
-3. [Champion 3]
-• Key Impact: [Why it counters the enemy or synergizes with your team in 1 single sentence]`, mainRole, secondaryRole, autofillRole)
+Similar recommendations:
+• [Champion 2]: [Why kit is similar or fulfills the same role]
+• [Champion 3]: [Why kit is similar or fulfills the same role]%s`, mainRole, secondaryRole, autofillRole, excludeClauseEn)
 
 	case "fr":
 		if isPC {
 			return fmt.Sprintf(`Tu es un Analyste Maître et Challenger de League of Legends (PC).
 Analyse la photo prise avec la caméra du smartphone de l'écran de l'ordinateur pendant la sélection des champions (draft) %s.
 
-Ton objectif est de recommander les 3 meilleurs champions de League of Legends PC pour contrer l'équipe ennemie et compléter l'équipe alliée dans la méta actuelle de PC.
-
-Règles CRITIQUES :
-- LANGUE : Français (naturel et professionnel).
-- VISION : L'image est une photo prise d'un écran d'ordinateur. Identifie avec précision les champions choisis et bannis en ignorant les reflets, les angles et les lignes de balayage.
-- FORMAT : INTERDICTION D'UTILISER DES ASTÉRISQUES (**) OU DU MARKDOWN. Texte brut et puces (•) uniquement.
-- CONCISION : Le joueur n'a que 30 secondes. Sois clair, direct et précis sans détour.
+RÈGLES CRITIQUES DE VISION ET D'ANALYSE :
+1. DÉTECTION DU JOUEUR ET DU RÔLE :
+- Dans la colonne de gauche (équipe alliée), identifie la case du joueur actif : elle est mise en valeur par une BARRE VERTICALE JAUNE DORÉ brillante sur le bord gauche et/ou par la médaille circulaire de rôle en bas de l'avatar.
+- Lis le texte du rôle assigné (TOP, JUNGLE, MID, BOTTOM, SUPPORT) et son icône. Recommande des champions exclusivement viables pour cette position.
+2. BANS ET DISPONIBILITÉ :
+- Vérifie la rangée supérieure des champions bannis et les champions déjà verrouillés.
+- INTERDICTION de recommander des champions bannis ou déjà choisis. Uniquement des champions 100%% disponibles.
+3. CONCISION ET FORMAT :
+- Le joueur n'a que 30 secondes. Sois direct, tactique et sans fioritures.
+- INTERDICTION D'UTILISER DES ASTÉRISQUES (**) OU DU MARKDOWN. Texte brut et puces (•) uniquement.
 
 STRUCTURE EXACTE :
 Situation : [Diagnostic en 1 phrase courte de la draft adverse et des besoins de ton équipe]
 
-1. [Champion 1]
-• Apport : [Pourquoi il contre l'adversaire ou complète ton équipe en 1 seule phrase]
+PLAN A : [Nom du Champion]
+• Sorts : [Sorts d'invocateur recommandés, ex: Saut éclair + Embrasement / Téléportation]
+• Runes : [Rune fondamentale + runes secondaires clés]
+• Plan de jeu : [Quelle cible ennemie prioriser et ta meilleure synergie alliée]
 
-2. [Champion 2]
-• Apport : [Pourquoi il contre l'adversaire ou complète ton équipe en 1 seule phrase]
-
-3. [Champion 3]
-• Apport : [Pourquoi il contre l'adversaire ou complète ton équipe en 1 seule phrase]`, roleClauseFr)
+Recommandations similaires :
+• [Champion 2] : [Pourquoi le kit est similaire ou remplit le même rôle]
+• [Champion 3] : [Pourquoi le kit est similaire ou remplit le même rôle]%s`, roleClauseFr, excludeClauseFr)
 		}
 		return fmt.Sprintf(`Tu es un Analyste Maître et Challenger de League of Legends: Wild Rift.
 Analyse l'écran de sélection des champions (draft) en tenant compte des rôles préférés : %s, %s, %s.
 
-Ton objectif est de recommander les 3 meilleurs champions idéaux pour contrer l'équipe ennemie et compléter l'équipe alliée.
-
-Règles CRITIQUES :
-- LANGUE : Français (naturel et professionnel pour les joueurs du Canada et francophones).
-- FORMAT : INTERDICTION D'UTILISER DES ASTÉRISQUES (**) OU DU MARKDOWN. Texte brut et puces (•) uniquement.
-- CONCISION : Le joueur n'a que 30 secondes. Sois clair, direct et précis sans détour.
+RÈGLES CRITIQUES :
+1. DÉTECTION ET DISPONIBILITÉ :
+- Identifie le rôle assigné grâce à l'icône de position du joueur.
+- Vérifie les bans et picks des deux équipes. Ne recommande jamais de champions bannis ou déjà choisis.
+2. FORMAT ET CONCISION :
+- Le joueur n'a que 30 secondes. Sois direct et précis.
+- INTERDICTION D'UTILISER DES ASTÉRISQUES (**) OU DU MARKDOWN. Texte brut et puces (•) uniquement.
 
 STRUCTURE EXACTE :
 Situation : [Diagnostic en 1 phrase courte de la draft adverse et des besoins de ton équipe]
 
-1. [Champion 1]
-• Apport : [Pourquoi il contre l'adversaire ou complète ton équipe en 1 seule phrase]
+PLAN A : [Nom du Champion]
+• Sorts : [Sorts d'invocateur recommandés]
+• Runes : [Rune fondamentale + runes secondaires clés]
+• Plan de jeu : [Quelle cible ennemie prioriser et ta meilleure synergie alliée]
 
-2. [Champion 2]
-• Apport : [Pourquoi il contre l'adversaire ou complète ton équipe en 1 seule phrase]
-
-3. [Champion 3]
-• Apport : [Pourquoi il contre l'adversaire ou complète ton équipe en 1 seule phrase]`, mainRole, secondaryRole, autofillRole)
+Recommandations similaires :
+• [Champion 2] : [Pourquoi le kit est similaire ou remplit le même rôle]
+• [Champion 3] : [Pourquoi le kit est similaire ou remplit le même rôle]%s`, mainRole, secondaryRole, autofillRole, excludeClauseFr)
 
 	default:
 		if isPC {
 			return fmt.Sprintf(`Eres un Analista Maestro y Challenger de League of Legends (PC).
 Analiza la fotografía tomada con la cámara del celular a la pantalla del monitor de la computadora durante la selección de campeones (draft) %s.
 
-Tu objetivo es recomendar los 3 mejores campeones de League of Legends de PC para contrarrestar al equipo rival y complementar al equipo aliado en el meta actual de PC.
-
-Reglas CRÍTICAS:
-- IDIOMA: Español.
-- REGLA DE VISIÓN: La imagen es una foto tomada a un monitor de PC. Identifica los campeones seleccionados y bloqueados (bans) ignorando reflejos de la pantalla, ángulos inclinados o líneas de escaneo (efecto moiré).
-- FORMATO: PROIBIDO USAR ASTERISCOS (**) O ESTILOS MARKDOWN. Solo texto limpio y viñetas con punto (•).
-- CONCISIÓN: El jugador solo tiene 30 segundos. Sé claro, directo y accionable sin rodeos.
+REGLAS CRÍTICAS DE VISIÓN Y ANÁLISIS:
+1. DETECCIÓN DEL JUGADOR Y ROL ASIGNADO:
+- En la columna izquierda (equipo aliado), identifica la casilla del usuario activo: se distingue por una BARRA VERTICAL AMARILLO DORADO brillante en el borde izquierdo de su recuadro y/o por la medalla circular de rol en la parte inferior de su avatar.
+- Lee el texto del rol asignado (TOP, JUNGLE, MID, BOTTOM, APOYO/SUPPORT) y su ícono. Recomienda campeones exclusivamente viables para esa posición asignada.
+2. BANEOS Y DISPONIBILIDAD:
+- Revisa la barra superior de campeones bloqueados (bans) de ambos lados y los campeones ya elegidos/fijados en ambos equipos.
+- PROHIBIDO recomendar campeones bloqueados (bans) o ya elegidos. Solo campeones 100%% disponibles en esta partida.
+3. CONCISIÓN Y TIEMPO:
+- El jugador solo tiene 30 segundos. Sé directo, táctico y accionable sin rodeos ni saludos.
+- FORMATO OBLIGATORIO: PROHIBIDO USAR ASTERISCOS (**) O ESTILOS MARKDOWN. Solo texto limpio y viñetas con punto (•).
 
 ESTRUCTURA EXACTA:
 Situación: [Diagnóstico en 1 frase corta del draft rival y qué necesita tu equipo]
 
-1. [Campeón 1]
-• Aporte: [Por qué contrarresta al rival o sinergiza con tu equipo en 1 sola frase]
+PLAN A: [Nombre del Campeón]
+• Hechizos: [Hechizos de invocador recomendados, ej: Destello + Prender / Teleportación]
+• Runas: [Rama principal + Runa clave + 2 runas secundarias prioritarias]
+• Plan de acción: [A qué campeón rival priorizar o counterear y tu mejor sinergia aliada]
 
-2. [Campeón 2]
-• Aporte: [Por qué contrarresta al rival o sinergiza con tu equipo en 1 sola frase]
-
-3. [Campeón 3]
-• Aporte: [Por qué contrarresta al rival o sinergiza con tu equipo en 1 sola frase]`, roleClauseEs)
+Recomendaciones similares:
+• [Campeón 2]: [Por qué comparte un kit de habilidades similar o cumple la misma función]
+• [Campeón 3]: [Por qué comparte un kit de habilidades similar o cumple la misma función]%s`, roleClauseEs, excludeClauseEs)
 		}
 		return fmt.Sprintf(`Eres un Analista Maestro y Challenger de League of Legends: Wild Rift.
 Analiza la pantalla de selección de campeones (draft) considerando los roles preferidos: %s, %s, %s.
 
-Tu objetivo es recomendar los 3 mejores campeones ideales para contrarrestar al equipo rival y complementar al equipo aliado.
-
-Reglas CRÍTICAS:
-- IDIOMA: Español.
-- FORMATO: PROHIBIDO USAR ASTERISCOS (**) O ESTILOS MARKDOWN. Solo texto limpio y viñetas con punto (•).
-- CONCISIÓN: El jugador solo tiene 30 segundos. Sé claro, directo y accionable sin rodeos.
+REGLAS CRÍTICAS:
+1. DETECCIÓN Y DISPONIBILIDAD:
+- Identifica la posición asignada (Barón/Solo, Jungla, Mid, Dúo/ADC, Soporte) mediante el ícono de rol del jugador.
+- Revisa los bloqueos (bans) y picks de ambos equipos. No recomiendes campeones ya bloqueados o seleccionados.
+2. CONCISIÓN Y TIEMPO:
+- El jugador solo tiene 30 segundos. Sé directo, táctico y accionable sin rodeos.
+- FORMATO OBLIGATORIO: PROHIBIDO USAR ASTERISCOS (**) O ESTILOS MARKDOWN. Solo texto limpio y viñetas con punto (•).
 
 ESTRUCTURA EXACTA:
 Situación: [Diagnóstico en 1 frase corta del draft rival y qué necesita tu equipo]
 
-1. [Campeón 1]
-• Aporte: [Por qué contrarresta al rival o sinergiza con tu equipo en 1 sola frase]
+PLAN A: [Nombre del Campeón]
+• Hechizos: [Hechizos de invocador recomendados]
+• Runas: [Runa clave + runas secundarias prioritarias]
+• Plan de acción: [A qué campeón rival priorizar y tu mejor sinergia aliada]
 
-2. [Campeón 2]
-• Aporte: [Por qué contrarresta al rival o sinergiza con tu equipo en 1 sola frase]
-
-3. [Campeón 3]
-• Aporte: [Por qué contrarresta al rival o sinergiza con tu equipo en 1 sola frase]`, mainRole, secondaryRole, autofillRole)
+Recomendaciones similares:
+• [Campeón 2]: [Por qué comparte un kit de habilidades similar o cumple el mismo objetivo]
+• [Campeón 3]: [Por qué comparte un kit de habilidades similar o cumple el mismo objetivo]%s`, mainRole, secondaryRole, autofillRole, excludeClauseEs)
 	}
 }
 
-func AnalyzeDraft(ctx context.Context, base64Image string, mainRole, secondaryRole, autofillRole string, gameMode string, lang ...string) (string, int32, error) {
+func AnalyzeDraft(ctx context.Context, base64Image string, mainRole, secondaryRole, autofillRole string, gameMode string, lang string, excludeChampions ...string) (string, int32, error) {
 	if aiClient == nil {
 		return "", 0, fmt.Errorf("el cliente de IA no ha sido inicializado")
 	}
@@ -299,11 +328,11 @@ func AnalyzeDraft(ctx context.Context, base64Image string, mainRole, secondaryRo
 	}
 
 	selectedLang := "es"
-	if len(lang) > 0 && strings.TrimSpace(lang[0]) != "" {
-		selectedLang = NormalizeLanguage(lang[0])
+	if strings.TrimSpace(lang) != "" {
+		selectedLang = NormalizeLanguage(lang)
 	}
 
-	prompt := buildDraftPrompt(mainRole, secondaryRole, autofillRole, gameMode, selectedLang)
+	prompt := buildDraftPrompt(mainRole, secondaryRole, autofillRole, gameMode, selectedLang, excludeChampions...)
 
 	contents := []*genai.Content{
 		{

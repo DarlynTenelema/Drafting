@@ -15,12 +15,13 @@ import (
 )
 
 type DraftRequest struct {
-	ImageBase64   string `json:"image_base64"`
-	MainRole      string `json:"main_role"`
-	SecondaryRole string `json:"secondary_role"`
-	AutofillRole  string `json:"autofill_role"`
-	Language      string `json:"language,omitempty"`
-	GameMode      string `json:"game_mode,omitempty"` // "wild_rift" o "lol_pc"
+	ImageBase64      string `json:"image_base64"`
+	MainRole         string `json:"main_role"`
+	SecondaryRole    string `json:"secondary_role"`
+	AutofillRole     string `json:"autofill_role"`
+	Language         string `json:"language,omitempty"`
+	GameMode         string `json:"game_mode,omitempty"` // "wild_rift" o "lol_pc"
+	ExcludeChampions string `json:"exclude_champions,omitempty"`
 }
 
 type DraftResponse struct {
@@ -104,6 +105,7 @@ func AnalyzeDraft(w http.ResponseWriter, r *http.Request) {
 		req.AutofillRole,
 		gameMode,
 		lang,
+		strings.TrimSpace(req.ExcludeChampions),
 	)
 	if err != nil {
 		log.Printf("AnalyzeDraft Error: %v", err)

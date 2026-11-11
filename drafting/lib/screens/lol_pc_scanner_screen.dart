@@ -30,8 +30,10 @@ class _LolPcScannerScreenState extends State<LolPcScannerScreen> {
   final ImagePicker _picker = ImagePicker();
   late File _capturedImage;
   bool _isAnalyzing = false;
+  bool _isRefreshing = false;
   String? _recommendationText;
   String? _errorMessage;
+  final List<String> _seenChampions = [];
 
   @override
   void initState() {
@@ -40,6 +42,32 @@ class _LolPcScannerScreenState extends State<LolPcScannerScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _analyzePhoto();
     });
+  }
+
+  void _extractSeenChampions(String text) {
+    final regA = RegExp(r'(?:PLAN|PLANO)\s*A\s*:\s*([^•\n\r]+)', caseSensitive: false);
+    final matchA = regA.firstMatch(text);
+    if (matchA != null) {
+      final name = matchA.group(1)?.trim();
+      if (name != null && name.isNotEmpty && !_seenChampions.contains(name)) {
+        _seenChampions.add(name);
+      }
+    }
+    final regSim = RegExp(r'•\s*([^:\n\r]+):', caseSensitive: false);
+    for (final m in regSim.allMatches(text)) {
+      final name = m.group(1)?.trim();
+      if (name != null && name.isNotEmpty && !_seenChampions.contains(name)) {
+        final lower = name.toLowerCase();
+        if (!lower.contains('hechizo') &&
+            !lower.contains('runa') &&
+            !lower.contains('plan') &&
+            !lower.contains('spell') &&
+            !lower.contains('feitiço') &&
+            !lower.contains('sort')) {
+          _seenChampions.add(name);
+        }
+      }
+    }
   }
 
   Future<void> _takeNewPhotoAndAnalyze() async {
@@ -61,6 +89,7 @@ class _LolPcScannerScreenState extends State<LolPcScannerScreen> {
           _capturedImage = File(photo.path);
           _recommendationText = null;
           _errorMessage = null;
+          _seenChampions.clear();
         });
         HapticFeedback.lightImpact();
         await _analyzePhoto();
@@ -77,7 +106,7 @@ class _LolPcScannerScreenState extends State<LolPcScannerScreen> {
     }
   }
 
-  Future<void> _analyzePhoto() async {
+  Future<void> _analyzePhoto({bool isRefresh = false}) async {
     if (_isAnalyzing) return;
 
     if (widget.availableQueries <= 0) {
@@ -87,7 +116,7 @@ class _LolPcScannerScreenState extends State<LolPcScannerScreen> {
 
     setState(() {
       _isAnalyzing = true;
-      _recommendationText = null;
+      _isRefreshing = isRefresh;
       _errorMessage = null;
     });
 
@@ -96,38 +125,51 @@ class _LolPcScannerScreenState extends State<LolPcScannerScreen> {
       final base64Image = base64Encode(bytes);
       final lang = LanguageService.instance.currentLanguage;
 
+      final bodyData = <String, dynamic>{
+        'image_base64': base64Image,
+        'main_role': 'Auto',
+        'secondary_role': 'Auto',
+        'autofill_role': 'Auto',
+        'game_mode': 'lol_pc',
+        'language': lang,
+      };
+
+      if (isRefresh && _seenChampions.isNotEmpty) {
+        bodyData['exclude_champions'] = _seenChampions.join(', ');
+      }
+
       final res = await ApiClient.post(
         '/draft/analyze',
         authenticated: true,
-        body: {
-          'image_base64': base64Image,
-          'main_role': 'Auto',
-          'secondary_role': 'Auto',
-          'autofill_role': 'Auto',
-          'game_mode': 'lol_pc',
-          'language': lang,
-        },
+        body: bodyData,
       );
 
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body);
         if (mounted) {
+          final rec = (data['recommendation'] as String?) ?? 'Sin recomendación clara.';
+          _extractSeenChampions(rec);
           setState(() {
-            _recommendationText = data['recommendation'] ?? 'Sin recomendación clara.';
+            _recommendationText = rec;
             _isAnalyzing = false;
+            _isRefreshing = false;
           });
           widget.onDataChanged();
           HapticFeedback.mediumImpact();
         }
       } else if (res.statusCode == 402) {
         if (mounted) {
-          setState(() => _isAnalyzing = false);
+          setState(() {
+            _isAnalyzing = false;
+            _isRefreshing = false;
+          });
           widget.onNoQueries();
         }
       } else {
         if (mounted) {
           setState(() {
             _isAnalyzing = false;
+            _isRefreshing = false;
             _errorMessage = 'Error del servidor (${res.statusCode}): ${res.body}';
           });
         }
@@ -136,6 +178,7 @@ class _LolPcScannerScreenState extends State<LolPcScannerScreen> {
       if (mounted) {
         setState(() {
           _isAnalyzing = false;
+          _isRefreshing = false;
           _errorMessage = 'Error de conexión al analizar: $e';
         });
       }
@@ -234,7 +277,7 @@ class _LolPcScannerScreenState extends State<LolPcScannerScreen> {
                                 border: Border.all(color: const Color(0xFF38BDF8).withValues(alpha: 0.5)),
                               ),
                               child: Text(
-                                lang.tr('pc_scanner_analyzing'),
+                                lang.tr(_isRefreshing ? 'pc_scanner_refreshing' : 'pc_scanner_analyzing'),
                                 style: GoogleFonts.outfit(
                                   fontSize: 13.5,
                                   fontWeight: FontWeight.bold,
@@ -342,6 +385,17 @@ class _LolPcScannerScreenState extends State<LolPcScannerScreen> {
                               ),
                             ),
                           ),
+                          IconButton(
+                            onPressed: _isAnalyzing ? null : () => _analyzePhoto(isRefresh: true),
+                            icon: _isRefreshing
+                                ? const SizedBox(
+                                    width: 18,
+                                    height: 18,
+                                    child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF38BDF8)),
+                                  )
+                                : const Icon(Icons.refresh_rounded, color: Color(0xFF38BDF8), size: 24),
+                            tooltip: lang.tr('pc_scanner_refresh_tooltip'),
+                          ),
                         ],
                       ),
                       const Divider(color: Colors.white12, height: 24),
@@ -359,22 +413,61 @@ class _LolPcScannerScreenState extends State<LolPcScannerScreen> {
                 const SizedBox(height: 24),
               ],
 
-              // Botones de Acción (Escanear de Nuevo & Volver)
-              ElevatedButton.icon(
-                onPressed: _isAnalyzing ? null : _takeNewPhotoAndAnalyze,
-                icon: const Icon(Icons.camera_alt_rounded, size: 20),
-                label: Text(
-                  lang.tr('pc_scanner_rescan_btn'),
-                  style: GoogleFonts.outfit(fontSize: 15.5, fontWeight: FontWeight.bold),
+              // Botones de Acción
+              if (_recommendationText != null) ...[
+                ElevatedButton.icon(
+                  onPressed: _isAnalyzing ? null : () => _analyzePhoto(isRefresh: true),
+                  icon: _isRefreshing
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2.2, color: Colors.white),
+                        )
+                      : const Icon(Icons.refresh_rounded, size: 20),
+                  label: Text(
+                    lang.tr('pc_scanner_refresh_btn'),
+                    style: GoogleFonts.outfit(fontSize: 15.5, fontWeight: FontWeight.bold),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF0284C7),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 15),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                    elevation: 4,
+                  ),
                 ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF0284C7),
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 15),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                  elevation: 4,
+                const SizedBox(height: 10),
+                OutlinedButton.icon(
+                  onPressed: _isAnalyzing ? null : _takeNewPhotoAndAnalyze,
+                  icon: const Icon(Icons.camera_alt_rounded, size: 19),
+                  label: Text(
+                    lang.tr('pc_scanner_rescan_btn'),
+                    style: GoogleFonts.outfit(fontSize: 14.5, fontWeight: FontWeight.w600),
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: const Color(0xFF38BDF8),
+                    side: BorderSide(color: const Color(0xFF38BDF8).withValues(alpha: 0.5)),
+                    padding: const EdgeInsets.symmetric(vertical: 13),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  ),
                 ),
-              ),
+              ] else ...[
+                ElevatedButton.icon(
+                  onPressed: _isAnalyzing ? null : _takeNewPhotoAndAnalyze,
+                  icon: const Icon(Icons.camera_alt_rounded, size: 20),
+                  label: Text(
+                    lang.tr('pc_scanner_rescan_btn'),
+                    style: GoogleFonts.outfit(fontSize: 15.5, fontWeight: FontWeight.bold),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF0284C7),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 15),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                    elevation: 4,
+                  ),
+                ),
+              ],
 
               const SizedBox(height: 10),
 
