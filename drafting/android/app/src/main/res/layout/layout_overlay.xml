@@ -102,18 +102,6 @@
                         android:contentDescription="Cambiar tamaño" />
 
                     <ImageButton
-                        android:id="@+id/btnRefreshDraft"
-                        android:layout_width="28dp"
-                        android:layout_height="28dp"
-                        android:layout_marginEnd="4dp"
-                        android:background="?android:attr/selectableItemBackgroundBorderless"
-                        android:src="@android:drawable/ic_popup_sync"
-                        android:tint="#00E5FF"
-                        android:scaleType="fitCenter"
-                        android:padding="5dp"
-                        android:contentDescription="Reconsultar alternativas" />
-
-                    <ImageButton
                         android:id="@+id/btnCopyMessage"
                         android:layout_width="28dp"
                         android:layout_height="28dp"
@@ -225,10 +213,25 @@
                 android:id="@+id/dragHandle"
                 android:layout_width="24dp"
                 android:layout_height="24dp"
-                android:layout_marginBottom="8dp"
+                android:layout_marginBottom="10dp"
                 android:src="@drawable/ic_drag_handle"
                 android:contentDescription="Arrastrar" />
             
+            <!-- Botón Grande de Reconsultar / Refrescar (40dp x 40dp) -->
+            <ImageButton
+                android:id="@+id/btnRefreshDraft"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:layout_marginBottom="12dp"
+                android:background="@drawable/bg_hextech_button"
+                android:src="@android:drawable/ic_popup_sync"
+                android:tint="#00E5FF"
+                android:scaleType="fitCenter"
+                android:padding="8dp"
+                android:cropToPadding="true"
+                android:elevation="6dp"
+                android:contentDescription="Reconsultar Alternativas" />
+
             <!-- Botón Único de Captura (General Draft) -->
             <ImageButton
                 android:id="@+id/btnCaptureGeneral"

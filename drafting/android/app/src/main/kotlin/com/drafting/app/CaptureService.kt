@@ -102,6 +102,7 @@ class CaptureService : Service() {
             "pt" -> when (key) {
                 "title" -> "RECOMENDAÇÃO IA"
                 "analyzing_match" -> "Analisando partida..."
+                "reconsulting" -> "Consultando alternativas..."
                 "analyzing_toast" -> "Analisando..."
                 "copied" -> "Recomendação copiada para a área de transferência!"
                 "view_translucent" -> "Visão: Translúcida (65%)"
@@ -119,6 +120,7 @@ class CaptureService : Service() {
             "en" -> when (key) {
                 "title" -> "AI RECOMMENDATION"
                 "analyzing_match" -> "Analyzing match..."
+                "reconsulting" -> "Refreshing alternatives..."
                 "analyzing_toast" -> "Analyzing..."
                 "copied" -> "Recommendation copied to clipboard!"
                 "view_translucent" -> "View: Translucent (65%)"
@@ -136,6 +138,7 @@ class CaptureService : Service() {
             "fr" -> when (key) {
                 "title" -> "RECOMMANDATION IA"
                 "analyzing_match" -> "Analyse de la partie..."
+                "reconsulting" -> "Recherche d'alternatives..."
                 "analyzing_toast" -> "Analyse en cours..."
                 "copied" -> "Recommandation copiée dans le presse-papiers !"
                 "view_translucent" -> "Vue : Translucide (65%)"
@@ -153,6 +156,7 @@ class CaptureService : Service() {
             else -> when (key) {
                 "title" -> "RECOMENDACIÓN AI"
                 "analyzing_match" -> "Analizando partida..."
+                "reconsulting" -> "Consultando alternativas..."
                 "analyzing_toast" -> "Analizando..."
                 "copied" -> "¡Recomendación copiada al portapapeles!"
                 "view_translucent" -> "Vista: Traslúcida (65%)"
@@ -336,6 +340,7 @@ class CaptureService : Service() {
             if (lastCapturedBase64 != null) {
                 Handler(Looper.getMainLooper()).post {
                     refreshOverlayTexts()
+                    floatingView.findViewById<TextView>(R.id.loadingTextView)?.text = overlayTr("reconsulting")
                     adjustMessageContainerPosition()
                     floatingView.findViewById<FrameLayout>(R.id.messageContainer).visibility = View.VISIBLE
                     floatingView.findViewById<LinearLayout>(R.id.loadingLayout).visibility = View.VISIBLE
