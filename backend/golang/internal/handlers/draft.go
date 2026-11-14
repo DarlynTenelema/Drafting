@@ -19,6 +19,7 @@ type DraftRequest struct {
 	MainRole         string `json:"main_role"`
 	SecondaryRole    string `json:"secondary_role"`
 	AutofillRole     string `json:"autofill_role"`
+	OtpChampions     string `json:"otp_champions,omitempty"`
 	Language         string `json:"language,omitempty"`
 	GameMode         string `json:"game_mode,omitempty"` // "wild_rift" o "lol_pc"
 	ExcludeChampions string `json:"exclude_champions,omitempty"`
@@ -113,6 +114,7 @@ func AnalyzeDraft(w http.ResponseWriter, r *http.Request) {
 		req.SecondaryRole,
 		req.AutofillRole,
 		gameMode,
+		req.OtpChampions,
 		lang,
 		strings.TrimSpace(req.ExcludeChampions),
 	)

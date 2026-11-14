@@ -11,6 +11,7 @@ import android.content.Intent
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.graphics.Bitmap
+import android.graphics.Color
 import android.graphics.PixelFormat
 import android.hardware.display.DisplayManager
 import android.hardware.display.VirtualDisplay
@@ -392,6 +393,75 @@ class CaptureService : Service() {
         val btnResizeCorner = floatingView.findViewById<ImageView>(R.id.btnResizeCorner)
         val prefs = getSharedPreferences("drafting_prefs", Context.MODE_PRIVATE)
 
+        // Botones de Rol en Vivo (TOP, JG, MID, ADC, SUP, AUTO)
+        val btnRoleTop = floatingView.findViewById<TextView>(R.id.btnRoleTop)
+        val btnRoleJg = floatingView.findViewById<TextView>(R.id.btnRoleJg)
+        val btnRoleMid = floatingView.findViewById<TextView>(R.id.btnRoleMid)
+        val btnRoleAdc = floatingView.findViewById<TextView>(R.id.btnRoleAdc)
+        val btnRoleSup = floatingView.findViewById<TextView>(R.id.btnRoleSup)
+        val btnRoleAuto = floatingView.findViewById<TextView>(R.id.btnRoleAuto)
+
+        val roleButtons = mapOf(
+            "Top" to btnRoleTop,
+            "Jungle" to btnRoleJg,
+            "Mid" to btnRoleMid,
+            "ADC" to btnRoleAdc,
+            "Support" to btnRoleSup,
+            "Auto" to btnRoleAuto
+        )
+
+        fun updateRoleButtonsUI(selectedRole: String?) {
+            val norm = when (selectedRole?.lowercase()?.trim()) {
+                "top", "baron", "solo" -> "Top"
+                "jg", "jungle", "jungla" -> "Jungle"
+                "mid", "middle" -> "Mid"
+                "adc", "duo", "bot", "bottom" -> "ADC"
+                "sup", "support", "soporte" -> "Support"
+                else -> "Auto"
+            }
+            roleButtons.forEach { (roleKey, btn) ->
+                if (btn == null) return@forEach
+                if (roleKey == norm) {
+                    btn.setBackgroundResource(R.drawable.bg_role_btn_active)
+                    btn.setTextColor(Color.parseColor("#090D16"))
+                } else {
+                    btn.setBackgroundResource(R.drawable.bg_role_btn)
+                    btn.setTextColor(Color.parseColor("#CBD5E1"))
+                }
+            }
+        }
+
+        val initialRole = if (!mainRole.isNullOrBlank()) mainRole else prefs.getString("main_role", "Auto") ?: "Auto"
+        mainRole = initialRole
+        updateRoleButtonsUI(initialRole)
+
+        fun onRoleSelected(role: String) {
+            mainRole = role
+            updateRoleButtonsUI(role)
+            prefs.edit().putString("main_role", role).apply()
+            showToast("Rol: $role")
+
+            // Si el contenedor de recomendación está visible y ya capturamos, reanalizar automáticamente con el nuevo rol
+            val msgCard = floatingView.findViewById<FrameLayout>(R.id.messageContainer)
+            if (msgCard?.visibility == View.VISIBLE && lastCapturedBase64 != null) {
+                Handler(Looper.getMainLooper()).post {
+                    refreshOverlayTexts()
+                    floatingView.findViewById<TextView>(R.id.loadingTextView)?.text = overlayTr("analyzing_match")
+                    adjustMessageContainerPosition()
+                    floatingView.findViewById<LinearLayout>(R.id.loadingLayout).visibility = View.VISIBLE
+                    floatingView.findViewById<ScrollView>(R.id.resultScrollView).visibility = View.GONE
+                }
+                sendToBackend(lastCapturedBase64!!, "draft", "")
+            }
+        }
+
+        btnRoleTop?.setOnClickListener { onRoleSelected("Top") }
+        btnRoleJg?.setOnClickListener { onRoleSelected("Jungle") }
+        btnRoleMid?.setOnClickListener { onRoleSelected("Mid") }
+        btnRoleAdc?.setOnClickListener { onRoleSelected("ADC") }
+        btnRoleSup?.setOnClickListener { onRoleSelected("Support") }
+        btnRoleAuto?.setOnClickListener { onRoleSelected("Auto") }
+
         // 1. Restaurar Opacidad guardada
         var isLowOpacity = prefs.getBoolean("overlay_low_opacity", false)
         messageContainer?.alpha = if (isLowOpacity) 0.65f else 0.94f
@@ -520,6 +590,8 @@ class CaptureService : Service() {
         }
         setupDrag(btnCollapsedBubble, params)
 
+        adjustMessageContainerPosition()
+
         try {
             windowManager.addView(floatingView, params)
         } catch (e: Exception) {
@@ -558,6 +630,7 @@ class CaptureService : Service() {
                             getSharedPreferences("drafting_prefs", Context.MODE_PRIVATE).edit()
                                 .putInt("overlay_pos_x", params.x)
                                 .putInt("overlay_pos_y", params.y).apply()
+                            adjustMessageContainerPosition()
                         }
                         return true
                     }
@@ -838,25 +911,36 @@ class CaptureService : Service() {
     }
 
     private fun adjustMessageContainerPosition() {
-        val expandedContainer = floatingView.findViewById<LinearLayout>(R.id.expandedContainer)
-        val messageContainer = floatingView.findViewById<FrameLayout>(R.id.messageContainer)
+        if (!::floatingView.isInitialized) return
+        val expandedContainer = floatingView.findViewById<LinearLayout>(R.id.expandedContainer) ?: return
+        val messageContainer = floatingView.findViewById<FrameLayout>(R.id.messageContainer) ?: return
+        val controlsContainer = floatingView.findViewById<LinearLayout>(R.id.controlsContainer) ?: return
+        val rolesBarContainer = floatingView.findViewById<LinearLayout>(R.id.rolesBarContainer)
         val metrics = resources.displayMetrics
         val screenWidth = metrics.widthPixels
         
-        val params = floatingView.layoutParams as WindowManager.LayoutParams
-        val marginPx = (12 * metrics.density).toInt()
+        val params = floatingView.layoutParams as? WindowManager.LayoutParams ?: return
+        val marginPx = (10 * metrics.density).toInt()
         
-        expandedContainer.removeView(messageContainer)
+        expandedContainer.removeAllViews()
         if (params.x < screenWidth / 2) {
-            // Burbuja a la izquierda: El mensaje va a la derecha de los controles
-            expandedContainer.addView(messageContainer, 1)
+            // Burbuja a la izquierda: Controles (izq) -> Mensaje (centro) -> Barra de Roles (der)
+            expandedContainer.addView(controlsContainer)
+            expandedContainer.addView(messageContainer)
+            if (rolesBarContainer != null) {
+                expandedContainer.addView(rolesBarContainer)
+            }
             val layoutParams = messageContainer.layoutParams as LinearLayout.LayoutParams
             layoutParams.marginStart = marginPx
             layoutParams.marginEnd = 0
             messageContainer.layoutParams = layoutParams
         } else {
-            // Burbuja a la derecha: El mensaje va a la izquierda de los controles
-            expandedContainer.addView(messageContainer, 0)
+            // Burbuja a la derecha: Barra de Roles (izq) -> Mensaje (centro) -> Controles (der)
+            if (rolesBarContainer != null) {
+                expandedContainer.addView(rolesBarContainer)
+            }
+            expandedContainer.addView(messageContainer)
+            expandedContainer.addView(controlsContainer)
             val layoutParams = messageContainer.layoutParams as LinearLayout.LayoutParams
             layoutParams.marginStart = 0
             layoutParams.marginEnd = marginPx

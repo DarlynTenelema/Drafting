@@ -200,7 +200,7 @@
                 android:contentDescription="Ajustar tamaño arrastrando" />
         </FrameLayout>
 
-        <!-- Controles (Derecha) -->
+        <!-- Controles Principales (Izquierda) -->
         <LinearLayout
             android:id="@+id/controlsContainer"
             android:layout_width="wrap_content"
@@ -213,30 +213,15 @@
                 android:id="@+id/dragHandle"
                 android:layout_width="24dp"
                 android:layout_height="24dp"
-                android:layout_marginBottom="10dp"
+                android:layout_marginBottom="12dp"
                 android:src="@drawable/ic_drag_handle"
                 android:contentDescription="Arrastrar" />
-            
-            <!-- Botón Grande de Reconsultar / Refrescar (40dp x 40dp) -->
-            <ImageButton
-                android:id="@+id/btnRefreshDraft"
-                android:layout_width="40dp"
-                android:layout_height="40dp"
-                android:layout_marginBottom="12dp"
-                android:background="@drawable/bg_hextech_button"
-                android:src="@android:drawable/ic_popup_sync"
-                android:tint="#00E5FF"
-                android:scaleType="fitCenter"
-                android:padding="8dp"
-                android:cropToPadding="true"
-                android:elevation="6dp"
-                android:contentDescription="Reconsultar Alternativas" />
 
-            <!-- Botón Único de Captura (General Draft) -->
+            <!-- Botón Principal de Captura (General Draft) -->
             <ImageButton
                 android:id="@+id/btnCaptureGeneral"
-                android:layout_width="52dp"
-                android:layout_height="52dp"
+                android:layout_width="54dp"
+                android:layout_height="54dp"
                 android:background="@drawable/bg_hextech_button"
                 android:src="@drawable/ic_general"
                 android:tint="#C89B3C"
@@ -259,7 +244,7 @@
                     android:id="@+id/btnMinimize"
                     android:layout_width="40dp"
                     android:layout_height="40dp"
-                    android:layout_marginEnd="12dp"
+                    android:layout_marginEnd="10dp"
                     android:background="@drawable/bg_hextech_button"
                     android:src="@android:drawable/ic_menu_close_clear_cancel"
                     android:tint="#FFFFFF"
@@ -283,6 +268,111 @@
                     android:elevation="6dp"
                     android:contentDescription="Apagar Sistema" />
             </LinearLayout>
+        </LinearLayout>
+
+        <!-- Barra Lateral de Roles y Reconsultar (Derecha - donde marcó el usuario) -->
+        <LinearLayout
+            android:id="@+id/rolesBarContainer"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:gravity="center_horizontal"
+            android:layout_gravity="center_vertical"
+            android:layout_marginStart="8dp">
+
+            <!-- Botón Grande de Reconsultar / Refrescar con Flechas -->
+            <ImageButton
+                android:id="@+id/btnRefreshDraft"
+                android:layout_width="38dp"
+                android:layout_height="38dp"
+                android:layout_marginBottom="8dp"
+                android:background="@drawable/bg_hextech_button"
+                android:src="@android:drawable/ic_popup_sync"
+                android:tint="#00E5FF"
+                android:scaleType="fitCenter"
+                android:padding="7dp"
+                android:cropToPadding="true"
+                android:elevation="6dp"
+                android:contentDescription="Reconsultar Alternativas" />
+
+            <!-- Separador sutil -->
+            <View
+                android:layout_width="26dp"
+                android:layout_height="1dp"
+                android:background="#334155"
+                android:layout_marginBottom="8dp" />
+
+            <!-- Botones de Rol en Vivo (TOP, JG, MID, ADC, SUP, AUTO) -->
+            <TextView
+                android:id="@+id/btnRoleTop"
+                android:layout_width="38dp"
+                android:layout_height="26dp"
+                android:layout_marginBottom="4dp"
+                android:background="@drawable/bg_role_btn"
+                android:gravity="center"
+                android:text="TOP"
+                android:textColor="#CBD5E1"
+                android:textSize="10sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/btnRoleJg"
+                android:layout_width="38dp"
+                android:layout_height="26dp"
+                android:layout_marginBottom="4dp"
+                android:background="@drawable/bg_role_btn"
+                android:gravity="center"
+                android:text="JG"
+                android:textColor="#CBD5E1"
+                android:textSize="10sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/btnRoleMid"
+                android:layout_width="38dp"
+                android:layout_height="26dp"
+                android:layout_marginBottom="4dp"
+                android:background="@drawable/bg_role_btn"
+                android:gravity="center"
+                android:text="MID"
+                android:textColor="#CBD5E1"
+                android:textSize="10sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/btnRoleAdc"
+                android:layout_width="38dp"
+                android:layout_height="26dp"
+                android:layout_marginBottom="4dp"
+                android:background="@drawable/bg_role_btn"
+                android:gravity="center"
+                android:text="ADC"
+                android:textColor="#CBD5E1"
+                android:textSize="10sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/btnRoleSup"
+                android:layout_width="38dp"
+                android:layout_height="26dp"
+                android:layout_marginBottom="4dp"
+                android:background="@drawable/bg_role_btn"
+                android:gravity="center"
+                android:text="SUP"
+                android:textColor="#CBD5E1"
+                android:textSize="10sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/btnRoleAuto"
+                android:layout_width="38dp"
+                android:layout_height="24dp"
+                android:background="@drawable/bg_role_btn"
+                android:gravity="center"
+                android:text="AUTO"
+                android:textColor="#CBD5E1"
+                android:textSize="9sp"
+                android:textStyle="bold" />
         </LinearLayout>
     </LinearLayout>
 </FrameLayout>

@@ -72,7 +72,7 @@ func NormalizeLanguage(raw string) string {
 	return "es"
 }
 
-func buildDraftPrompt(mainRole, secondaryRole, autofillRole, gameMode, lang string, excludeChampions ...string) string {
+func buildDraftPrompt(mainRole, secondaryRole, autofillRole, gameMode, otpChampions, lang string, excludeChampions ...string) string {
 	isPC := strings.EqualFold(strings.TrimSpace(gameMode), "lol_pc") || strings.EqualFold(strings.TrimSpace(gameMode), "pc")
 
 	excludeList := ""
@@ -103,9 +103,57 @@ func buildDraftPrompt(mainRole, secondaryRole, autofillRole, gameMode, lang stri
 	var excludeClauseEs, excludeClausePt, excludeClauseEn, excludeClauseFr string
 	if excludeList != "" {
 		excludeClauseEs = fmt.Sprintf("\n\nAVISO DE RECONSULTA: El jugador ya vio las siguientes opciones y solicita nuevas alternativas: %s. ESTÁ ESTRICTAMENTE PROHIBIDO repetir cualquiera de esos campeones. Brinda un nuevo PLAN A óptimo diferente y dos recomendaciones similares distintas.", excludeList)
-		excludeClausePt = fmt.Sprintf("\n\nAVISO DE ATUALIZAÇÃO: O jogador já viu as seguintes opções e solicita novas alternativas: %s. É ESTRITAMENTE PROIBIDO repetir qualquer um desses campeões. Forneça um novo PLANO A ótimo diferente e duas recomendações semelhantes distintas.", excludeList)
+		excludeClausePt = fmt.Sprintf("\n\nAVISO DE ATUALIZAÇÃO: O jogador já viu as siguientes opções e solicita novas alternativas: %s. É ESTRITAMENTE PROIBIDO repetir qualquer um desses campeões. Forneça um novo PLANO A ótimo diferente e duas recomendações semelhantes distintas.", excludeList)
 		excludeClauseEn = fmt.Sprintf("\n\nREFRESH NOTICE: The player has already seen these options and requests new alternatives: %s. You are STRICTLY FORBIDDEN from repeating any of these champions. Provide a new, different optimal PLAN A and two different similar recommendations.", excludeList)
 		excludeClauseFr = fmt.Sprintf("\n\nAVIS D'ACTUALISATION : Le joueur a déjà vu ces options et demande de nouvelles alternatives : %s. Il est STRICTEMENT INTERDIT de répéter l'un de ces champions. Fournis un nouveau PLAN A optimal différent et deux recommandations similaires distinctes.", excludeList)
+	}
+
+	var otpClauseEs, otpClausePt, otpClauseEn, otpClauseFr string
+	if cleanOtp := strings.TrimSpace(otpChampions); cleanOtp != "" {
+		targetRole := mainRole
+		if targetRole == "" || strings.EqualFold(targetRole, "Auto") {
+			targetRole = "detectada"
+		}
+		otpClauseEs = fmt.Sprintf(`
+
+REGLA ESPECIAL DE JUGADOR OTP (%s) Y FALLBACK POR AUTOFILL:
+- El jugador es especialista / OTP con: %s.
+- VIABILIDAD POR ROL Y REGLA DE AUTOFILL:
+  1. Si la línea asignada (o fijada: %s) es una posición estándar y VIABLE para su OTP (%s), dale máxima prioridad como PLAN A o explica cómo jugarlo en este emparejamiento.
+  2. Si la línea asignada NO es viable para su OTP (por ejemplo: Autofill a Soporte, ADC, Jungla o Top donde dicho campeón no cumple el rol ni es estándar), ESTÁ ESTRICTAMENTE PROHIBIDO FORZAR SU OTP.
+     En la línea de 'Situación' advierte brevemente entre paréntesis: '(Tu OTP %s no es viable en la línea de %s)'.
+     En el 'PLAN A' recomienda el mejor campeón counter/meta estándar para ganar esa posición asignada.
+     En 'Recomendaciones similares' incluye opciones cómodas y naturales para dicho rol.`, cleanOtp, cleanOtp, targetRole, cleanOtp, cleanOtp, targetRole)
+
+		otpClausePt = fmt.Sprintf(`
+
+REGRA ESPECIAL DE JOGADOR OTP (%s) E FALLBACK POR AUTOFILL:
+- O jogador é especialista / OTP com: %s.
+- VIABILIDADE POR ROTA E REGRA DE AUTOFILL:
+  1. Se a rota atribuída (ou selecionada: %s) for VIÁVEL para seu OTP (%s), dê prioridade máxima como PLANO A ou explique como jogá-lo nesta partida.
+  2. Se a rota atribuída NÃO for viável para seu OTP (exemplo: caiu Autofill como Suporte, ADC ou Selva onde esse campeão não cumpre a função), É PROIBIDO FORÇAR SEU OTP.
+     Na linha de 'Situação' alerte brevemente entre parênteses: '(Seu OTP %s não é viável na rota de %s)'.
+     No 'PLANO A' recomende o melhor campeão ótimo padrão para vencer nessa rota.`, cleanOtp, cleanOtp, targetRole, cleanOtp, cleanOtp, targetRole)
+
+		otpClauseEn = fmt.Sprintf(`
+
+SPECIAL OTP PLAYER RULE (%s) & AUTOFILL FALLBACK:
+- The player is a dedicated OTP / specialist on: %s.
+- ROLE VIABILITY & AUTOFILL RULE:
+  1. If the assigned (or selected: %s) lane is a standard and VIABLE role for their OTP champion (%s), give it top priority as PLAN A or explain how to pilot it into this matchup.
+  2. If the assigned lane is NOT viable for their OTP champion (for example: autofilled into Support, ADC, Jungle, or Top where this champion does not fit), DO NOT FORCE THE OTP.
+     In the 'Situation' line, briefly add in parentheses: '(Your OTP %s is not viable in the %s role)'.
+     In 'PLAN A', recommend the best optimal standard counter champion to secure the win in that assigned lane.`, cleanOtp, cleanOtp, targetRole, cleanOtp, cleanOtp, targetRole)
+
+		otpClauseFr = fmt.Sprintf(`
+
+RÈGLE SPÉCIALE JOUEUR OTP (%s) ET GESTION DE L'AUTOFILL :
+- Le joueur est spécialiste / OTP sur : %s.
+- VIABILITÉ DU RÔLE ET AUTOFILL :
+  1. Si le rôle assigné (ou sélectionné : %s) est standard et VIABLE pour son champion OTP (%s), donne-lui priorité absolue en PLAN A.
+  2. Si le rôle assigné N'EST PAS viable pour son champion OTP (ex: autofill Support, ADC ou Jungle où cet OTP ne fonctionne pas), IL EST STRICTEMENT INTERDIT DE FORCER L'OTP.
+     Dans la ligne 'Situation', indique brièvement entre parenthèses : '(Ton OTP %s n'est pas viable comme %s)'.
+     En 'PLAN A', recommande le meilleur champion adapté et performant pour cette voie.`, cleanOtp, cleanOtp, targetRole, cleanOtp, cleanOtp, targetRole)
 	}
 
 	switch NormalizeLanguage(lang) {
@@ -135,7 +183,7 @@ PLANO A: [Nome do Campeão]
 
 Recomendações semelhantes:
 • [Campeão 2]: [Por que compartilha kit semelhante ou cumpre a mesma função]
-• [Campeão 3]: [Por que compartilha kit semelhante ou cumpre a mesma função]%s`, roleClausePt, excludeClausePt)
+• [Campeão 3]: [Por que compartilha kit semelhante ou cumpre a mesma função]%s%s`, roleClausePt, excludeClausePt, otpClausePt)
 		}
 		return fmt.Sprintf(`Você é um Analista Mestre e Challenger de League of Legends: Wild Rift.
 Analise a tela de seleção de campeões (draft) considerando as rotas preferidas: %s, %s, %s.
@@ -158,7 +206,7 @@ PLANO A: [Nome do Campeão]
 
 Recomendações semelhantes:
 • [Campeão 2]: [Por que compartilha kit semelhante ou cumpre a mesma função]
-• [Campeão 3]: [Por que compartilha kit semelhante ou cumpre a mesma função]%s`, mainRole, secondaryRole, autofillRole, excludeClausePt)
+• [Campeão 3]: [Por que compartilha kit semelhante ou cumpre a mesma função]%s%s`, mainRole, secondaryRole, autofillRole, excludeClausePt, otpClausePt)
 
 	case "en":
 		if isPC {
@@ -186,7 +234,7 @@ PLAN A: [Champion Name]
 
 Similar recommendations:
 • [Champion 2]: [Why kit is similar or fulfills the same role]
-• [Champion 3]: [Why kit is similar or fulfills the same role]%s`, roleClauseEn, excludeClauseEn)
+• [Champion 3]: [Why kit is similar or fulfills the same role]%s%s`, roleClauseEn, excludeClauseEn, otpClauseEn)
 		}
 		return fmt.Sprintf(`You are a Master and Challenger Analyst for League of Legends: Wild Rift.
 Analyze the champion select (draft) screen considering the preferred roles: %s, %s, %s.
@@ -209,7 +257,7 @@ PLAN A: [Champion Name]
 
 Similar recommendations:
 • [Champion 2]: [Why kit is similar or fulfills the same role]
-• [Champion 3]: [Why kit is similar or fulfills the same role]%s`, mainRole, secondaryRole, autofillRole, excludeClauseEn)
+• [Champion 3]: [Why kit is similar or fulfills the same role]%s%s`, mainRole, secondaryRole, autofillRole, excludeClauseEn, otpClauseEn)
 
 	case "fr":
 		if isPC {
@@ -237,7 +285,7 @@ PLAN A : [Nom du Champion]
 
 Recommandations similaires :
 • [Champion 2] : [Pourquoi le kit est similaire ou remplit le même rôle]
-• [Champion 3] : [Pourquoi le kit est similaire ou remplit le même rôle]%s`, roleClauseFr, excludeClauseFr)
+• [Champion 3] : [Pourquoi le kit est similaire ou remplit le même rôle]%s%s`, roleClauseFr, excludeClauseFr, otpClauseFr)
 		}
 		return fmt.Sprintf(`Tu es un Analyste Maître et Challenger de League of Legends: Wild Rift.
 Analyse l'écran de sélection des champions (draft) en tenant compte des rôles préférés : %s, %s, %s.
@@ -260,7 +308,7 @@ PLAN A : [Nom du Champion]
 
 Recommandations similaires :
 • [Champion 2] : [Pourquoi le kit est similaire ou remplit le même rôle]
-• [Champion 3] : [Pourquoi le kit est similaire ou remplit le même rôle]%s`, mainRole, secondaryRole, autofillRole, excludeClauseFr)
+• [Champion 3] : [Pourquoi le kit est similaire ou remplit le même rôle]%s%s`, mainRole, secondaryRole, autofillRole, excludeClauseFr, otpClauseFr)
 
 	default:
 		if isPC {
@@ -288,7 +336,7 @@ PLAN A: [Nombre del Campeón]
 
 Recomendaciones similares:
 • [Campeón 2]: [Por qué comparte un kit de habilidades similar o cumple la misma función]
-• [Campeón 3]: [Por qué comparte un kit de habilidades similar o cumple la misma función]%s`, roleClauseEs, excludeClauseEs)
+• [Campeón 3]: [Por qué comparte un kit de habilidades similar o cumple la misma función]%s%s`, roleClauseEs, excludeClauseEs, otpClauseEs)
 		}
 		return fmt.Sprintf(`Eres un Analista Maestro y Challenger de League of Legends: Wild Rift.
 Analiza la pantalla de selección de campeones (draft) considerando los roles preferidos: %s, %s, %s.
@@ -311,11 +359,11 @@ PLAN A: [Nombre del Campeón]
 
 Recomendaciones similares:
 • [Campeón 2]: [Por qué comparte un kit de habilidades similar o cumple el mismo objetivo]
-• [Campeón 3]: [Por qué comparte un kit de habilidades similar o cumple el mismo objetivo]%s`, mainRole, secondaryRole, autofillRole, excludeClauseEs)
+• [Campeón 3]: [Por qué comparte un kit de habilidades similar o cumple el mismo objetivo]%s%s`, mainRole, secondaryRole, autofillRole, excludeClauseEs, otpClauseEs)
 	}
 }
 
-func AnalyzeDraft(ctx context.Context, base64Image string, mainRole, secondaryRole, autofillRole string, gameMode string, lang string, excludeChampions ...string) (string, int32, error) {
+func AnalyzeDraft(ctx context.Context, base64Image string, mainRole, secondaryRole, autofillRole string, gameMode string, otpChampions string, lang string, excludeChampions ...string) (string, int32, error) {
 	if aiClient == nil {
 		return "", 0, fmt.Errorf("el cliente de IA no ha sido inicializado")
 	}
@@ -332,7 +380,7 @@ func AnalyzeDraft(ctx context.Context, base64Image string, mainRole, secondaryRo
 		selectedLang = NormalizeLanguage(lang)
 	}
 
-	prompt := buildDraftPrompt(mainRole, secondaryRole, autofillRole, gameMode, selectedLang, excludeChampions...)
+	prompt := buildDraftPrompt(mainRole, secondaryRole, autofillRole, gameMode, otpChampions, selectedLang, excludeChampions...)
 
 	contents := []*genai.Content{
 		{
