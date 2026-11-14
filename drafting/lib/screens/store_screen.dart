@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import '../core/services/ad_service.dart';
 import '../core/services/api_client.dart';
 import '../core/services/iap_service.dart';
 import '../core/services/language_service.dart';
@@ -47,7 +48,42 @@ class _StoreScreenState extends State<StoreScreen> {
   int _selectedTransferAmount = 5;
   bool _isTransferring = false;
   bool _isPurchasing = false;
+  bool _isWatchingAd = false;
   bool _isShowingCelebrationDialog = false;
+
+  Future<void> _watchRewardedAdForQueries() async {
+    if (_isWatchingAd) return;
+    setState(() => _isWatchingAd = true);
+    HapticFeedback.mediumImpact();
+
+    await AdService.showRewardedAd(
+      onUserEarnedReward: () async {
+        try {
+          final res = await ApiClient.post('/api/v1/user/obtain-queries', authenticated: true);
+          if (res.statusCode == 200) {
+            widget.onDataChanged();
+            await _fetchCatalog(silent: true);
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  backgroundColor: Color(0xFF10B981),
+                  behavior: SnackBarBehavior.floating,
+                  content: Text('¡+3 Consultas añadidas con éxito! ⚡'),
+                ),
+              );
+            }
+          }
+        } catch (_) {}
+        if (mounted) setState(() => _isWatchingAd = false);
+      },
+      onAdFailed: (error) {
+        if (mounted) {
+          setState(() => _isWatchingAd = false);
+          _showErrorSnackBar(error);
+        }
+      },
+    );
+  }
 
   StreamSubscription<IapPurchaseResult>? _iapSubscription;
 
@@ -539,7 +575,81 @@ class _StoreScreenState extends State<StoreScreen> {
                       // --- TARJETA DE SALDO Y ESTADO ACTUAL ---
                       _buildUserStatusCard(),
 
-                      const SizedBox(height: 24),
+                      const SizedBox(height: 18),
+
+                      // --- TARJETA DE RECARGA GRATIS CON VIDEO ---
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(18),
+                          gradient: LinearGradient(
+                            colors: [
+                              const Color(0xFF10B981).withValues(alpha: 0.15),
+                              const Color(0xFF0F172A),
+                            ],
+                          ),
+                          border: Border.all(color: const Color(0xFF10B981).withValues(alpha: 0.4)),
+                        ),
+                        child: Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(10),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF10B981).withValues(alpha: 0.2),
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(Icons.play_circle_fill_rounded, color: Color(0xFF10B981), size: 24),
+                            ),
+                            const SizedBox(width: 14),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    '¿Necesitas consultas gratis?',
+                                    style: GoogleFonts.outfit(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 14,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    'Mira un video corto y recibe +3 consultas al instante.',
+                                    style: GoogleFonts.inter(
+                                      color: const Color(0xFF94A3B8),
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            ElevatedButton(
+                              onPressed: _isWatchingAd ? null : _watchRewardedAdForQueries,
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFF10B981),
+                                foregroundColor: Colors.white,
+                                elevation: 0,
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                              ),
+                              child: _isWatchingAd
+                                  ? const SizedBox(
+                                      width: 16,
+                                      height: 16,
+                                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                                    )
+                                  : const Text(
+                                      'Ver Video',
+                                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                                    ),
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      const SizedBox(height: 20),
 
                       // --- 1. PAQUETES DE CONSULTAS (COMPRAS ÚNICAS) ---
                       _buildSectionHeader(

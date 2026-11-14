@@ -392,3 +392,250 @@ func AnalyzeDraft(ctx context.Context, base64Image string, mainRole, secondaryRo
 
 	return "No clear recommendation could be generated.", 0, nil
 }
+
+func buildManualDraftPrompt(mainRole, myChampion, enemyChampion, gameMode, lang string, excludeChampions ...string) string {
+	isPC := strings.EqualFold(strings.TrimSpace(gameMode), "lol_pc") || strings.EqualFold(strings.TrimSpace(gameMode), "pc")
+	gameTitle := "League of Legends: Wild Rift"
+	if isPC {
+		gameTitle = "League of Legends (PC)"
+	}
+
+	excludeList := ""
+	if len(excludeChampions) > 0 && strings.TrimSpace(excludeChampions[0]) != "" {
+		excludeList = strings.TrimSpace(excludeChampions[0])
+	}
+
+	normalizedLang := NormalizeLanguage(lang)
+	hasMyChamp := strings.TrimSpace(myChampion) != ""
+
+	switch normalizedLang {
+	case "pt":
+		if hasMyChamp {
+			return fmt.Sprintf(`Você é um Treinador e Analista Mestre/Challenger de %s.
+O jogador está na rota '%s' e jogará com '%s' enfrentando '%s' na rota.
+
+Forneça um guia tático direto, rápido e acionável para os próximos 30 segundos:
+- PROIBIDO USAR ASTERISCOS (**) OU ESTILOS MARKDOWN. Apenas texto limpo e tópicos com ponto (•).
+
+ESTRUTURA EXATA:
+Situação: [Diagnóstico em 1 frase curta do confronto %s vs %s]
+
+PLANO DE JOGO:
+• Feitiços: [Feitiços de invocador ideais contra este rival]
+• Runas: [Runa essencial + runas secundárias defensivas/ofensivas necessárias]
+• Itens e Build: [Primeiros 3 itens prioritários, corta-cura ou penetração se necessário]
+• Tática de Linha: [Como punir o rival, níveis de pico de poder e cuidados principais]`, gameTitle, mainRole, myChampion, enemyChampion, myChampion, enemyChampion)
+		}
+		excludeClause := ""
+		if excludeList != "" {
+			excludeClause = fmt.Sprintf("\nPROIBIDO sugerir qualquer um destes campeões já visualizados: %s.", excludeList)
+		}
+		return fmt.Sprintf(`Você é um Treinador e Analista Mestre/Challenger de %s.
+O jogador joga na rota '%s' e o adversário direto escolheu '%s'.
+Recomende o melhor campeão para contra-atacar (Counter) e vencer a rota.%s
+- PROIBIDO USAR ASTERISCOS (**) OU ESTILOS MARKDOWN. Apenas texto limpo e tópicos com ponto (•).
+
+ESTRUTURA EXATA:
+Situação: [Diagnóstico em 1 frase curta das fraquezas de %s]
+
+PLANO A: [Nome do Melhor Counter na rota %s]
+• Por que vence: [Vantagem direta do kit de habilidades sobre %s]
+• Feitiços: [Feitiços de invocador recomendados]
+• Runas: [Runa essencial e secundárias prioritárias]
+• Itens essenciais: [Primeiros 2 itens recomendados contra %s]
+• Tática de Linha: [Como jogar o confronto nos primeiros 5 minutos]
+
+Recomendações semelhantes:
+• [Campeão 2]: [Por que é uma boa alternativa contra %s]
+• [Campeão 3]: [Por que é uma boa alternativa contra %s]`, gameTitle, mainRole, enemyChampion, excludeClause, enemyChampion, mainRole, enemyChampion, enemyChampion, enemyChampion, enemyChampion)
+
+	case "en":
+		if hasMyChamp {
+			return fmt.Sprintf(`You are a Master and Challenger Coach/Analyst for %s.
+The player is in lane '%s' playing as '%s' facing '%s'.
+
+Provide a direct, concise, and tactical guide for champion select (under 30s):
+- DO NOT USE ASTERISKS (**) OR MARKDOWN STYLES. Plain text and bullet points (•) only.
+
+EXACT STRUCTURE:
+Situation: [1 short sentence diagnosing %s vs %s matchup]
+
+TACTICAL PLAN:
+• Spells: [Optimal summoner spells against this rival]
+• Runes: [Keystone + crucial secondary defensive/offensive runes]
+• Core Build: [First 3 core items, anti-heal or armor pen if necessary]
+• Lane Strategy: [How to trade, power spikes, and what to watch out for]`, gameTitle, mainRole, myChampion, enemyChampion, myChampion, enemyChampion)
+		}
+		excludeClause := ""
+		if excludeList != "" {
+			excludeClause = fmt.Sprintf("\nSTRICTLY FORBIDDEN to suggest these champions already shown: %s.", excludeList)
+		}
+		return fmt.Sprintf(`You are a Master and Challenger Coach/Analyst for %s.
+The player plays in '%s' lane and the direct lane opponent picked '%s'.
+Recommend the optimal counter-pick champion to win lane.%s
+- DO NOT USE ASTERISKS (**) OR MARKDOWN STYLES. Plain text and bullet points (•) only.
+
+EXACT STRUCTURE:
+Situation: [1 short sentence diagnosing %s's main weaknesses]
+
+PLAN A: [Best Counter Champion for %s lane]
+• Why it counters: [Direct kit advantage over %s]
+• Spells: [Recommended summoner spells]
+• Runes: [Optimal keystone and secondary runes]
+• Core Build: [First 2 items to counter %s]
+• Lane Strategy: [How to dominate the matchup early game]
+
+Similar recommendations:
+• [Champion 2]: [Why it is a strong alternative against %s]
+• [Champion 3]: [Why it is a strong alternative against %s]`, gameTitle, mainRole, enemyChampion, excludeClause, enemyChampion, mainRole, enemyChampion, enemyChampion, enemyChampion, enemyChampion)
+
+	case "fr":
+		if hasMyChamp {
+			return fmt.Sprintf(`Tu es un Coach et Analyste Maître/Challenger de %s.
+Le joueur est sur la voie '%s' avec '%s' contre '%s'.
+
+Donne un guide tactique direct et clair pour les 30 prochaines secondes :
+- INTERDICTION D'UTILISER DES ASTÉRISQUES (**) OU DU MARKDOWN. Texte brut et puces (•) uniquement.
+
+STRUCTURE EXACTE :
+Situation : [Diagnostic en 1 phrase courte du match %s vs %s]
+
+PLAN TACTIQUE :
+• Sorts : [Sorts d'invocateur idéaux contre ce rival]
+• Runes : [Rune fondamentale + runes secondaires clés]
+• Objets essentiels : [3 premiers objets prioritaires, anti-soin ou pénétration si nécessaire]
+• Tactique de voie : [Comment punir le rival et gérer les pics de puissance]`, gameTitle, mainRole, myChampion, enemyChampion, myChampion, enemyChampion)
+		}
+		excludeClause := ""
+		if excludeList != "" {
+			excludeClause = fmt.Sprintf("\nINTERDICTION de suggérer ces champions déjà vus : %s.", excludeList)
+		}
+		return fmt.Sprintf(`Tu es un Coach et Analyste Maître/Challenger de %s.
+Le joueur joue sur la voie '%s' et l'adversaire direct a choisi '%s'.
+Recommande le meilleur champion pour contrer (Counter) et remporter la voie.%s
+- INTERDICTION D'UTILISER DES ASTÉRISQUES (**) OU DU MARKDOWN. Texte brut et puces (•) uniquement.
+
+STRUCTURE EXACTE :
+Situation : [Diagnostic en 1 phrase courte des faiblesses de %s]
+
+PLAN A : [Meilleur Champion Counter sur la voie %s]
+• Pourquoi il gagne : [Avantage direct du kit contre %s]
+• Sorts : [Sorts d'invocateur recommandés]
+• Runes : [Rune fondamentale et secondaires prioritaires]
+• Objets essentiels : [2 premiers objets recommandés contre %s]
+• Tactique de voie : [Comment dominer le face-à-face]
+
+Recommandations similaires :
+• [Champion 2] : [Pourquoi c'est une bonne alternative contre %s]
+• [Champion 3] : [Pourquoi c'est une bonne alternative contre %s]`, gameTitle, mainRole, enemyChampion, excludeClause, enemyChampion, mainRole, enemyChampion, enemyChampion, enemyChampion, enemyChampion)
+
+	default: // "es"
+		if hasMyChamp {
+			return fmt.Sprintf(`Eres un Entrenador y Analista Maestro/Challenger de %s.
+El jugador va en la línea '%s' jugando con '%s' contra '%s'.
+
+Genera una guía táctica directa, clara y accionable para los 30 segundos del draft:
+- FORMATO OBLIGATORIO: PROHIBIDO USAR ASTERISCOS (**) O ESTILOS MARKDOWN. Solo texto limpio y viñetas con punto (•).
+
+ESTRUCTURA EXACTA:
+Situación: [Diagnóstico en 1 frase corta del matchup %s vs %s]
+
+PLAN TÁCTICO:
+• Hechizos: [Hechizos de invocador óptimos contra este rival]
+• Runas: [Runa clave indispensable + secundarias defensivas u ofensivas clave]
+• Build de Objetos: [Primeros 3 objetos prioritarios, corta-curas o penetración si aplica]
+• Táctica de Línea: [Cómo tradear, niveles de ventaja y principales precauciones]`, gameTitle, mainRole, myChampion, enemyChampion, myChampion, enemyChampion)
+		}
+		excludeClause := ""
+		if excludeList != "" {
+			excludeClause = fmt.Sprintf("\nPROHIBIDO sugerir cualquiera de estos campeones ya visualizados: %s.", excludeList)
+		}
+		return fmt.Sprintf(`Eres un Entrenador y Analista Maestro/Challenger de %s.
+El jugador va en la línea '%s' y el rival directo ya seleccionó a '%s'.
+Recomienda el mejor contra-pick (Counter) para ganar la línea.%s
+- FORMATO OBLIGATORIO: PROHIBIDO USAR ASTERISCOS (**) O ESTILOS MARKDOWN. Solo texto limpio y viñetas con punto (•).
+
+ESTRUCTURA EXACTA:
+Situación: [Diagnóstico en 1 frase corta de las debilidades de %s]
+
+PLAN A: [Mejor Campeón Counter en %s]
+• Por qué le gana: [Ventaja directa de habilidades sobre %s explicada con sencillez]
+• Hechizos: [Hechizos de invocador recomendados]
+• Runas: [Runa clave + secundarias prioritarias]
+• Build clave: [Primeros 2 objetos recomendados contra %s]
+• Táctica de Línea: [Cómo castigarlo en los primeros niveles]
+
+Recomendaciones similares:
+• [Campeón 2]: [Por qué funciona bien contra %s]
+• [Campeón 3]: [Por qué funciona bien contra %s]`, gameTitle, mainRole, enemyChampion, excludeClause, enemyChampion, mainRole, enemyChampion, enemyChampion, enemyChampion, enemyChampion)
+	}
+}
+
+func AnalyzeManualDraft(ctx context.Context, mainRole, myChampion, enemyChampion, gameMode, lang string, excludeChampions ...string) (string, int32, error) {
+	if aiClient == nil {
+		return "", 0, fmt.Errorf("el cliente de IA no ha sido inicializado")
+	}
+
+	selectedLang := "es"
+	if strings.TrimSpace(lang) != "" {
+		selectedLang = NormalizeLanguage(lang)
+	}
+
+	prompt := buildManualDraftPrompt(mainRole, myChampion, enemyChampion, gameMode, selectedLang, excludeChampions...)
+
+	contents := []*genai.Content{
+		{
+			Role: "user",
+			Parts: []*genai.Part{
+				{Text: prompt},
+			},
+		},
+	}
+
+	maxTokens := int32(1800)
+	thinkingBudget := int32(0) // Ultra rápido (1 segundo) y sin costo de razonamiento extendido
+
+	models := []string{"gemini-2.5-flash"}
+	var lastErr error
+	var resp *genai.GenerateContentResponse
+	var usedModel string
+
+	for _, model := range models {
+		config := &genai.GenerateContentConfig{
+			MaxOutputTokens: maxTokens,
+		}
+		if strings.Contains(model, "2.5") {
+			config.ThinkingConfig = &genai.ThinkingConfig{
+				ThinkingBudget: &thinkingBudget,
+			}
+		}
+
+		resp, lastErr = aiClient.Models.GenerateContent(ctx, model, contents, config)
+		if lastErr == nil && resp != nil {
+			usedModel = model
+			log.Printf("✅ Análisis manual generado exitosamente con modelo: %s (lang=%s)", usedModel, selectedLang)
+			break
+		}
+		log.Printf("⚠️ Modelo '%s' falló en manual draft: %v. Intentando siguiente modelo...", model, lastErr)
+	}
+
+	if lastErr != nil || resp == nil {
+		return "", 0, fmt.Errorf("falló generación manual con modelos IA: %w", lastErr)
+	}
+
+	if resp.Text() != "" {
+		var tokens int32 = 0
+		if resp.UsageMetadata != nil {
+			tokens = resp.UsageMetadata.TotalTokenCount
+			log.Printf("📊 [Manual %s] Tokens - Prompt: %d, Salida: %d, Total: %d",
+				usedModel,
+				resp.UsageMetadata.PromptTokenCount,
+				resp.UsageMetadata.CandidatesTokenCount,
+				resp.UsageMetadata.TotalTokenCount,
+			)
+		}
+		return resp.Text(), tokens, nil
+	}
+
+	return "No se pudo generar recomendación manual.", 0, nil
+}

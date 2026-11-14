@@ -17,11 +17,13 @@ import '../core/services/session_service.dart';
 import '../core/services/update_service.dart';
 import '../shared/widgets/hextech_orb.dart';
 import '../theme/app_theme.dart';
+import '../core/constants/app_constants.dart';
 import '../widgets/tutorial_dialog.dart';
 import 'achievements_screen.dart';
 import 'donations_screen.dart';
 import 'events_screen.dart';
 import 'login_screen.dart';
+import 'manual_draft_screen.dart';
 import 'store_screen.dart';
 import 'trivia_screen.dart';
 import 'lol_pc_scanner_screen.dart';
@@ -52,6 +54,8 @@ class _IndexScreenState extends State<IndexScreen> with WidgetsBindingObserver {
   String _subscriptionPlan = 'none';
   bool _isSubscribed = false;
   String _selectedGameMode = 'wild_rift'; // 'wild_rift' o 'lol_pc'
+  String _selectedMainRole = 'Mid';
+  String _selectedOtpChampion = '';
 
   bool _isLoadingQueries = false;
   String? _userName;
@@ -117,8 +121,24 @@ class _IndexScreenState extends State<IndexScreen> with WidgetsBindingObserver {
         _subscriptionPlan = prefs.getString('subscription_plan') ?? 'none';
         _isSubscribed = prefs.getBool('is_subscribed') ?? false;
         _userEmail = prefs.getString('user_email');
+        _selectedMainRole = prefs.getString('selected_main_role') ?? 'Mid';
+        _selectedOtpChampion = prefs.getString('selected_otp_champion') ?? '';
       });
     }
+  }
+
+  Future<void> _updateSelectedRole(String role) async {
+    HapticFeedback.selectionClick();
+    setState(() => _selectedMainRole = role);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('selected_main_role', role);
+  }
+
+  Future<void> _updateOtpChampion(String champ) async {
+    HapticFeedback.selectionClick();
+    setState(() => _selectedOtpChampion = champ);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('selected_otp_champion', champ);
   }
 
   void _listenToNativeEvents() {
@@ -831,6 +851,7 @@ class _IndexScreenState extends State<IndexScreen> with WidgetsBindingObserver {
             availableQueries: _availableQueries,
             onDataChanged: _fetchUserData,
             onNoQueries: _showNoQueriesDialog,
+            mainRole: _selectedMainRole,
           ),
         ),
       );
@@ -877,12 +898,12 @@ class _IndexScreenState extends State<IndexScreen> with WidgetsBindingObserver {
       bool started = await NativeService.startCaptureService(
         baseUrl: AppConfig.apiBaseUrl,
         sessionToken: _sessionToken,
-        mainRole: "Auto",
+        mainRole: _selectedMainRole,
         secondaryRole: "Auto",
         autofillRole: "Auto",
         isPremium: true,
         planTier: "plus",
-        otpChampions: "",
+        otpChampions: _selectedOtpChampion,
         activeCreatorId: "",
         language: lang.currentLanguage,
       );
@@ -918,6 +939,262 @@ class _IndexScreenState extends State<IndexScreen> with WidgetsBindingObserver {
     if (!mounted) return;
     Navigator.of(context).pushReplacement(
       MaterialPageRoute(builder: (_) => const LoginScreen()),
+    );
+  }
+
+  Future<void> _openManualDraft() async {
+    HapticFeedback.selectionClick();
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => ManualDraftScreen(
+          availableQueries: _availableQueries,
+          onDataChanged: _fetchUserData,
+          onNoQueries: _showNoQueriesDialog,
+          initialRole: _selectedMainRole,
+          initialMyChampion: _selectedOtpChampion.isNotEmpty ? _selectedOtpChampion : null,
+        ),
+      ),
+    );
+    _fetchUserData();
+  }
+
+  void _showSecurityInfoDialog() {
+    HapticFeedback.lightImpact();
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1E293B),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: const BorderSide(color: Color(0xFF10B981), width: 1.2),
+        ),
+        title: Row(
+          children: [
+            const Icon(Icons.verified_user_rounded, color: Color(0xFF10B981), size: 26),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                '100% Seguro & Anti-Ban',
+                style: GoogleFonts.outfit(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 17,
+                ),
+              ),
+            ),
+          ],
+        ),
+        content: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                '¿Drafting puede causar ban en Wild Rift?',
+                style: GoogleFonts.outfit(
+                  color: const Color(0xFF10B981),
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'NO. Drafting cumple estrictamente con las políticas de Riot Games para herramientas complementarias:\n\n'
+                '• NO inyecta código ni modifica archivos de Wild Rift.\n'
+                '• NO accede a la memoria interna del juego.\n'
+                '• Funciona como una guía estratégica externa (igual que Porofessor o Blitz en PC).\n\n'
+                'Además, si prefieres no usar la burbuja flotante, puedes usar el Modo Manual sin permisos de pantalla.',
+                style: GoogleFonts.inter(
+                  color: Colors.white70,
+                  fontSize: 13,
+                  height: 1.45,
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF10B981),
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Entendido', style: TextStyle(fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showOtpChampionPickerModal() {
+    HapticFeedback.selectionClick();
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        String search = '';
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            final filtered = search.isEmpty
+                ? AppConstants.wildRiftChampions
+                : AppConstants.wildRiftChampions
+                    .where((c) => c.toLowerCase().contains(search.toLowerCase()))
+                    .toList();
+            return Container(
+              height: MediaQuery.of(context).size.height * 0.72,
+              decoration: const BoxDecoration(
+                color: Color(0xFF0F172A),
+                borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+              ),
+              child: Column(
+                children: [
+                  const SizedBox(height: 12),
+                  Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: Colors.white24,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 16, 20, 10),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.star_rounded, color: Color(0xFFFDE047), size: 22),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Tu Campeón Favorito (OTP)',
+                            style: GoogleFonts.outfit(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                        if (_selectedOtpChampion.isNotEmpty)
+                          TextButton(
+                            onPressed: () {
+                              _updateOtpChampion('');
+                              Navigator.of(ctx).pop();
+                            },
+                            child: const Text('Limpiar', style: TextStyle(color: Colors.redAccent)),
+                          ),
+                      ],
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
+                    child: TextField(
+                      onChanged: (val) => setModalState(() => search = val),
+                      style: const TextStyle(color: Colors.white),
+                      decoration: InputDecoration(
+                        hintText: 'Buscar campeón...',
+                        hintStyle: const TextStyle(color: Colors.white38),
+                        prefixIcon: const Icon(Icons.search_rounded, color: Color(0xFF00E5FF)),
+                        filled: true,
+                        fillColor: const Color(0xFF1E293B),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(14),
+                          borderSide: BorderSide.none,
+                        ),
+                      ),
+                    ),
+                  ),
+                  Expanded(
+                    child: ListView.builder(
+                      itemCount: filtered.length,
+                      itemBuilder: (context, idx) {
+                        final champ = filtered[idx];
+                        final isSelected = champ == _selectedOtpChampion;
+                        return ListTile(
+                          leading: CircleAvatar(
+                            backgroundColor: isSelected ? const Color(0xFF00E5FF) : const Color(0xFF1E293B),
+                            child: Text(
+                              champ.substring(0, 1),
+                              style: TextStyle(
+                                color: isSelected ? const Color(0xFF090D16) : Colors.white,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                          title: Text(
+                            champ,
+                            style: TextStyle(
+                              color: isSelected ? const Color(0xFF00E5FF) : Colors.white,
+                              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                            ),
+                          ),
+                          trailing: isSelected ? const Icon(Icons.check_circle_rounded, color: Color(0xFF00E5FF)) : null,
+                          onTap: () {
+                            _updateOtpChampion(champ);
+                            Navigator.of(ctx).pop();
+                          },
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildRoleChip(String id, String label, IconData icon) {
+    final isSelected = _selectedMainRole.toLowerCase().contains(id.toLowerCase()) || _selectedMainRole == id;
+    return Padding(
+      padding: const EdgeInsets.only(right: 6),
+      child: InkWell(
+        onTap: () => _updateSelectedRole(id),
+        borderRadius: BorderRadius.circular(12),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          decoration: BoxDecoration(
+            color: isSelected ? const Color(0xFF00E5FF).withValues(alpha: 0.15) : const Color(0xFF131B2E),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: isSelected ? const Color(0xFF00E5FF) : Colors.white10,
+              width: isSelected ? 1.4 : 1,
+            ),
+            boxShadow: isSelected
+                ? [
+                    BoxShadow(
+                      color: const Color(0xFF00E5FF).withValues(alpha: 0.25),
+                      blurRadius: 6,
+                    ),
+                  ]
+                : null,
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                icon,
+                size: 13,
+                color: isSelected ? const Color(0xFF00E5FF) : Colors.white60,
+              ),
+              const SizedBox(width: 4),
+              Text(
+                label,
+                style: GoogleFonts.outfit(
+                  fontSize: 11.5,
+                  fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+                  color: isSelected ? Colors.white : Colors.white60,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
@@ -1357,6 +1634,40 @@ class _IndexScreenState extends State<IndexScreen> with WidgetsBindingObserver {
                 ),
               ),
 
+              // --- 2.2 INSIGNIA 100% SEGURO Y CUMPLE POLÍTICAS DE RIOT GAMES ---
+              Center(
+                child: InkWell(
+                  onTap: _showSecurityInfoDialog,
+                  borderRadius: BorderRadius.circular(20),
+                  child: Container(
+                    margin: const EdgeInsets.only(top: 8),
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF10B981).withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: const Color(0xFF10B981).withValues(alpha: 0.35)),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.verified_user_rounded, color: Color(0xFF10B981), size: 13),
+                        const SizedBox(width: 6),
+                        Text(
+                          '100% Seguro • Cumple políticas de Riot Games',
+                          style: GoogleFonts.outfit(
+                            color: const Color(0xFF6EE7B7),
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        const Icon(Icons.info_outline_rounded, color: Color(0xFF6EE7B7), size: 11),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+
               const Spacer(flex: 2),
 
               // --- 2.5 SELECTOR DE SISTEMA: (Wild Rift) (LoL PC) ---
@@ -1465,7 +1776,89 @@ class _IndexScreenState extends State<IndexScreen> with WidgetsBindingObserver {
                 ),
               ),
 
-              const SizedBox(height: 20),
+              const SizedBox(height: 16),
+
+              // --- 2.8 SELECTOR DE ROL ACTIVO EN PARTIDA & MODO OTP ---
+              if (_selectedGameMode == 'wild_rift') ...[
+                Container(
+                  margin: const EdgeInsets.symmetric(horizontal: 20),
+                  child: Column(
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            'TU ROL EN PARTIDA:',
+                            style: GoogleFonts.outfit(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w800,
+                              color: Colors.white54,
+                              letterSpacing: 0.8,
+                            ),
+                          ),
+                          InkWell(
+                            onTap: _showOtpChampionPickerModal,
+                            borderRadius: BorderRadius.circular(10),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                              decoration: BoxDecoration(
+                                color: _selectedOtpChampion.isNotEmpty
+                                    ? const Color(0xFFC89B3C).withValues(alpha: 0.2)
+                                    : Colors.white.withValues(alpha: 0.05),
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(
+                                  color: _selectedOtpChampion.isNotEmpty
+                                      ? const Color(0xFFC89B3C)
+                                      : Colors.white12,
+                                ),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    Icons.star_rounded,
+                                    size: 13,
+                                    color: _selectedOtpChampion.isNotEmpty
+                                        ? const Color(0xFFFDE047)
+                                        : Colors.white38,
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    _selectedOtpChampion.isNotEmpty
+                                        ? 'OTP: $_selectedOtpChampion'
+                                        : '+ OTP / Mi Champ',
+                                    style: GoogleFonts.outfit(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w700,
+                                      color: _selectedOtpChampion.isNotEmpty
+                                          ? const Color(0xFFFDE047)
+                                          : Colors.white60,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: Row(
+                          children: [
+                            _buildRoleChip('Top', 'Solo / Top', Icons.shield_outlined),
+                            _buildRoleChip('Jungle', 'Jungla', Icons.park_outlined),
+                            _buildRoleChip('Mid', 'Mid', Icons.bolt_rounded),
+                            _buildRoleChip('ADC', 'Dúo / ADC', Icons.crisis_alert_rounded),
+                            _buildRoleChip('Support', 'Soporte', Icons.favorite_border_rounded),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 14),
+              ],
 
               // --- 3. PROTAGONISTA CENTRAL: ESFERA HEXTECH (WILD RIFT) O ESCÁNER CÁMARA (LOL PC) ---
               Center(
@@ -1544,6 +1937,28 @@ class _IndexScreenState extends State<IndexScreen> with WidgetsBindingObserver {
                       ),
                     ),
                   ],
+                ),
+              ),
+
+              const SizedBox(height: 16),
+
+              // --- 3.5 BOTÓN DE ACCESO AL MODO MANUAL TÁCTICO (ANTI-BAN / IPAD) ---
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 32),
+                child: OutlinedButton.icon(
+                  onPressed: _openManualDraft,
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: const Color(0xFF00E5FF),
+                    side: BorderSide(color: const Color(0xFF00E5FF).withValues(alpha: 0.4), width: 1.2),
+                    padding: const EdgeInsets.symmetric(vertical: 11),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                    backgroundColor: const Color(0xFF00E5FF).withValues(alpha: 0.06),
+                  ),
+                  icon: const Icon(Icons.touch_app_rounded, size: 18),
+                  label: Text(
+                    'Modo Manual Táctico (Anti-Ban / iPad)',
+                    style: GoogleFonts.outfit(fontSize: 13, fontWeight: FontWeight.bold),
+                  ),
                 ),
               ),
 

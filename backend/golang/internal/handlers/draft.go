@@ -24,6 +24,15 @@ type DraftRequest struct {
 	ExcludeChampions string `json:"exclude_champions,omitempty"`
 }
 
+type ManualDraftRequest struct {
+	MainRole         string `json:"main_role"`
+	MyChampion       string `json:"my_champion,omitempty"`
+	EnemyChampion    string `json:"enemy_champion"`
+	Language         string `json:"language,omitempty"`
+	GameMode         string `json:"game_mode,omitempty"` // "wild_rift" o "lol_pc"
+	ExcludeChampions string `json:"exclude_champions,omitempty"`
+}
+
 type DraftResponse struct {
 	Recommendation   string `json:"recommendation"`
 	AvailableQueries int    `json:"available_queries"`
@@ -131,6 +140,101 @@ func AnalyzeDraft(w http.ResponseWriter, r *http.Request) {
 	})
 
 	// Send Response
+	resp := DraftResponse{
+		Recommendation:   recommendation,
+		AvailableQueries: user.AvailableQueries,
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(resp)
+}
+
+func AnalyzeManualDraft(w http.ResponseWriter, r *http.Request) {
+	var req ManualDraftRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	enemyChamp := strings.TrimSpace(req.EnemyChampion)
+	myChamp := strings.TrimSpace(req.MyChampion)
+	mainRole := strings.TrimSpace(req.MainRole)
+	if enemyChamp == "" && myChamp == "" {
+		http.Error(w, "enemy_champion or my_champion is required", http.StatusBadRequest)
+		return
+	}
+	if mainRole == "" {
+		mainRole = "Mid"
+	}
+
+	lang := strings.TrimSpace(req.Language)
+	if lang == "" {
+		lang = strings.TrimSpace(r.Header.Get("Accept-Language"))
+	}
+	lang = gemini.NormalizeLanguage(lang)
+
+	// User context
+	user, ok := r.Context().Value(middleware.UserContextKey).(*models.User)
+	if !ok || user == nil {
+		http.Error(w, "User context missing", http.StatusInternalServerError)
+		return
+	}
+
+	// Sincronizar bono diario y recalcular saldo
+	today := time.Now().UTC().Format("2006-01-02")
+	dailyGranted := user.RefreshDailyQueries(today)
+	subExpired := user.CheckSubscriptionExpiry()
+	user.RecalculateAvailableQueries()
+
+	if dailyGranted || subExpired {
+		database.DB.Model(user).Updates(map[string]interface{}{
+			"daily_queries":          user.DailyQueries,
+			"available_queries":      user.AvailableQueries,
+			"last_daily_reward_date": user.LastDailyRewardDate,
+			"subscription_plan":      user.SubscriptionPlan,
+			"subscription_ends_at":   user.SubscriptionEndsAt,
+		})
+	}
+
+	if user.AvailableQueries <= 0 {
+		http.Error(w, noQueriesMessage(lang), http.StatusPaymentRequired)
+		return
+	}
+
+	gameMode := strings.TrimSpace(strings.ToLower(req.GameMode))
+	if gameMode == "" {
+		gameMode = "wild_rift"
+	}
+
+	recommendation, tokens, err := gemini.AnalyzeManualDraft(
+		r.Context(),
+		mainRole,
+		myChamp,
+		enemyChamp,
+		gameMode,
+		lang,
+		strings.TrimSpace(req.ExcludeChampions),
+	)
+	if err != nil {
+		log.Printf("AnalyzeManualDraft Error: %v", err)
+		http.Error(w, fmt.Sprintf("Error al generar recomendación manual: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	database.DB.Create(&models.ApiUsage{UserID: user.ID, TokensUsed: int(tokens), CreatedAt: time.Now()})
+
+	user.ConsumeQuery()
+	user.LastDraftAt = time.Now()
+	database.DB.Model(user).Updates(map[string]interface{}{
+		"daily_queries":          user.DailyQueries,
+		"subscription_queries":   user.SubscriptionQueries,
+		"bonus_queries":          user.BonusQueries,
+		"ad_queries":             user.AdQueries,
+		"purchased_queries":      user.PurchasedQueries,
+		"available_queries":      user.AvailableQueries,
+		"last_daily_reward_date": user.LastDailyRewardDate,
+		"last_draft_at":          user.LastDraftAt,
+	})
+
 	resp := DraftResponse{
 		Recommendation:   recommendation,
 		AvailableQueries: user.AvailableQueries,

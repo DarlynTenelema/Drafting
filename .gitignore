@@ -85,6 +85,7 @@ Thumbs.db
 *.ipr
 *.iws
 .vscode/
+comentarios/
 
 # --- 9. Documentation (per repository configuration) ---
 *.md

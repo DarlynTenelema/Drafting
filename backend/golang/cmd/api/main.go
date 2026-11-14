@@ -125,6 +125,7 @@ func main() {
 			r.Post("/user/obtain-queries", handlers.ObtainQueries)
 			r.Post("/user/redeem-referral", handlers.RedeemReferral)
 			r.Post("/draft/analyze", handlers.AnalyzeDraft)
+			r.Post("/draft/manual", handlers.AnalyzeManualDraft)
 
 			// Store, Packs, Subscriptions & Query Transfers
 			r.Get("/store/catalog", handlers.GetStoreCatalog)

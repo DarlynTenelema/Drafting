@@ -13,6 +13,7 @@ class LolPcScannerScreen extends StatefulWidget {
   final int availableQueries;
   final VoidCallback onDataChanged;
   final VoidCallback onNoQueries;
+  final String mainRole;
 
   const LolPcScannerScreen({
     super.key,
@@ -20,6 +21,7 @@ class LolPcScannerScreen extends StatefulWidget {
     required this.availableQueries,
     required this.onDataChanged,
     required this.onNoQueries,
+    this.mainRole = 'Auto',
   });
 
   @override
@@ -127,7 +129,7 @@ class _LolPcScannerScreenState extends State<LolPcScannerScreen> {
 
       final bodyData = <String, dynamic>{
         'image_base64': base64Image,
-        'main_role': 'Auto',
+        'main_role': widget.mainRole,
         'secondary_role': 'Auto',
         'autofill_role': 'Auto',
         'game_mode': 'lol_pc',
