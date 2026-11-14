@@ -43,6 +43,9 @@ import java.io.ByteArrayOutputStream
 import java.io.OutputStreamWriter
 import java.net.HttpURLConnection
 import java.net.URL
+import android.speech.tts.TextToSpeech
+import android.speech.tts.UtteranceProgressListener
+import java.util.Locale
 import kotlin.concurrent.thread
 
 class CaptureService : Service() {
@@ -68,6 +71,13 @@ class CaptureService : Service() {
     private var language: String = "es"
     private var lastCapturedBase64: String? = null
     private val seenChampionsInDraft = mutableListOf<String>()
+
+    // Variables de Narrador Táctico (TTS)
+    private var tts: TextToSpeech? = null
+    private var isTtsInitialized = false
+    private var isTtsSpeaking = false
+    private var lastRecommendationText: String? = null
+    private var ttsSpeechRate: Float = 1.4f // Velocidad ágil calibrada a 1.4x para lectura táctica rápida
 
     private val prefsListener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { sharedPrefs, key ->
         if (key == "language") {
@@ -184,6 +194,7 @@ class CaptureService : Service() {
                 .registerOnSharedPreferenceChangeListener(prefsListener)
         } catch (_: Exception) {}
         createNotificationChannel()
+        initTts()
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             startForeground(
                 NOTIFICATION_ID, 
@@ -331,13 +342,25 @@ class CaptureService : Service() {
         val btnCloseMessage = floatingView.findViewById<ImageButton>(R.id.btnCloseMessage)
         val btnCopyMessage = floatingView.findViewById<ImageButton>(R.id.btnCopyMessage)
         val btnRefreshDraft = floatingView.findViewById<ImageButton>(R.id.btnRefreshDraft)
+        val btnTtsPlayPause = floatingView.findViewById<ImageButton>(R.id.btnTtsPlayPause)
+        val btnHeaderTts = floatingView.findViewById<ImageButton>(R.id.btnHeaderTts)
+
+        btnTtsPlayPause?.setOnClickListener {
+            toggleTts()
+        }
+
+        btnHeaderTts?.setOnClickListener {
+            toggleTts()
+        }
 
         btnCaptureGeneral?.setOnClickListener {
+            stopTts()
             seenChampionsInDraft.clear()
             captureScreenAndSend("draft", 0)
         }
 
         btnRefreshDraft?.setOnClickListener {
+            stopTts()
             if (lastCapturedBase64 != null) {
                 Handler(Looper.getMainLooper()).post {
                     refreshOverlayTexts()
@@ -908,6 +931,8 @@ class CaptureService : Service() {
     private fun showResultOnUI(text: String) {
         Handler(Looper.getMainLooper()).post {
             if (!::floatingView.isInitialized) return@post
+            lastRecommendationText = text
+            updateTtsButtonState(false)
             refreshOverlayTexts()
             adjustMessageContainerPosition()
             floatingView.findViewById<FrameLayout>(R.id.messageContainer).visibility = View.VISIBLE
@@ -997,8 +1022,205 @@ class CaptureService : Service() {
             .build()
     }
 
+    // -------------------------------------------------------------
+    // GESTIÓN DE NARRADOR TÁCTICO POR VOZ (TTS)
+    // -------------------------------------------------------------
+    private fun initTts() {
+        if (tts != null) return
+        try {
+            tts = TextToSpeech(applicationContext) { status ->
+                if (status == TextToSpeech.SUCCESS) {
+                    isTtsInitialized = true
+                    applyTtsLanguage()
+                    tts?.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
+                        override fun onStart(utteranceId: String?) {
+                            Handler(Looper.getMainLooper()).post {
+                                isTtsSpeaking = true
+                                updateTtsButtonState(true)
+                            }
+                        }
+
+                        override fun onDone(utteranceId: String?) {
+                            Handler(Looper.getMainLooper()).post {
+                                isTtsSpeaking = false
+                                updateTtsButtonState(false)
+                            }
+                        }
+
+                        @Deprecated("Deprecated in Java")
+                        override fun onError(utteranceId: String?) {
+                            Handler(Looper.getMainLooper()).post {
+                                isTtsSpeaking = false
+                                updateTtsButtonState(false)
+                            }
+                        }
+                    })
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    private fun applyTtsLanguage() {
+        if (!isTtsInitialized || tts == null) return
+        val locale = when (getCurrentLang()) {
+            "pt" -> Locale("pt", "BR")
+            "en" -> Locale.US
+            "fr" -> Locale.FRANCE
+            else -> Locale("es", "ES")
+        }
+        try {
+            tts?.language = locale
+            tts?.setSpeechRate(ttsSpeechRate)
+            tts?.setPitch(1.0f)
+        } catch (_: Exception) {}
+    }
+
+    private fun extractTacticalSpeech(fullText: String): String {
+        if (fullText.isBlank()) return ""
+        val lang = getCurrentLang()
+
+        // 1. Extraer Campeón PLAN A
+        val planAPattern = Regex("""(?i)(?:PLAN\s*A|PLANO\s*A)\s*:\s*([^\n\r•]+)""")
+        val champMatch = planAPattern.find(fullText)
+        val champion = champMatch?.groupValues?.get(1)?.trim()
+
+        // 2. Extraer táctica clave / combo / plan de acción
+        val tacticPattern = Regex("""(?i)(?:•\s*(?:Tática|Táctica|Plan de acción|Tactics|Tactique|Sinergias|Sinergia|Synergies)[^\n\r:]*:\s*)([^\n\r]+)""")
+        val tacticMatch = tacticPattern.find(fullText)
+        val rawTactic = tacticMatch?.groupValues?.get(1)?.trim() ?: ""
+        val tactic = rawTactic.replace("*", "").take(130)
+
+        // 3. Extraer alternativas de 'Recomendaciones similares'
+        val similarSection = if (fullText.contains("Recomenda", ignoreCase = true)) {
+            fullText.substring(fullText.indexOf("Recomenda", ignoreCase = true))
+        } else if (fullText.contains("Similar", ignoreCase = true)) {
+            fullText.substring(fullText.indexOf("Similar", ignoreCase = true))
+        } else ""
+
+        val altChamps = mutableListOf<String>()
+        if (similarSection.isNotEmpty()) {
+            val bulletPattern = Regex("""•\s*([A-Za-z0-9' ]+)\s*:""")
+            bulletPattern.findAll(similarSection).take(2).forEach {
+                val name = it.groupValues[1].replace("*", "").trim()
+                if (name.isNotEmpty() && !altChamps.contains(name)) {
+                    altChamps.add(name)
+                }
+            }
+        }
+
+        val sb = StringBuilder()
+        when (lang) {
+            "pt" -> {
+                if (!champion.isNullOrEmpty()) sb.append("Recomendado: $champion. ")
+                if (tactic.isNotEmpty()) sb.append("$tactic. ")
+                if (altChamps.isNotEmpty()) sb.append("Alternativas: ${altChamps.joinToString(" ou ")}.")
+            }
+            "en" -> {
+                if (!champion.isNullOrEmpty()) sb.append("Recommended: $champion. ")
+                if (tactic.isNotEmpty()) sb.append("$tactic. ")
+                if (altChamps.isNotEmpty()) sb.append("Alternatives: ${altChamps.joinToString(" or ")}.")
+            }
+            "fr" -> {
+                if (!champion.isNullOrEmpty()) sb.append("Recommandé : $champion. ")
+                if (tactic.isNotEmpty()) sb.append("$tactic. ")
+                if (altChamps.isNotEmpty()) sb.append("Alternatives : ${altChamps.joinToString(" ou ")}.")
+            }
+            else -> { // "es"
+                if (!champion.isNullOrEmpty()) sb.append("Recomendado: $champion. ")
+                if (tactic.isNotEmpty()) sb.append("$tactic. ")
+                if (altChamps.isNotEmpty()) sb.append("Alternativas: ${altChamps.joinToString(" o ")}.")
+            }
+        }
+
+        val result = sb.toString().trim()
+        if (result.length > 15) {
+            return result
+        }
+
+        return fullText.replace("*", "").replace("#", "").trim().take(180)
+    }
+
+    private fun toggleTts() {
+        if (isTtsSpeaking) {
+            stopTts()
+        } else {
+            playTts()
+        }
+    }
+
+    private fun stopTts() {
+        try {
+            tts?.stop()
+        } catch (_: Exception) {}
+        isTtsSpeaking = false
+        updateTtsButtonState(false)
+    }
+
+    private fun playTts() {
+        val text = lastRecommendationText
+        if (text.isNullOrBlank()) {
+            val msg = when (getCurrentLang()) {
+                "pt" -> "Analise o draft primeiro para ouvir a narração!"
+                "en" -> "Analyze draft first to hear tactical audio!"
+                "fr" -> "Analysez d'abord le draft pour écouter la narration !"
+                else -> "¡Primero analiza el draft para escuchar la narración táctica!"
+            }
+            showToast(msg)
+            return
+        }
+
+        if (!isTtsInitialized || tts == null) {
+            showToast("Iniciando motor de voz...")
+            initTts()
+            return
+        }
+
+        applyTtsLanguage()
+        val speechText = extractTacticalSpeech(text)
+        if (speechText.isBlank()) return
+
+        val params = android.os.Bundle()
+        params.putString(TextToSpeech.Engine.KEY_PARAM_UTTERANCE_ID, "drafting_callout")
+        val res = tts?.speak(speechText, TextToSpeech.QUEUE_FLUSH, params, "drafting_callout")
+        if (res == TextToSpeech.SUCCESS) {
+            isTtsSpeaking = true
+            updateTtsButtonState(true)
+        }
+    }
+
+    private fun updateTtsButtonState(speaking: Boolean) {
+        Handler(Looper.getMainLooper()).post {
+            if (!::floatingView.isInitialized) return@post
+            val btnBig = floatingView.findViewById<ImageButton>(R.id.btnTtsPlayPause)
+            val btnHeader = floatingView.findViewById<ImageButton>(R.id.btnHeaderTts)
+
+            if (speaking) {
+                btnBig?.setImageResource(R.drawable.ic_tts_pause)
+                btnBig?.setBackgroundResource(R.drawable.bg_hextech_tts_active)
+                btnBig?.setColorFilter(Color.parseColor("#10B981"))
+
+                btnHeader?.setImageResource(R.drawable.ic_tts_pause)
+                btnHeader?.setColorFilter(Color.parseColor("#10B981"))
+            } else {
+                btnBig?.setImageResource(R.drawable.ic_tts_play)
+                btnBig?.setBackgroundResource(R.drawable.bg_hextech_tts)
+                btnBig?.setColorFilter(Color.parseColor("#00E5FF"))
+
+                btnHeader?.setImageResource(R.drawable.ic_tts_play)
+                btnHeader?.setColorFilter(Color.parseColor("#00E5FF"))
+            }
+        }
+    }
+
     override fun onDestroy() {
         super.onDestroy()
+        stopTts()
+        try {
+            tts?.shutdown()
+        } catch (_: Exception) {}
+        tts = null
         try {
             getSharedPreferences("drafting_prefs", Context.MODE_PRIVATE)
                 .unregisterOnSharedPreferenceChangeListener(prefsListener)

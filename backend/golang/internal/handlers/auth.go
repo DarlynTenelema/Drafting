@@ -234,7 +234,7 @@ func ObtainQueries(w http.ResponseWriter, r *http.Request) {
 	}
 	lastObtainQueryMap.Store(user.ID, time.Now())
 
-	const queriesToAdd = 3
+	const queriesToAdd = 5
 	user.AddAdQueries(queriesToAdd)
 
 	if err := database.DB.Model(user).Updates(map[string]interface{}{
@@ -252,6 +252,6 @@ func ObtainQueries(w http.ResponseWriter, r *http.Request) {
 		"bonus_queries":     user.BonusQueries,
 		"ad_queries":        user.AdQueries,
 		"added":             queriesToAdd,
-		"message":           "¡Has obtenido 3 consultas!",
+		"message":           "¡Has obtenido 5 consultas!",
 	})
 }

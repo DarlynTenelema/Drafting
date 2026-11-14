@@ -68,7 +68,7 @@ class _StoreScreenState extends State<StoreScreen> {
                 const SnackBar(
                   backgroundColor: Color(0xFF10B981),
                   behavior: SnackBarBehavior.floating,
-                  content: Text('¡+3 Consultas añadidas con éxito! ⚡'),
+                  content: Text('¡+5 Consultas añadidas con éxito! ⚡'),
                 ),
               );
             }
@@ -615,7 +615,7 @@ class _StoreScreenState extends State<StoreScreen> {
                                   ),
                                   const SizedBox(height: 2),
                                   Text(
-                                    'Mira un video corto y recibe +3 consultas al instante.',
+                                    'Mira un video corto y recibe +5 consultas al instante.',
                                     style: GoogleFonts.inter(
                                       color: const Color(0xFF94A3B8),
                                       fontSize: 12,

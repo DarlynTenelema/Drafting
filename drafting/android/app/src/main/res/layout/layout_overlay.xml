@@ -102,6 +102,18 @@
                         android:contentDescription="Cambiar tamaño" />
 
                     <ImageButton
+                        android:id="@+id/btnHeaderTts"
+                        android:layout_width="28dp"
+                        android:layout_height="28dp"
+                        android:layout_marginEnd="4dp"
+                        android:background="?android:attr/selectableItemBackgroundBorderless"
+                        android:src="@drawable/ic_tts_play"
+                        android:tint="#00E5FF"
+                        android:scaleType="fitCenter"
+                        android:padding="4dp"
+                        android:contentDescription="Narrar recomendación" />
+
+                    <ImageButton
                         android:id="@+id/btnCopyMessage"
                         android:layout_width="28dp"
                         android:layout_height="28dp"
@@ -279,6 +291,29 @@
             android:gravity="center_horizontal"
             android:layout_gravity="center_vertical"
             android:layout_marginStart="8dp">
+
+            <!-- Botón Grande y Destacado de Narrador Táctico / TTS (Play/Pause) -->
+            <ImageButton
+                android:id="@+id/btnTtsPlayPause"
+                android:layout_width="50dp"
+                android:layout_height="50dp"
+                android:layout_marginBottom="10dp"
+                android:background="@drawable/bg_hextech_tts"
+                android:src="@drawable/ic_tts_play"
+                android:tint="#00E5FF"
+                android:scaleType="fitCenter"
+                android:padding="10dp"
+                android:cropToPadding="true"
+                android:elevation="8dp"
+                android:contentDescription="Reproducir o pausar narrador táctico" />
+
+            <!-- Separador Neón Luminoso -->
+            <View
+                android:layout_width="32dp"
+                android:layout_height="2dp"
+                android:background="#00E5FF"
+                android:alpha="0.4"
+                android:layout_marginBottom="10dp" />
 
             <!-- Botón Grande de Reconsultar / Refrescar con Flechas -->
             <ImageButton

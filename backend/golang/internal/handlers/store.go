@@ -46,45 +46,45 @@ var AvailablePacks = map[string]PackConfig{
 		ID:           "pack_starter",
 		Name:         "Pack Starter",
 		PriceUSD:     0.19,
-		TotalQueries: 50,
-		BaseQueries:  50,
+		TotalQueries: 100,
+		BaseQueries:  100,
 		BonusQueries: 0,
 		Tag:          "Solo una vez",
 		IsStarter:    true,
-		Description:  "50 consultas para ti + 25 para regalar a amigos",
+		Description:  "100 consultas para ti + 25 para regalar a amigos",
 	},
 	"pack_plus": {
 		ID:           "pack_plus",
 		Name:         "Pack Plus",
 		PriceUSD:     0.19,
-		TotalQueries: 20,
-		BaseQueries:  20,
+		TotalQueries: 30,
+		BaseQueries:  30,
 		BonusQueries: 0,
 		Tag:          "Económico",
 		IsStarter:    false,
-		Description:  "20 consultas permanentes sin fecha de vencimiento",
+		Description:  "30 consultas permanentes sin fecha de vencimiento",
 	},
 	"pack_pro": {
 		ID:           "pack_pro",
 		Name:         "Pack Pro",
 		PriceUSD:     0.49,
-		TotalQueries: 50,
-		BaseQueries:  50,
+		TotalQueries: 100,
+		BaseQueries:  100,
 		BonusQueries: 0,
 		Tag:          "Más Popular",
 		IsStarter:    false,
-		Description:  "50 consultas permanentes sin fecha de vencimiento",
+		Description:  "100 consultas permanentes sin fecha de vencimiento",
 	},
 	"pack_ultra": {
 		ID:           "pack_ultra",
 		Name:         "Pack Ultra",
 		PriceUSD:     0.99,
-		TotalQueries: 100,
-		BaseQueries:  100,
+		TotalQueries: 250,
+		BaseQueries:  250,
 		BonusQueries: 0,
 		Tag:          "Mejor Valor",
 		IsStarter:    false,
-		Description:  "100 consultas permanentes sin fecha de vencimiento",
+		Description:  "250 consultas permanentes sin fecha de vencimiento",
 	},
 	"pack_trivia_plus": {
 		ID:           "pack_trivia_plus",
@@ -129,25 +129,25 @@ var AvailableSubscriptions = map[string]SubscriptionConfig{
 		ID:              "sub_plus",
 		Name:            "Plan Plus",
 		PriceUSD:        0.99,
-		QueriesPerMonth: 150,
+		QueriesPerMonth: 300,
 		Tag:             "Básico Mensual",
-		Description:     "150 consultas/mes acumulables + Enviar hasta 10/día a amigos",
+		Description:     "300 consultas/mes acumulables + Enviar hasta 10/día a amigos",
 	},
 	"sub_pro": {
 		ID:              "sub_pro",
 		Name:            "Plan Pro",
 		PriceUSD:        1.99,
-		QueriesPerMonth: 300,
+		QueriesPerMonth: 600,
 		Tag:             "Avanzado",
-		Description:     "300 consultas/mes acumulables + Enviar hasta 10/día a amigos",
+		Description:     "600 consultas/mes acumulables + Enviar hasta 10/día a amigos",
 	},
 	"sub_ultra": {
 		ID:              "sub_ultra",
 		Name:            "Plan Ultra",
 		PriceUSD:        2.99,
-		QueriesPerMonth: 450,
+		QueriesPerMonth: 1200,
 		Tag:             "Challenger",
-		Description:     "450 consultas/mes acumulables + Enviar hasta 10/día a amigos",
+		Description:     "1.200 consultas/mes acumulables + Enviar hasta 10/día a amigos",
 	},
 }
 
@@ -254,16 +254,16 @@ func localizePack(p PackConfig, lang string) PackConfig {
 		switch p.ID {
 		case "pack_starter":
 			p.Tag = "Apenas uma vez"
-			p.Description = "50 consultas para você + 25 para presentear amigos"
+			p.Description = "100 consultas para você + 25 para presentear amigos"
 		case "pack_plus":
 			p.Tag = "Econômico"
-			p.Description = "20 consultas permanentes sem data de validade"
+			p.Description = "30 consultas permanentes sem data de validade"
 		case "pack_pro":
 			p.Tag = "Mais Popular"
-			p.Description = "50 consultas permanentes sem data de validade"
+			p.Description = "100 consultas permanentes sem data de validade"
 		case "pack_ultra":
 			p.Tag = "Melhor Valor"
-			p.Description = "100 consultas permanentes sem data de validade"
+			p.Description = "250 consultas permanentes sem data de validade"
 		case "pack_trivia_plus":
 			p.Name = "Pack Trivia Plus"
 			p.Tag = "20 Vidas"
@@ -281,16 +281,16 @@ func localizePack(p PackConfig, lang string) PackConfig {
 		switch p.ID {
 		case "pack_starter":
 			p.Tag = "One-time only"
-			p.Description = "50 queries for you + 25 bonus queries to gift friends"
+			p.Description = "100 queries for you + 25 bonus queries to gift friends"
 		case "pack_plus":
 			p.Tag = "Budget"
-			p.Description = "20 permanent queries that never expire"
+			p.Description = "30 permanent queries that never expire"
 		case "pack_pro":
 			p.Tag = "Most Popular"
-			p.Description = "50 permanent queries that never expire"
+			p.Description = "100 permanent queries that never expire"
 		case "pack_ultra":
 			p.Tag = "Best Value"
-			p.Description = "100 permanent queries that never expire"
+			p.Description = "250 permanent queries that never expire"
 		case "pack_trivia_plus":
 			p.Name = "Trivia Plus Pack"
 			p.Tag = "20 Lives"
@@ -308,16 +308,16 @@ func localizePack(p PackConfig, lang string) PackConfig {
 		switch p.ID {
 		case "pack_starter":
 			p.Tag = "Une seule fois"
-			p.Description = "50 consultations pour vous + 25 à offrir à vos amis"
+			p.Description = "100 consultations pour vous + 25 à offrir à vos amis"
 		case "pack_plus":
 			p.Tag = "Économique"
-			p.Description = "20 consultations permanentes sans date d'expiration"
+			p.Description = "30 consultations permanentes sans date d'expiration"
 		case "pack_pro":
 			p.Tag = "Plus Populaire"
-			p.Description = "50 consultations permanentes sans date d'expiration"
+			p.Description = "100 consultations permanentes sans date d'expiration"
 		case "pack_ultra":
 			p.Tag = "Meilleure Offre"
-			p.Description = "100 consultations permanentes sans date d'expiration"
+			p.Description = "250 consultations permanentes sans date d'expiration"
 		case "pack_trivia_plus":
 			p.Name = "Pack Trivia Plus"
 			p.Tag = "20 Vies"
@@ -342,45 +342,45 @@ func localizeSubscription(s SubscriptionConfig, lang string) SubscriptionConfig 
 		case "sub_plus":
 			s.Name = "Passe Plus"
 			s.Tag = "Básico Mensal"
-			s.Description = "150 consultas/mês acumuláveis + Enviar até 10/dia para amigos"
+			s.Description = "300 consultas/mês acumuláveis + Enviar até 10/dia para amigos"
 		case "sub_pro":
 			s.Name = "Passe Pro"
 			s.Tag = "Avançado"
-			s.Description = "300 consultas/mês acumuláveis + Enviar até 10/dia para amigos"
+			s.Description = "600 consultas/mês acumuláveis + Enviar até 10/dia para amigos"
 		case "sub_ultra":
 			s.Name = "Passe Ultra"
 			s.Tag = "Challenger"
-			s.Description = "450 consultas/mês acumuláveis + Enviar até 10/dia para amigos"
+			s.Description = "1.200 consultas/mês acumuláveis + Enviar até 10/dia para amigos"
 		}
 	case "en":
 		switch s.ID {
 		case "sub_plus":
 			s.Name = "Plus Pass"
 			s.Tag = "Monthly Basic"
-			s.Description = "150 stackable queries/month + Gift up to 10/day to friends"
+			s.Description = "300 stackable queries/month + Gift up to 10/day to friends"
 		case "sub_pro":
 			s.Name = "Pro Pass"
 			s.Tag = "Advanced"
-			s.Description = "300 stackable queries/month + Gift up to 10/day to friends"
+			s.Description = "600 stackable queries/month + Gift up to 10/day to friends"
 		case "sub_ultra":
 			s.Name = "Ultra Pass"
 			s.Tag = "Challenger"
-			s.Description = "450 stackable queries/month + Gift up to 10/day to friends"
+			s.Description = "1,200 stackable queries/month + Gift up to 10/day to friends"
 		}
 	case "fr":
 		switch s.ID {
 		case "sub_plus":
 			s.Name = "Passe Plus"
 			s.Tag = "Mensuel Basique"
-			s.Description = "150 consultations/mois cumulables + Offrir jusqu'à 10/jour aux amis"
+			s.Description = "300 consultations/mois cumulables + Offrir jusqu'à 10/jour aux amis"
 		case "sub_pro":
 			s.Name = "Passe Pro"
 			s.Tag = "Avancé"
-			s.Description = "300 consultations/mois cumulables + Offrir jusqu'à 10/jour aux amis"
+			s.Description = "600 consultations/mois cumulables + Offrir jusqu'à 10/jour aux amis"
 		case "sub_ultra":
 			s.Name = "Passe Ultra"
 			s.Tag = "Challenger"
-			s.Description = "450 consultations/mois cumulables + Offrir jusqu'à 10/jour aux amis"
+			s.Description = "1 200 consultations/mois cumulables + Offrir jusqu'à 10/jour aux amis"
 		}
 	}
 	return s

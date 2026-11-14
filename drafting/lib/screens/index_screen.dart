@@ -585,7 +585,7 @@ class _IndexScreenState extends State<IndexScreen> with WidgetsBindingObserver {
       onUserEarnedReward: () async {
         try {
           final response = await ApiClient.post('/api/v1/user/obtain-queries', authenticated: true);
-          int added = 3;
+          int added = 5;
 
           if (response.statusCode == 200) {
             final data = jsonDecode(response.body);
