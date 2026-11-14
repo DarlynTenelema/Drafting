@@ -753,13 +753,20 @@ class CaptureService : Service() {
                 seenChampionsInDraft.add(name)
             }
         }
+
+        // Buscar recomendaciones similares a partir de la cabecera correspondiente
+        val simSectionIndex = text.indexOfAny(listOf("Recomendaciones similares:", "Recomendações semelhantes:", "Similar recommendations:", "Recommandations similaires:"), ignoreCase = true)
+        val textToSearch = if (simSectionIndex != -1) text.substring(simSectionIndex) else text
+
         val patternSim = Regex("""•\s*([^:\n\r]+):""", RegexOption.IGNORE_CASE)
-        patternSim.findAll(text).forEach { match ->
+        patternSim.findAll(textToSearch).forEach { match ->
             val name = match.groupValues.getOrNull(1)?.trim() ?: ""
             if (name.isNotEmpty() && !seenChampionsInDraft.contains(name)) {
                 val lower = name.lowercase()
                 if (!lower.contains("hechizo") && !lower.contains("runa") && !lower.contains("plan") &&
-                    !lower.contains("spell") && !lower.contains("feitiço") && !lower.contains("sort")) {
+                    !lower.contains("spell") && !lower.contains("feitiço") && !lower.contains("sort") &&
+                    !lower.contains("sinerg") && !lower.contains("build") && !lower.contains("combo") &&
+                    !lower.contains("táctica") && !lower.contains("tactica") && !lower.contains("objeto")) {
                     seenChampionsInDraft.add(name)
                 }
             }
