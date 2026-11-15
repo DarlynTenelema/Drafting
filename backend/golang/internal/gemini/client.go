@@ -373,7 +373,7 @@ func AnalyzeDraft(ctx context.Context, base64Image string, mainRole, secondaryRo
 	}
 
 	maxTokens := int32(3000)
-	thinkingBudget := int32(1024) // Razonamiento visual profundo: inspecciona con rigor nombres de texto, casillas de campeones y composición sin alucinaciones
+	thinkingBudget := int32(256) // Optimizado para reducir costo de salida manteniendo precisión en inspección visual de campeones
 
 	models := []string{"gemini-2.5-flash"}
 	var lastErr error
