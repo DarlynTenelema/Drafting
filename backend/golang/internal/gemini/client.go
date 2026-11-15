@@ -169,7 +169,8 @@ REGRAS CRÍTICAS DE CONCISÃO (30 SEGUNDOS):
 - SUA RESPOSTA DEVE COMEÇAR DIRETA E IMEDIATAMENTE COM 'Situação:'.
 
 ESTRUTURA EXATA (OBRIGATÓRIA):
-Situação: [Diagnóstico em 1 frase curta do que o rival ameaça e o que sua equipe precisa]
+Situação: [Diagnóstico breve da partida: o que o rival ameaça e do que sua equipe precisa]
+Por que esta escolha: [Explicação clara e tática do porquê recomendamos este campeão para vencer esta partida]
 
 PLANO A: [Nome do Campeão]
 • Feitiços: [Feitiços recomendados, ex: Flash + Incendiar / Teleporte]
@@ -190,7 +191,8 @@ REGRAS CRÍTICAS DE CONCISÃO (30 SEGUNDOS):
 - SUA RESPOSTA DEVE COMEÇAR DIRETA E IMEDIATAMENTE COM 'Situação:'.
 
 ESTRUTURA EXATA (OBRIGATÓRIA):
-Situação: [Diagnóstico em 1 frase curta do que o rival ameaça e o que sua equipe precisa]
+Situação: [Diagnóstico breve da partida: o que o rival ameaça e do que sua equipe precisa]
+Por que esta escolha: [Explicação clara e tática do porquê recomendamos este campeão para vencer esta partida]
 
 PLANO A: [Nome do Campeão]
 • Feitiços: [Feitiços recomendados]
@@ -213,7 +215,8 @@ CRITICAL CONCISENESS RULES (30 SECONDS):
 - YOUR RESPONSE MUST START DIRECTLY AND IMMEDIATELY WITH 'Situation:'.
 
 EXACT STRUCTURE (MANDATORY):
-Situation: [1 short sentence diagnosing enemy threat and team needs]
+Situation: [Brief match analysis: what the enemy threatens and what your team needs]
+Why this pick: [Clear tactical explanation of why we recommend this champion to win]
 
 PLAN A: [Champion Name]
 • Spells: [Recommended summoner spells, e.g. Flash + Ignite / Teleport]
@@ -234,7 +237,8 @@ CRITICAL CONCISENESS RULES (30 SECONDS):
 - YOUR RESPONSE MUST START DIRECTLY AND IMMEDIATELY WITH 'Situation:'.
 
 EXACT STRUCTURE (MANDATORY):
-Situation: [1 short sentence diagnosing enemy threat and team needs]
+Situation: [Brief match analysis: what the enemy threatens and what your team needs]
+Why this pick: [Clear tactical explanation of why we recommend this champion to win]
 
 PLAN A: [Champion Name]
 • Spells: [Recommended summoner spells]
@@ -257,7 +261,8 @@ RÈGLES CRITIQUES DE CONCISION (30 SECONDES) :
 - TA RÉPONSE DOIT COMMENCER DIRECTEMENT ET IMMÉDIATEMENT PAR 'Situation :'.
 
 STRUCTURE EXACTE (OBLIGATOIRE) :
-Situation : [Diagnostic en 1 phrase courte de la menace adverse et des besoins de ton équipe]
+Situation : [Bref diagnostic de la partie : menaces adverses et besoins de ton équipe]
+Pourquoi ce choix : [Explication claire et tactique de la raison pour laquelle nous recommandons ce champion]
 
 PLAN A : [Nom du Champion]
 • Sorts : [Sorts d'invocateur recommandés, ex: Saut éclair + Embrasement / Téléportation]
@@ -274,11 +279,12 @@ Analyse l'écran de sélection des champions (draft) en tenant compte des rôles
 RÈGLES CRITIQUES DE CONCISION (30 SECONDES) :
 - Le joueur n'a que 30 secondes. Sois direct, tactique et concis.
 - INTERDICTION STRICTE d'écrire des introductions comme 'Analysons...', des salutations ou de lister les alliés et joueurs.
-- INTERDICTION D'UTILISER DES ASTÉRISQUES (**) OU DU MARKDOWN. Texte brut et puces (•) uniquement.
+- INTERDICTION D'UTILISER DES ASTÉRISQUES (**) OU DU MARKDOWN. Texte brut et puces (•) únicamente.
 - TA RÉPONSE DOIT COMMENCER DIRECTEMENT ET IMMÉDIATEMENT PAR 'Situation :'.
 
 STRUCTURE EXACTE (OBLIGATOIRE) :
-Situation : [Diagnostic en 1 phrase courte de la menace adverse et des besoins de ton équipe]
+Situation : [Bref diagnostic de la partie : menaces adverses et besoins de ton équipe]
+Pourquoi ce choix : [Explication claire et tactique de la raison pour laquelle nous recommandons ce champion]
 
 PLAN A : [Nom du Champion]
 • Sorts : [Sorts d'invocateur recommandés]
@@ -301,7 +307,8 @@ REGLAS CRÍTICAS DE CONCISIÓN (30 SEGUNDOS):
 - TU RESPUESTA DEBE COMENZAR DIRECTA E INMEDIATAMENTE CON LA PALABRA 'Situación:'.
 
 ESTRUCTURA EXACTA (OBLIGATORIA):
-Situación: [Diagnóstico en 1 frase corta del draft rival y qué necesita tu equipo]
+Situación: [Análisis breve de la partida: qué plantea o amenaza el rival y qué carencia o ventaja tiene tu equipo]
+Por qué este pick: [Explicación clara y táctica de por qué recomendamos a este campeón para ganar esta partida]
 
 PLAN A: [Nombre del Campeón]
 • Hechizos: [Hechizos de invocador recomendados, ej: Destello + Prender / Teleportación]
@@ -322,7 +329,8 @@ REGLAS CRÍTICAS DE CONCISIÓN (30 SEGUNDOS):
 - TU RESPUESTA DEBE COMENZAR DIRECTA E INMEDIATAMENTE CON LA PALABRA 'Situación:'.
 
 ESTRUCTURA EXACTA (OBLIGATORIA):
-Situación: [Diagnóstico en 1 frase corta del draft rival y qué necesita tu equipo]
+Situación: [Análisis breve de la partida: qué plantea o amenaza el rival y qué carencia o ventaja tiene tu equipo]
+Por qué este pick: [Explicación clara y táctica de por qué recomendamos a este campeón para ganar esta partida]
 
 PLAN A: [Nombre del Campeón]
 • Hechizos: [Hechizos recomendados]
