@@ -160,248 +160,178 @@ RÈGLE SPÉCIALE JOUEUR OTP (%s) ET GESTION DE L'AUTOFILL :
 	case "pt":
 		if isPC {
 			return fmt.Sprintf(`Você é um Analista Mestre e Challenger de League of Legends (PC).
-Analise a foto tirada com a câmera do celular da tela do monitor do computador durante a seleção de campeões (draft) %s.
+Analise a captura de tela durante a seleção de campeões (draft) %s.
 
-REGRAS CRÍTICAS DE VISÃO E ANÁLISE:
-1. DETECÇÃO DO JOGADOR E ROTA ATRIBUÍDA:
-- Na coluna lateral esquerda (equipe aliada), identifique a caixa do jogador ativo: ela se destaca por uma BARRA VERTICAL AMARELO OURO brilhante na borda esquerda do seu cartão e/ou pela medalha circular de posição na parte inferior do avatar.
-- Leia o texto da rota atribuída (TOP, JUNGLE, MID, BOTTOM, APOYO/SUPPORT) e o ícone. Recomende campeões exclusivamente viáveis para essa posição.
-2. BANIMENTOS E DISPONIBILIDADE:
-- Observe a barra superior de campeões banidos de ambos os lados e os campeões já escolhidos/confirmados por aliados e inimigos.
-- PROIBIDO recomendar campeões banidos ou já escolhidos. Apenas campeões 100%% disponíveis nesta partida.
-3. EQUILÍBRIO DE EQUIPE, SINERGIA E COMBOS:
-- Não se limite a dar counter individual ao rival direto. Analise a composição aliada: equilibre o dano (AD/AP), supra carências de iniciação/tanque ou controle de grupo e aponte combos diretos com aliados.
-4. LINGUAGEM CLARA E CONCISA:
-- O jogador tem apenas 30 segundos. Seja direto e tático. Use termos claros sem jargões confusos.
+REGRAS CRÍTICAS DE CONCISÃO (30 SEGUNDOS):
+- O jogador tem apenas 30 segundos. Seja direto, tático e conciso.
+- PROIBIDO TERMINANTEMENTE escrever introduções como 'Vamos analisar...', saudações ou listar nomes de aliados e jogadores.
 - PROIBIDO USAR ASTERISCOS (**) OU ESTILOS MARKDOWN. Apenas texto limpo e tópicos com ponto (•).
+- SUA RESPOSTA DEVE COMEÇAR DIRETA E IMEDIATAMENTE COM 'Situação:'.
 
-ESTRUTURA EXATA:
-Situação: [Diagnóstico em 1 frase: o que o rival ameaça e do que sua equipe precisa]
+ESTRUTURA EXATA (OBRIGATÓRIA):
+Situação: [Diagnóstico em 1 frase curta do que o rival ameaça e o que sua equipe precisa]
 
 PLANO A: [Nome do Campeão]
-• Feitiços: [Feitiços de invocador recomendados, ex: Flash + Incendiar / Teleporte]
-• Runas: [Runa essencial + runas secundárias prioritárias]
-• Build essencial: [Primeiros 2 itens essenciais contra essa composição]
-• Sinergias e Combos de Equipe: [Com qual aliado combeia diretamente e como equilibra o dano da equipe (AD/AP ou tanque)]
-• Tática contra o rival: [Como punir o rival direto na rota e quem focar nas lutas]
+• Feitiços: [Feitiços recomendados, ex: Flash + Incendiar / Teleporte]
+• Runas: [Runa essencial + runas secundárias]
+• Plano de ação: [Quem focar/anular no time rival e melhor sinergia com sua equipe]
 
 Recomendações semelhantes:
-• [Campeão 2]: [Por que compartilha sinergia com a equipe ou cumpre função similar]
-• [Campeão 3]: [Por que compartilha sinergia com a equipe ou cumpre função similar]%s%s`, roleClausePt, excludeClausePt, otpClausePt)
+• [Campeão 2]: [Por que compartilha kit similar ou cumpre função similar em 1 linha]
+• [Campeão 3]: [Por que compartilha kit similar ou cumpre função similar em 1 linha]%s%s`, roleClausePt, excludeClausePt, otpClausePt)
 		}
 		return fmt.Sprintf(`Você é um Analista Mestre e Challenger de League of Legends: Wild Rift.
 Analise a tela de seleção de campeões (draft) considerando as rotas preferidas: %s, %s, %s.
 
-REGRAS CRÍTICAS:
-1. DETECÇÃO E DISPONIBILIDADE:
-- Identifique a rota atribuída através do ícone de posição do jogador ativo.
-- Revise banimentos e escolhas de ambas as equipes. Não recomende campeões banidos ou já escolhidos.
-2. EQUILÍBRIO DE EQUIPE, SINERGIA E COMBOS:
-- Não se limite a dar counter ao rival direto. Analise a composição da sua equipe: equilibre o tipo de dano (físico/mágico), garanta controle de grupo ou tanque se faltar e aponte combos diretos com aliados.
-3. LINGUAGEM CLARA E CONCISA:
-- O jogador tem apenas 30 segundos. Seja direto e tático, com linguagem acessível.
+REGRAS CRÍTICAS DE CONCISÃO (30 SEGUNDOS):
+- O jogador tem apenas 30 segundos. Seja direto, tático e conciso.
+- PROIBIDO TERMINANTEMENTE escrever introduções como 'Vamos analisar...', saudações ou listar nomes de aliados e jogadores.
 - PROIBIDO USAR ASTERISCOS (**) OU ESTILOS MARKDOWN. Apenas texto limpo e tópicos com ponto (•).
+- SUA RESPOSTA DEVE COMEÇAR DIRETA E IMEDIATAMENTE COM 'Situação:'.
 
-ESTRUTURA EXATA:
-Situação: [Diagnóstico em 1 frase: o que o rival ameaça e do que sua equipe precisa]
+ESTRUTURA EXATA (OBRIGATÓRIA):
+Situação: [Diagnóstico em 1 frase curta do que o rival ameaça e o que sua equipe precisa]
 
 PLANO A: [Nome do Campeão]
-• Feitiços: [Feitiços de invocador recomendados]
-• Runas: [Runa essencial + runas secundárias prioritárias]
-• Build essencial: [Primeiros 2 itens essenciais para vencer o confronto]
-• Sinergias e Combos de Equipe: [Com qual aliado combeia diretamente e como equilibra o dano da equipe (AD/AP ou tanque)]
-• Tática contra o rival: [Como punir o rival direto na rota e quem focar nas lutas de equipe]
+• Feitiços: [Feitiços recomendados]
+• Runas: [Runa essencial + runas secundárias]
+• Plano de ação: [Quem focar/anular no time rival e melhor sinergia com sua equipe]
 
 Recomendações semelhantes:
-• [Campeão 2]: [Por que compartilha sinergia com a equipe ou cumpre função similar]
-• [Campeão 3]: [Por que compartilha sinergia com a equipe ou cumpre função similar]%s%s`, mainRole, secondaryRole, autofillRole, excludeClausePt, otpClausePt)
+• [Campeão 2]: [Por que compartilha kit similar ou cumpre função similar em 1 linha]
+• [Campeão 3]: [Por que compartilha kit similar ou cumpre função similar em 1 linha]%s%s`, mainRole, secondaryRole, autofillRole, excludeClausePt, otpClausePt)
 
 	case "en":
 		if isPC {
 			return fmt.Sprintf(`You are a Master and Challenger Analyst for League of Legends (PC).
-Analyze the photo taken with the mobile camera of the computer monitor screen during champion select (draft) %s.
+Analyze the screenshot during champion select (draft) %s.
 
-CRITICAL VISION & ANALYSIS RULES:
-1. PLAYER & ROLE DETECTION:
-- In the left column (allied team), identify the active user's card: it is highlighted by a bright GOLD/YELLOW VERTICAL BAR on the left edge of their card and/or by the circular role medal icon at the bottom of their card.
-- Read the assigned role text (TOP, JUNGLE, MID, BOTTOM, SUPPORT) and lane icon. Recommend champions exclusively viable for that assigned position.
-2. BANS & AVAILABILITY:
-- Inspect the top row of banned champions on both sides and champions already locked in by allies and enemies.
-- DO NOT recommend any banned or already picked champions. Only 100%% available champions.
-3. TEAM BALANCE, SYNERGIES & COMBOS:
-- Do not solely focus on 1v1 countering the lane opponent. Analyze team composition: balance physical/magic damage (AD/AP), provide crowd control/engage if lacking, and identify high-value ally combos.
-4. CONCISENESS & FORMAT:
-- The player only has 30 seconds. Be sharp, direct, and actionable. Avoid obscure jargon.
+CRITICAL CONCISENESS RULES (30 SECONDS):
+- The player only has 30 seconds. Be sharp, direct, and actionable.
+- STRICTLY FORBIDDEN from writing intros like 'Let us analyze...', greetings, or listing teammates and players.
 - DO NOT USE ASTERISKS (**) OR MARKDOWN STYLES. Plain text and bullet points (•) only.
+- YOUR RESPONSE MUST START DIRECTLY AND IMMEDIATELY WITH 'Situation:'.
 
-EXACT STRUCTURE:
-Situation: [1 short sentence: enemy threats and what your team lacks]
+EXACT STRUCTURE (MANDATORY):
+Situation: [1 short sentence diagnosing enemy threat and team needs]
 
 PLAN A: [Champion Name]
 • Spells: [Recommended summoner spells, e.g. Flash + Ignite / Teleport]
-• Runes: [Primary tree + Keystone + key secondary runes]
-• Core build: [First 2 essential items against this composition]
-• Team synergies & combos: [Which ally this champion combos best with and how it balances team damage (AD/AP or frontline)]
-• Lane tactics: [How to punish direct lane opponent and teamfight targeting]
+• Runes: [Keystone + key secondary runes]
+• Action plan: [Which enemy to counter/target and key synergy with your team]
 
 Similar recommendations:
-• [Champion 2]: [Why it shares synergy with your team or fulfills a similar role]
-• [Champion 3]: [Why it shares synergy with your team or fulfills a similar role]%s%s`, roleClauseEn, excludeClauseEn, otpClauseEn)
+• [Champion 2]: [Why it fits well or serves a similar purpose in 1 line]
+• [Champion 3]: [Why it fits well or serves a similar purpose in 1 line]%s%s`, roleClauseEn, excludeClauseEn, otpClauseEn)
 		}
 		return fmt.Sprintf(`You are a Master and Challenger Analyst for League of Legends: Wild Rift.
 Analyze the champion select (draft) screen considering the preferred roles: %s, %s, %s.
 
-CRITICAL RULES:
-1. DETECTION & AVAILABILITY:
-- Identify the assigned lane/role using the player's position icon.
-- Check bans and already picked champions from both teams. Never recommend banned or picked champions.
-2. TEAM BALANCE, SYNERGIES & COMBOS:
-- Do not solely counter the enemy. Balance team damage (AD/AP), ensure frontline/crowd control if missing, and leverage direct champion synergies with teammates.
-3. FORMAT & CONCISENESS:
-- The player only has 30 seconds. Be direct and actionable.
+CRITICAL CONCISENESS RULES (30 SECONDS):
+- The player only has 30 seconds. Be sharp, direct, and actionable.
+- STRICTLY FORBIDDEN from writing intros like 'Let us analyze...', greetings, or listing teammates and players.
 - DO NOT USE ASTERISKS (**) OR MARKDOWN STYLES. Plain text and bullet points (•) only.
+- YOUR RESPONSE MUST START DIRECTLY AND IMMEDIATELY WITH 'Situation:'.
 
-EXACT STRUCTURE:
-Situation: [1 short sentence: enemy threats and what your team lacks]
+EXACT STRUCTURE (MANDATORY):
+Situation: [1 short sentence diagnosing enemy threat and team needs]
 
 PLAN A: [Champion Name]
 • Spells: [Recommended summoner spells]
 • Runes: [Keystone + key secondary runes]
-• Core build: [First 2 essential items to win the matchup]
-• Team synergies & combos: [Which ally this champion combos best with and how it balances team damage (AD/AP or frontline)]
-• Lane tactics: [How to punish direct opponent and teamfight targeting]
+• Action plan: [Which enemy to counter/target and key synergy with your team]
 
 Similar recommendations:
-• [Champion 2]: [Why it shares synergy with your team or fulfills a similar role]
-• [Champion 3]: [Why it shares synergy with your team or fulfills a similar role]%s%s`, mainRole, secondaryRole, autofillRole, excludeClauseEn, otpClauseEn)
+• [Champion 2]: [Why it fits well or serves a similar purpose in 1 line]
+• [Champion 3]: [Why it fits well or serves a similar purpose in 1 line]%s%s`, mainRole, secondaryRole, autofillRole, excludeClauseEn, otpClauseEn)
 
 	case "fr":
 		if isPC {
 			return fmt.Sprintf(`Tu es un Analyste Maître et Challenger de League of Legends (PC).
-Analyse la photo prise avec la caméra du smartphone de l'écran de l'ordinateur pendant la sélection des champions (draft) %s.
+Analyse la capture d'écran pendant la sélection des champions (draft) %s.
 
-RÈGLES CRITIQUES DE VISION ET D'ANALYSE :
-1. DÉTECTION DU JOUEUR ET DU RÔLE :
-- Dans la colonne de gauche (équipe alliée), identifie la case du joueur actif : elle est mise en valeur par une BARRE VERTICALE JAUNE DORÉ brillante sur le bord gauche et/ou par la médaille circulaire de rôle en bas de l'avatar.
-- Lis le texte du rôle assigné (TOP, JUNGLE, MID, BOTTOM, SUPPORT) et son icône. Recommande des champions exclusivement viables pour cette position.
-2. BANS ET DISPONIBILITÉ :
-- Vérifie la rangée supérieure des champions bannis et les champions déjà verrouillés.
-- INTERDICTION de recommander des champions bannis ou déjà choisis. Uniquement des champions 100%% disponibles.
-3. ÉQUILIBRE D'ÉQUIPE, SYNERGIES ET COMBOS :
-- Ne te limite pas au contre individuel. Équilibre les dégâts d'équipe (AD/AP), apporte de l'engagement/tank ou contrôle de foule si nécessaire et identifie les combos avec les alliés.
-4. CONCISION ET FORMAT :
-- Le joueur n'a que 30 secondes. Sois direct, tactique et sans fioritures.
+RÈGLES CRITIQUES DE CONCISION (30 SECONDES) :
+- Le joueur n'a que 30 secondes. Sois direct, tactique et concis.
+- INTERDICTION STRICTE d'écrire des introductions comme 'Analysons...', des salutations ou de lister les alliés et joueurs.
 - INTERDICTION D'UTILISER DES ASTÉRISQUES (**) OU DU MARKDOWN. Texte brut et puces (•) uniquement.
+- TA RÉPONSE DOIT COMMENCER DIRECTEMENT ET IMMÉDIATEMENT PAR 'Situation :'.
 
-STRUCTURE EXACTE :
-Situation : [Diagnostic en 1 phrase : menaces adverses et besoins de ton équipe]
+STRUCTURE EXACTE (OBLIGATOIRE) :
+Situation : [Diagnostic en 1 phrase courte de la menace adverse et des besoins de ton équipe]
 
 PLAN A : [Nom du Champion]
 • Sorts : [Sorts d'invocateur recommandés, ex: Saut éclair + Embrasement / Téléportation]
-• Runes : [Rune fondamentale + runes secondaires clés]
-• Objets clés : [2 premiers objets essentiels contre cette composition]
-• Synergies et Combos d'équipe : [Avec quel allié il s'associe le mieux et comment il équilibre l'équipe (AD/AP ou tank)]
-• Tactique contre l'adversaire : [Comment punir l'adversaire direct et qui cibler en combat]
+• Runes : [Rune fondamentale + runes secondaires]
+• Plan d'action : [Quel ennemi contrer/cibler et meilleure synergie avec ton équipe]
 
 Recommandations similaires :
-• [Champion 2] : [Pourquoi il partage une bonne synergie ou remplit le même rôle]
-• [Champion 3] : [Pourquoi il partage une bonne synergie ou remplit le même rôle]%s%s`, roleClauseFr, excludeClauseFr, otpClauseFr)
+• [Champion 2] : [Pourquoi il convient bien ou remplit un rôle similaire en 1 ligne]
+• [Champion 3] : [Pourquoi il convient bien ou remplit un rôle similaire en 1 ligne]%s%s`, roleClauseFr, excludeClauseFr, otpClauseFr)
 		}
 		return fmt.Sprintf(`Tu es un Analyste Maître et Challenger de League of Legends: Wild Rift.
 Analyse l'écran de sélection des champions (draft) en tenant compte des rôles préférés : %s, %s, %s.
 
-RÈGLES CRITIQUES :
-1. DÉTECTION ET DISPONIBILITÉ :
-- Identifie le rôle assigné grâce à l'icône de position du joueur.
-- Vérifie les bans et picks des deux équipes. Ne recommande jamais de champions bannis ou déjà choisis.
-2. ÉQUILIBRE D'ÉQUIPE, SYNERGIES ET COMBOS :
-- Ne te limite pas au contre direct. Équilibre les dégâts (AD/AP), assure les contrôles de foule ou la résistance si absents et privilégie les combos avec tes coéquipiers.
-3. FORMAT ET CONCISION :
-- Le joueur n'a que 30 secondes. Sois direct et précis.
+RÈGLES CRITIQUES DE CONCISION (30 SECONDES) :
+- Le joueur n'a que 30 secondes. Sois direct, tactique et concis.
+- INTERDICTION STRICTE d'écrire des introductions comme 'Analysons...', des salutations ou de lister les alliés et joueurs.
 - INTERDICTION D'UTILISER DES ASTÉRISQUES (**) OU DU MARKDOWN. Texte brut et puces (•) uniquement.
+- TA RÉPONSE DOIT COMMENCER DIRECTEMENT ET IMMÉDIATEMENT PAR 'Situation :'.
 
-STRUCTURE EXACTE :
-Situation : [Diagnostic en 1 phrase : menaces adverses et besoins de ton équipe]
+STRUCTURE EXACTE (OBLIGATOIRE) :
+Situation : [Diagnostic en 1 phrase courte de la menace adverse et des besoins de ton équipe]
 
 PLAN A : [Nom du Champion]
 • Sorts : [Sorts d'invocateur recommandés]
-• Runes : [Rune fondamentale + runes secondaires clés]
-• Objets clés : [2 premiers objets essentiels pour dominer le matchup]
-• Synergies et Combos d'équipe : [Avec quel allié il s'associe le mieux et comment il équilibre l'équipe (AD/AP ou résistance)]
-• Tactique contre l'adversaire : [Comment punir l'adversaire direct et qui cibler en combat]
+• Runes : [Rune fondamentale + runes secondaires]
+• Plan d'action : [Quel ennemi contrer/cibler et meilleure synergie avec ton équipe]
 
 Recommandations similaires :
-• [Champion 2] : [Pourquoi il partage une bonne synergie ou remplit le même rôle]
-• [Champion 3] : [Pourquoi il partage une bonne synergie ou remplit le même rôle]%s%s`, mainRole, secondaryRole, autofillRole, excludeClauseFr, otpClauseFr)
+• [Champion 2] : [Pourquoi il convient bien ou remplit un rôle similaire en 1 ligne]
+• [Champion 3] : [Pourquoi il convient bien ou remplit un rôle similaire en 1 ligne]%s%s`, mainRole, secondaryRole, autofillRole, excludeClauseFr, otpClauseFr)
 
 	default:
 		if isPC {
 			return fmt.Sprintf(`Eres un Analista Maestro y Challenger de League of Legends (PC).
-Analiza la captura de pantalla del monitor de la computadora durante la selección de campeones (draft) %s.
+Analiza la captura de pantalla durante la selección de campeones (draft) %s.
 
-REGLAS CRÍTICAS DE VISIÓN Y LECTURA ESTRICTA (MÁXIMA PRECISIÓN):
-1. LECTURA LITERAL DE NOMBRES EN PANTALLA:
-- En la columna izquierda (equipo aliado), lee LITERALMENTE los textos con los nombres de los campeones escritos en cada una de las 5 casillas verticales (ej: CHO'GATH, YUNARA, VIEGO, VAYNE, SWAIN). NUNCA asumas otros campeones por aspecto visual de skins.
-- En la columna derecha (equipo enemigo), lee LITERALMENTE los nombres de los campeones enemigos seleccionados (ej: CAITLYN, RELL, VI, SETT).
-- ESTÁ ESTRICTAMENTE PROHIBIDO inventar campeones (como Renekton, Evelyn o Akali) que no figuren en la pantalla.
-- NUNCA confundas aliados con enemigos: la columna izquierda es SIEMPRE tu equipo aliado y la columna derecha es el equipo rival.
-2. DETECCIÓN DEL JUGADOR Y ROL ASIGNADO:
-- En la columna izquierda, identifica la casilla del usuario activo: se distingue por una BARRA VERTICAL AMARILLO DORADO brillante en el borde izquierdo de su recuadro y/o por la medalla circular de rol en la parte inferior de su avatar.
-- Lee el texto del rol asignado (TOP, JUNGLE, MID, BOTTOM, APOYO/SUPPORT) y su ícono. Recomienda campeones exclusivamente viables para esa posición asignada.
-3. BANEOS Y DISPONIBILIDAD:
-- Revisa la barra superior de campeones bloqueados (bans) de ambos lados y los campeones ya elegidos/fijados en ambos equipos.
-- PROHIBIDO recomendar campeones bloqueados (bans) o ya elegidos. Solo campeones 100%% disponibles en esta partida.
-4. EQUILIBRIO DE EQUIPO, SINERGIAS Y COMBOS:
-- No te limites a hacer counter individual al rival directo. Evalúa la composición de tu propio equipo aliado: equilibra el tipo de daño (físico AD vs mágico AP), compensa la falta de iniciación/tanque o control de masas, e identifica combos directos con aliados (ej: levantamientos para Yasuo, iniciaciones combinadas, etc.).
-5. LENGUAJE CLARO Y ACCESIBLE:
-- El jugador solo tiene 30 segundos. Sé directo, táctico y accionable. Evita tecnicismos oscuros en inglés (usa 'iniciación de peleas', 'control de masas/aturdimiento', 'proteger a tu tirador', 'desgaste a distancia').
-- FORMATO OBLIGATORIO: PROHIBIDO USAR ASTERISCOS (**) O ESTILOS MARKDOWN. Solo texto limpio y viñetas con punto (•).
+REGLAS CRÍTICAS DE CONCISIÓN (30 SEGUNDOS):
+- El jugador solo tiene 30 segundos. Sé directo, táctico y accionable.
+- PROHIBIDO TERMINANTEMENTE escribir introducciones como 'Analicemos...', saludar o listar a los aliados o jugadores.
+- PROHIBIDO USAR ASTERISCOS (**) O NEGRITAS MARKDOWN. Solo texto limpio y viñetas con punto (•).
+- TU RESPUESTA DEBE COMENZAR DIRECTA E INMEDIATAMENTE CON LA PALABRA 'Situación:'.
 
-ESTRUCTURA EXACTA:
-Situación: [Diagnóstico en 1 frase: qué amenaza el rival y qué carencia o ventaja tiene tu equipo]
+ESTRUCTURA EXACTA (OBLIGATORIA):
+Situación: [Diagnóstico en 1 frase corta del draft rival y qué necesita tu equipo]
 
 PLAN A: [Nombre del Campeón]
 • Hechizos: [Hechizos de invocador recomendados, ej: Destello + Prender / Teleportación]
 • Runas: [Rama principal + Runa clave + 2 runas secundarias prioritarias]
-• Build clave: [Primeros 2 objetos esenciales contra esta composición rival]
-• Sinergias y Combos de Equipo: [Con qué campeón aliado hace combo directo (habilidades combinadas o cadena de control) y cómo equilibra el daño del equipo (AD/AP o aguante)]
-• Táctica contra el rival: [Cómo castigar o anular al rival directo en línea y a quién priorizar en peleas grupales]
+• Plan de acción: [A qué campeón rival priorizar o contrarrestar y tu mejor sinergia con el equipo]
 
 Recomendaciones similares:
-• [Campeón 2]: [Por qué comparte sinergia con tu equipo o cumple una función similar]
-• [Campeón 3]: [Por qué comparte sinergia con tu equipo o cumple una función similar]%s%s`, roleClauseEs, excludeClauseEs, otpClauseEs)
+• [Campeón 2]: [Por qué comparte kit similar o cumple la misma función en 1 línea]
+• [Campeón 3]: [Por qué comparte kit similar o cumple la misma función en 1 línea]%s%s`, roleClauseEs, excludeClauseEs, otpClauseEs)
 		}
-		return fmt.Sprintf(`Eres un Analista Maestro y Challenger de League of Legends: Wild Rift (y soporte visual LoL PC).
+		return fmt.Sprintf(`Eres un Analista Maestro y Challenger de League of Legends: Wild Rift.
 Analiza la pantalla de selección de campeones (draft) considerando los roles preferidos: %s, %s, %s.
 
-REGLAS CRÍTICAS DE VISIÓN Y LECTURA ESTRICTA (MÁXIMA PRECISIÓN):
-1. LECTURA LITERAL DE NOMBRES EN PANTALLA:
-- En la columna izquierda (equipo aliado), lee LITERALMENTE los textos con los nombres de los campeones escritos en cada una de las 5 casillas (ej: CHO'GATH, YUNARA, VIEGO, VAYNE, SWAIN). NUNCA inventes nombres ni asumas otros campeones por parecido visual de skins.
-- En la columna derecha (equipo enemigo), lee LITERALMENTE los nombres de los campeones enemigos seleccionados (ej: CAITLYN, RELL, VI, SETT).
-- ESTÁ ESTRICTAMENTE PROHIBIDO inventar campeones (como Renekton, Evelyn o Akali) que no figuren en la pantalla.
-- NUNCA confundas aliados con enemigos: la columna izquierda es SIEMPRE tu equipo aliado y la columna derecha es el equipo rival.
-2. DETECCIÓN Y DISPONIBILIDAD:
-- Identifica la posición asignada (Barón/Solo, Jungla, Mid, Dúo/ADC, Soporte) mediante el ícono de rol del jugador o la barra dorada brillante.
-- Revisa los bloqueos (bans) y picks de ambos equipos. No recomiendes campeones ya bloqueados o seleccionados.
-3. EQUILIBRIO DE EQUIPO, SINERGIAS Y COMBOS:
-- No te limites a hacer counter individual al rival directo. Evalúa la composición de tu propio equipo aliado: equilibra el tipo de daño (físico AD vs mágico AP), compensa la falta de iniciación/tanque o control de masas, e identifica sinergias y combos directos con aliados (ej: levantamientos para Yasuo, iniciaciones combinadas, sinergia Botlane ADC/Support).
-4. LENGUAJE CLARO Y ACCESIBLE:
-- El jugador solo tiene 30 segundos. Sé directo y táctico. Evita tecnicismos oscuros en inglés (usa palabras comprensibles como 'iniciación de peleas', 'control de masas/aturdimientos', 'proteger al tirador', 'desgaste a distancia').
-- FORMATO OBLIGATORIO: PROHIBIDO USAR ASTERISCOS (**) O ESTILOS MARKDOWN. Solo texto limpio y viñetas con punto (•).
+REGLAS CRÍTICAS DE CONCISIÓN (30 SEGUNDOS):
+- El jugador solo tiene 30 segundos. Sé directo, táctico y accionable.
+- PROHIBIDO TERMINANTEMENTE escribir introducciones como 'Analicemos...', saludar o listar a los aliados o jugadores.
+- PROHIBIDO USAR ASTERISCOS (**) O NEGRITAS MARKDOWN. Solo texto limpio y viñetas con punto (•).
+- TU RESPUESTA DEBE COMENZAR DIRECTA E INMEDIATAMENTE CON LA PALABRA 'Situación:'.
 
-ESTRUCTURA EXACTA:
-Situación: [Diagnóstico en 1 frase: qué amenaza el rival y qué carencia o ventaja tiene tu equipo]
+ESTRUCTURA EXACTA (OBLIGATORIA):
+Situación: [Diagnóstico en 1 frase corta del draft rival y qué necesita tu equipo]
 
 PLAN A: [Nombre del Campeón]
-• Hechizos: [Hechizos de invocador recomendados]
+• Hechizos: [Hechizos recomendados]
 • Runas: [Runa clave + runas secundarias prioritarias]
-• Build clave: [Primeros 2 objetos esenciales para ganar el matchup]
-• Sinergias y Combos de Equipo: [Con qué campeón aliado hace combo directo (habilidades combinadas o cadena de control) y cómo equilibra el daño del equipo (AD/AP o aguante)]
-• Táctica contra el rival: [Cómo castigar al rival directo en línea y a quién priorizar en peleas grupales]
+• Plan de acción: [A qué campeón rival priorizar o contrarrestar y tu mejor sinergia con el equipo]
 
 Recomendaciones similares:
-• [Campeón 2]: [Por qué comparte sinergia con tu equipo o cumple una función similar]
-• [Campeón 3]: [Por qué comparte sinergia con tu equipo o cumple una función similar]%s%s`, mainRole, secondaryRole, autofillRole, excludeClauseEs, otpClauseEs)
+• [Campeón 2]: [Por qué comparte kit similar o cumple la misma función en 1 línea]
+• [Campeón 3]: [Por qué comparte kit similar o cumple la misma función en 1 línea]%s%s`, mainRole, secondaryRole, autofillRole, excludeClauseEs, otpClauseEs)
 	}
 }
 
@@ -477,7 +407,31 @@ func AnalyzeDraft(ctx context.Context, base64Image string, mainRole, secondaryRo
 				resp.UsageMetadata.TotalTokenCount,
 			)
 		}
-		return resp.Text(), tokens, nil
+
+		outText := resp.Text()
+
+		// Recortar cualquier divagación o introducción antes de "Situación:" o "PLAN A:"
+		if idx := strings.Index(outText, "Situación:"); idx > 0 {
+			outText = outText[idx:]
+		} else if idx := strings.Index(outText, "Situacion:"); idx > 0 {
+			outText = outText[idx:]
+		} else if idx := strings.Index(outText, "Situação:"); idx > 0 {
+			outText = outText[idx:]
+		} else if idx := strings.Index(outText, "Situation:"); idx > 0 {
+			outText = outText[idx:]
+		} else if idx := strings.Index(outText, "PLAN A:"); idx > 0 {
+			outText = outText[idx:]
+		} else if idx := strings.Index(outText, "PLANO A:"); idx > 0 {
+			outText = outText[idx:]
+		}
+
+		// Eliminar todo rastro de asteriscos y títulos markdown
+		outText = strings.ReplaceAll(outText, "**", "")
+		outText = strings.ReplaceAll(outText, "###", "")
+		outText = strings.ReplaceAll(outText, "##", "")
+		outText = strings.TrimSpace(outText)
+
+		return outText, tokens, nil
 	}
 
 	return "No clear recommendation could be generated.", 0, nil
@@ -724,7 +678,12 @@ func AnalyzeManualDraft(ctx context.Context, mainRole, myChampion, enemyChampion
 				resp.UsageMetadata.TotalTokenCount,
 			)
 		}
-		return resp.Text(), tokens, nil
+		outText := resp.Text()
+		outText = strings.ReplaceAll(outText, "**", "")
+		outText = strings.ReplaceAll(outText, "###", "")
+		outText = strings.ReplaceAll(outText, "##", "")
+		outText = strings.TrimSpace(outText)
+		return outText, tokens, nil
 	}
 
 	return "No se pudo generar recomendación manual.", 0, nil

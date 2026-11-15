@@ -943,14 +943,15 @@ class CaptureService : Service() {
     private fun showResultOnUI(text: String) {
         Handler(Looper.getMainLooper()).post {
             if (!::floatingView.isInitialized) return@post
-            lastRecommendationText = text
+            val cleanText = text.replace("**", "").replace("###", "").replace("##", "").trim()
+            lastRecommendationText = cleanText
             updateTtsButtonState(false)
             refreshOverlayTexts()
             adjustMessageContainerPosition()
             floatingView.findViewById<FrameLayout>(R.id.messageContainer).visibility = View.VISIBLE
             floatingView.findViewById<LinearLayout>(R.id.loadingLayout).visibility = View.GONE
             floatingView.findViewById<ScrollView>(R.id.resultScrollView).visibility = View.VISIBLE
-            floatingView.findViewById<TextView>(R.id.resultTextView).text = text
+            floatingView.findViewById<TextView>(R.id.resultTextView).text = cleanText
         }
     }
 
