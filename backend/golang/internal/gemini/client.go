@@ -337,18 +337,23 @@ Recommandations similaires :
 	default:
 		if isPC {
 			return fmt.Sprintf(`Eres un Analista Maestro y Challenger de League of Legends (PC).
-Analiza la fotografía tomada con la cámara del celular a la pantalla del monitor de la computadora durante la selección de campeones (draft) %s.
+Analiza la captura de pantalla del monitor de la computadora durante la selección de campeones (draft) %s.
 
-REGLAS CRÍTICAS DE VISIÓN Y ANÁLISIS:
-1. DETECCIÓN DEL JUGADOR Y ROL ASIGNADO:
-- En la columna izquierda (equipo aliado), identifica la casilla del usuario activo: se distingue por una BARRA VERTICAL AMARILLO DORADO brillante en el borde izquierdo de su recuadro y/o por la medalla circular de rol en la parte inferior de su avatar.
+REGLAS CRÍTICAS DE VISIÓN Y LECTURA ESTRICTA (MÁXIMA PRECISIÓN):
+1. LECTURA LITERAL DE NOMBRES EN PANTALLA:
+- En la columna izquierda (equipo aliado), lee LITERALMENTE los textos con los nombres de los campeones escritos en cada una de las 5 casillas verticales (ej: CHO'GATH, YUNARA, VIEGO, VAYNE, SWAIN). NUNCA asumas otros campeones por aspecto visual de skins.
+- En la columna derecha (equipo enemigo), lee LITERALMENTE los nombres de los campeones enemigos seleccionados (ej: CAITLYN, RELL, VI, SETT).
+- ESTÁ ESTRICTAMENTE PROHIBIDO inventar campeones (como Renekton, Evelyn o Akali) que no figuren en la pantalla.
+- NUNCA confundas aliados con enemigos: la columna izquierda es SIEMPRE tu equipo aliado y la columna derecha es el equipo rival.
+2. DETECCIÓN DEL JUGADOR Y ROL ASIGNADO:
+- En la columna izquierda, identifica la casilla del usuario activo: se distingue por una BARRA VERTICAL AMARILLO DORADO brillante en el borde izquierdo de su recuadro y/o por la medalla circular de rol en la parte inferior de su avatar.
 - Lee el texto del rol asignado (TOP, JUNGLE, MID, BOTTOM, APOYO/SUPPORT) y su ícono. Recomienda campeones exclusivamente viables para esa posición asignada.
-2. BANEOS Y DISPONIBILIDAD:
+3. BANEOS Y DISPONIBILIDAD:
 - Revisa la barra superior de campeones bloqueados (bans) de ambos lados y los campeones ya elegidos/fijados en ambos equipos.
 - PROHIBIDO recomendar campeones bloqueados (bans) o ya elegidos. Solo campeones 100%% disponibles en esta partida.
-3. EQUILIBRIO DE EQUIPO, SINERGIAS Y COMBOS:
+4. EQUILIBRIO DE EQUIPO, SINERGIAS Y COMBOS:
 - No te limites a hacer counter individual al rival directo. Evalúa la composición de tu propio equipo aliado: equilibra el tipo de daño (físico AD vs mágico AP), compensa la falta de iniciación/tanque o control de masas, e identifica combos directos con aliados (ej: levantamientos para Yasuo, iniciaciones combinadas, etc.).
-4. LENGUAJE CLARO Y ACCESIBLE:
+5. LENGUAJE CLARO Y ACCESIBLE:
 - El jugador solo tiene 30 segundos. Sé directo, táctico y accionable. Evita tecnicismos oscuros en inglés (usa 'iniciación de peleas', 'control de masas/aturdimiento', 'proteger a tu tirador', 'desgaste a distancia').
 - FORMATO OBLIGATORIO: PROHIBIDO USAR ASTERISCOS (**) O ESTILOS MARKDOWN. Solo texto limpio y viñetas con punto (•).
 
@@ -366,16 +371,21 @@ Recomendaciones similares:
 • [Campeón 2]: [Por qué comparte sinergia con tu equipo o cumple una función similar]
 • [Campeón 3]: [Por qué comparte sinergia con tu equipo o cumple una función similar]%s%s`, roleClauseEs, excludeClauseEs, otpClauseEs)
 		}
-		return fmt.Sprintf(`Eres un Analista Maestro y Challenger de League of Legends: Wild Rift.
+		return fmt.Sprintf(`Eres un Analista Maestro y Challenger de League of Legends: Wild Rift (y soporte visual LoL PC).
 Analiza la pantalla de selección de campeones (draft) considerando los roles preferidos: %s, %s, %s.
 
-REGLAS CRÍTICAS:
-1. DETECCIÓN Y DISPONIBILIDAD:
-- Identifica la posición asignada (Barón/Solo, Jungla, Mid, Dúo/ADC, Soporte) mediante el ícono de rol del jugador.
+REGLAS CRÍTICAS DE VISIÓN Y LECTURA ESTRICTA (MÁXIMA PRECISIÓN):
+1. LECTURA LITERAL DE NOMBRES EN PANTALLA:
+- En la columna izquierda (equipo aliado), lee LITERALMENTE los textos con los nombres de los campeones escritos en cada una de las 5 casillas (ej: CHO'GATH, YUNARA, VIEGO, VAYNE, SWAIN). NUNCA inventes nombres ni asumas otros campeones por parecido visual de skins.
+- En la columna derecha (equipo enemigo), lee LITERALMENTE los nombres de los campeones enemigos seleccionados (ej: CAITLYN, RELL, VI, SETT).
+- ESTÁ ESTRICTAMENTE PROHIBIDO inventar campeones (como Renekton, Evelyn o Akali) que no figuren en la pantalla.
+- NUNCA confundas aliados con enemigos: la columna izquierda es SIEMPRE tu equipo aliado y la columna derecha es el equipo rival.
+2. DETECCIÓN Y DISPONIBILIDAD:
+- Identifica la posición asignada (Barón/Solo, Jungla, Mid, Dúo/ADC, Soporte) mediante el ícono de rol del jugador o la barra dorada brillante.
 - Revisa los bloqueos (bans) y picks de ambos equipos. No recomiendes campeones ya bloqueados o seleccionados.
-2. EQUILIBRIO DE EQUIPO, SINERGIAS Y COMBOS:
+3. EQUILIBRIO DE EQUIPO, SINERGIAS Y COMBOS:
 - No te limites a hacer counter individual al rival directo. Evalúa la composición de tu propio equipo aliado: equilibra el tipo de daño (físico AD vs mágico AP), compensa la falta de iniciación/tanque o control de masas, e identifica sinergias y combos directos con aliados (ej: levantamientos para Yasuo, iniciaciones combinadas, sinergia Botlane ADC/Support).
-3. LENGUAJE CLARO Y ACCESIBLE:
+4. LENGUAJE CLARO Y ACCESIBLE:
 - El jugador solo tiene 30 segundos. Sé directo y táctico. Evita tecnicismos oscuros en inglés (usa palabras comprensibles como 'iniciación de peleas', 'control de masas/aturdimientos', 'proteger al tirador', 'desgaste a distancia').
 - FORMATO OBLIGATORIO: PROHIBIDO USAR ASTERISCOS (**) O ESTILOS MARKDOWN. Solo texto limpio y viñetas con punto (•).
 
@@ -424,8 +434,8 @@ func AnalyzeDraft(ctx context.Context, base64Image string, mainRole, secondaryRo
 		},
 	}
 
-	maxTokens := int32(2500)
-	thinkingBudget := int32(0) // Desactiva tokens de razonamiento interno: respuesta ultra rápida (1-2s), sin consumir tokens ocultos y sin truncar
+	maxTokens := int32(3000)
+	thinkingBudget := int32(1024) // Razonamiento visual profundo: inspecciona con rigor nombres de texto, casillas de campeones y composición sin alucinaciones
 
 	models := []string{"gemini-2.5-flash"}
 	var lastErr error

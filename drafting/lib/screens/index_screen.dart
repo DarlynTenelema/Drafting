@@ -123,6 +123,7 @@ class _IndexScreenState extends State<IndexScreen> with WidgetsBindingObserver {
         _userEmail = prefs.getString('user_email');
         _selectedMainRole = prefs.getString('selected_main_role') ?? 'Mid';
         _selectedOtpChampion = prefs.getString('selected_otp_champion') ?? '';
+        _selectedGameMode = prefs.getString('game_mode') ?? 'wild_rift';
       });
     }
   }
@@ -906,6 +907,7 @@ class _IndexScreenState extends State<IndexScreen> with WidgetsBindingObserver {
         otpChampions: _selectedOtpChampion,
         activeCreatorId: "",
         language: lang.currentLanguage,
+        gameMode: _selectedGameMode,
       );
 
       if (started) {
@@ -1686,6 +1688,7 @@ class _IndexScreenState extends State<IndexScreen> with WidgetsBindingObserver {
                         onTap: () {
                           HapticFeedback.selectionClick();
                           setState(() => _selectedGameMode = 'wild_rift');
+                          SharedPreferences.getInstance().then((p) => p.setString('game_mode', 'wild_rift'));
                         },
                         borderRadius: BorderRadius.circular(18),
                         child: AnimatedContainer(
@@ -1732,6 +1735,7 @@ class _IndexScreenState extends State<IndexScreen> with WidgetsBindingObserver {
                         onTap: () {
                           HapticFeedback.selectionClick();
                           setState(() => _selectedGameMode = 'lol_pc');
+                          SharedPreferences.getInstance().then((p) => p.setString('game_mode', 'lol_pc'));
                         },
                         borderRadius: BorderRadius.circular(18),
                         child: AnimatedContainer(

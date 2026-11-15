@@ -22,6 +22,7 @@ class NativeService {
     required String otpChampions,
     required String? activeCreatorId,
     String language = 'es',
+    String gameMode = 'wild_rift',
   }) async {
     try {
       final bool result = await _channel.invokeMethod('startService', {
@@ -35,6 +36,7 @@ class NativeService {
         'otpChampions': otpChampions,
         'activeCreatorId': activeCreatorId ?? '',
         'language': language,
+        'gameMode': gameMode,
       });
       return result;
     } on PlatformException catch (e) {

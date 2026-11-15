@@ -79,6 +79,7 @@ class MainActivity : FlutterActivity() {
     private var pendingOtpChampions: String? = ""
     private var pendingActiveCreatorId: String? = ""
     private var pendingLanguage: String? = "es"
+    private var pendingGameMode: String? = "wild_rift"
     private var awaitingOverlayPermission: Boolean = false
 
     private val resultReceiver = object : BroadcastReceiver() {
@@ -207,8 +208,10 @@ class MainActivity : FlutterActivity() {
                 pendingOtpChampions = call.argument("otpChampions") ?: ""
                 pendingActiveCreatorId = call.argument("activeCreatorId") ?: ""
                 pendingLanguage = call.argument("language") ?: "es"
+                pendingGameMode = call.argument("gameMode") ?: "wild_rift"
                 getSharedPreferences("drafting_prefs", Context.MODE_PRIVATE).edit()
                     .putString("language", pendingLanguage?.lowercase()?.take(2) ?: "es")
+                    .putString("game_mode", pendingGameMode?.lowercase() ?: "wild_rift")
                     .apply()
 
                 if (!Settings.canDrawOverlays(this)) {
@@ -604,6 +607,7 @@ class MainActivity : FlutterActivity() {
                 serviceIntent.putExtra("otpChampions", pendingOtpChampions)
                 serviceIntent.putExtra("activeCreatorId", pendingActiveCreatorId)
                 serviceIntent.putExtra("language", pendingLanguage)
+                serviceIntent.putExtra("gameMode", pendingGameMode)
 
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                     startForegroundService(serviceIntent)

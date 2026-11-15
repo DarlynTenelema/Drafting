@@ -64,6 +64,7 @@ class CaptureService : Service() {
     private var mainRole: String? = null
     private var secondaryRole: String? = null
     private var autofillRole: String? = null
+    private var gameMode: String = "wild_rift"
     private var isPremium: Boolean = false
     private var planTier: String = "plus"
     private var otpChampions: String = ""
@@ -237,6 +238,13 @@ class CaptureService : Service() {
         planTier = intent.getStringExtra("planTier") ?: "plus"
         otpChampions = intent.getStringExtra("otpChampions") ?: ""
         activeCreatorId = intent.getStringExtra("activeCreatorId")
+        val incomingGameMode = intent.getStringExtra("gameMode")
+        if (!incomingGameMode.isNullOrBlank()) {
+            gameMode = incomingGameMode.lowercase()
+            getSharedPreferences("drafting_prefs", Context.MODE_PRIVATE).edit().putString("game_mode", gameMode).apply()
+        } else {
+            gameMode = getSharedPreferences("drafting_prefs", Context.MODE_PRIVATE).getString("game_mode", "wild_rift") ?: "wild_rift"
+        }
         val incomingLang = intent.getStringExtra("language")
         if (!incomingLang.isNullOrBlank()) {
             language = incomingLang.lowercase().take(2)
@@ -674,18 +682,12 @@ class CaptureService : Service() {
     }
 
     private fun captureScreenAndSend(queryType: String, retryCount: Int = 0) {
-        // Show Loading State
-        if (retryCount == 0) {
-            Handler(Looper.getMainLooper()).post {
-                refreshOverlayTexts()
-                adjustMessageContainerPosition()
-                floatingView.findViewById<FrameLayout>(R.id.messageContainer).visibility = View.VISIBLE
-                floatingView.findViewById<LinearLayout>(R.id.loadingLayout).visibility = View.VISIBLE
-                floatingView.findViewById<ScrollView>(R.id.resultScrollView).visibility = View.GONE
-            }
-        }
-
         try {
+            // Asegurar que el mensaje anterior no tape los campeones del centro de la pantalla durante la captura
+            if (::floatingView.isInitialized && retryCount == 0) {
+                floatingView.findViewById<FrameLayout>(R.id.messageContainer)?.visibility = View.GONE
+            }
+
             val image = imageReader?.acquireLatestImage()
 
             if (image == null) {
@@ -695,6 +697,15 @@ class CaptureService : Service() {
                 }
                 notifyCaptureError("No image available from screen capture.")
                 return
+            }
+
+            // Con la captura tomada limpia y nítida, desplegar el indicador de carga
+            Handler(Looper.getMainLooper()).post {
+                refreshOverlayTexts()
+                adjustMessageContainerPosition()
+                floatingView.findViewById<FrameLayout>(R.id.messageContainer).visibility = View.VISIBLE
+                floatingView.findViewById<LinearLayout>(R.id.loadingLayout).visibility = View.VISIBLE
+                floatingView.findViewById<ScrollView>(R.id.resultScrollView).visibility = View.GONE
             }
 
         val planes = image.planes
@@ -722,8 +733,8 @@ class CaptureService : Service() {
         // Remove padding to get exact screen bounds
         val croppedBitmap = Bitmap.createBitmap(bitmap, 0, 0, imgWidth, imgHeight)
         
-        // Escalar proporcionalmente si supera 1600px para mantener textos nítidos sin enviar 8-10MB por red móvil
-        val maxDimension = 1600
+        // Mantener ultra-alta resolución hasta 2400px (más del 50% de nitidez adicional) preservando resolución nativa 1080p y 2K
+        val maxDimension = 2400
         val largestSide = maxOf(imgWidth, imgHeight)
         val finalBitmap = if (largestSide > maxDimension) {
             val scale = maxDimension.toFloat() / largestSide.toFloat()
@@ -734,9 +745,9 @@ class CaptureService : Service() {
             croppedBitmap
         }
 
-        // Comprimir con alta nitidez (84%) reduciendo el peso un 90% para evitar timeouts
+        // Comprimir con máxima fidelidad visual (96%) para preservar nitidez cristalina en textos de campeones y runas
         val stream = ByteArrayOutputStream()
-        finalBitmap.compress(Bitmap.CompressFormat.JPEG, 84, stream)
+        finalBitmap.compress(Bitmap.CompressFormat.JPEG, 96, stream)
         val byteArray = stream.toByteArray()
         val base64Image = Base64.encodeToString(byteArray, Base64.NO_WRAP)
         
@@ -855,6 +866,7 @@ class CaptureService : Service() {
                         put("autofill_role", autofillRole)
                         put("query_type", queryType)
                         put("otp_champions", otpChampions)
+                        put("game_mode", gameMode)
                         put("language", currentLang)
                         if (excludeChampions.isNotBlank()) {
                             put("exclude_champions", excludeChampions)
@@ -1077,69 +1089,26 @@ class CaptureService : Service() {
         } catch (_: Exception) {}
     }
 
-    private fun extractTacticalSpeech(fullText: String): String {
+    private fun cleanTextForSpeech(fullText: String): String {
         if (fullText.isBlank()) return ""
-        val lang = getCurrentLang()
 
-        // 1. Extraer Campeón PLAN A
-        val planAPattern = Regex("""(?i)(?:PLAN\s*A|PLANO\s*A)\s*:\s*([^\n\r•]+)""")
-        val champMatch = planAPattern.find(fullText)
-        val champion = champMatch?.groupValues?.get(1)?.trim()
+        // 1. Limpiar asteriscos y negritas de markdown
+        var clean = fullText.replace("*", "")
 
-        // 2. Extraer táctica clave / combo / plan de acción
-        val tacticPattern = Regex("""(?i)(?:•\s*(?:Tática|Táctica|Plan de acción|Tactics|Tactique|Sinergias|Sinergia|Synergies)[^\n\r:]*:\s*)([^\n\r]+)""")
-        val tacticMatch = tacticPattern.find(fullText)
-        val rawTactic = tacticMatch?.groupValues?.get(1)?.trim() ?: ""
-        val tactic = rawTactic.replace("*", "").take(130)
+        // 2. Limpiar encabezados markdown (### Título)
+        clean = clean.replace(Regex("""(?m)^#+\s*"""), "")
 
-        // 3. Extraer alternativas de 'Recomendaciones similares'
-        val similarSection = if (fullText.contains("Recomenda", ignoreCase = true)) {
-            fullText.substring(fullText.indexOf("Recomenda", ignoreCase = true))
-        } else if (fullText.contains("Similar", ignoreCase = true)) {
-            fullText.substring(fullText.indexOf("Similar", ignoreCase = true))
-        } else ""
+        // 3. Limpiar viñetas al inicio de línea (•, -, +) para pausas suaves
+        clean = clean.replace(Regex("""(?m)^\s*[•\-\+]\s*"""), "")
 
-        val altChamps = mutableListOf<String>()
-        if (similarSection.isNotEmpty()) {
-            val bulletPattern = Regex("""•\s*([A-Za-z0-9' ]+)\s*:""")
-            bulletPattern.findAll(similarSection).take(2).forEach {
-                val name = it.groupValues[1].replace("*", "").trim()
-                if (name.isNotEmpty() && !altChamps.contains(name)) {
-                    altChamps.add(name)
-                }
-            }
-        }
+        // 4. Convertir dos puntos en pausa de puntuación natural
+        clean = clean.replace(":", ". ")
 
-        val sb = StringBuilder()
-        when (lang) {
-            "pt" -> {
-                if (!champion.isNullOrEmpty()) sb.append("Recomendado: $champion. ")
-                if (tactic.isNotEmpty()) sb.append("$tactic. ")
-                if (altChamps.isNotEmpty()) sb.append("Alternativas: ${altChamps.joinToString(" ou ")}.")
-            }
-            "en" -> {
-                if (!champion.isNullOrEmpty()) sb.append("Recommended: $champion. ")
-                if (tactic.isNotEmpty()) sb.append("$tactic. ")
-                if (altChamps.isNotEmpty()) sb.append("Alternatives: ${altChamps.joinToString(" or ")}.")
-            }
-            "fr" -> {
-                if (!champion.isNullOrEmpty()) sb.append("Recommandé : $champion. ")
-                if (tactic.isNotEmpty()) sb.append("$tactic. ")
-                if (altChamps.isNotEmpty()) sb.append("Alternatives : ${altChamps.joinToString(" ou ")}.")
-            }
-            else -> { // "es"
-                if (!champion.isNullOrEmpty()) sb.append("Recomendado: $champion. ")
-                if (tactic.isNotEmpty()) sb.append("$tactic. ")
-                if (altChamps.isNotEmpty()) sb.append("Alternativas: ${altChamps.joinToString(" o ")}.")
-            }
-        }
+        // 5. Normalizar saltos de línea y compactar espacios
+        clean = clean.replace(Regex("""\n+"""), ". ")
+        clean = clean.replace(Regex("""\s+"""), " ").trim()
 
-        val result = sb.toString().trim()
-        if (result.length > 15) {
-            return result
-        }
-
-        return fullText.replace("*", "").replace("#", "").trim().take(180)
+        return clean
     }
 
     private fun toggleTts() {
@@ -1178,13 +1147,30 @@ class CaptureService : Service() {
         }
 
         applyTtsLanguage()
-        val speechText = extractTacticalSpeech(text)
+        val speechText = cleanTextForSpeech(text)
         if (speechText.isBlank()) return
 
         val params = android.os.Bundle()
         params.putString(TextToSpeech.Engine.KEY_PARAM_UTTERANCE_ID, "drafting_callout")
-        val res = tts?.speak(speechText, TextToSpeech.QUEUE_FLUSH, params, "drafting_callout")
-        if (res == TextToSpeech.SUCCESS) {
+
+        // Asegurar que lea todo el texto completo sin límite de caracteres
+        val maxChunk = 3500
+        if (speechText.length <= maxChunk) {
+            val res = tts?.speak(speechText, TextToSpeech.QUEUE_FLUSH, params, "drafting_callout")
+            if (res == TextToSpeech.SUCCESS) {
+                isTtsSpeaking = true
+                updateTtsButtonState(true)
+            }
+        } else {
+            val sentences = speechText.split(". ")
+            var first = true
+            for (sentence in sentences) {
+                val chunk = sentence.trim()
+                if (chunk.isEmpty()) continue
+                val mode = if (first) TextToSpeech.QUEUE_FLUSH else TextToSpeech.QUEUE_ADD
+                tts?.speak(chunk + ".", mode, params, "drafting_callout")
+                first = false
+            }
             isTtsSpeaking = true
             updateTtsButtonState(true)
         }
