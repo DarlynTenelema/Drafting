@@ -733,8 +733,8 @@ class CaptureService : Service() {
         // Remove padding to get exact screen bounds
         val croppedBitmap = Bitmap.createBitmap(bitmap, 0, 0, imgWidth, imgHeight)
         
-        // Mantener ultra-alta resolución hasta 2400px (más del 50% de nitidez adicional) preservando resolución nativa 1080p y 2K
-        val maxDimension = 2400
+        // Optimizado a 1280px para máxima velocidad de subida y mínimo consumo de tokens en Gemini (258 tokens) manteniendo 100% legibles textos y campeones
+        val maxDimension = 1280
         val largestSide = maxOf(imgWidth, imgHeight)
         val finalBitmap = if (largestSide > maxDimension) {
             val scale = maxDimension.toFloat() / largestSide.toFloat()
@@ -745,9 +745,9 @@ class CaptureService : Service() {
             croppedBitmap
         }
 
-        // Comprimir con máxima fidelidad visual (96%) para preservar nitidez cristalina en textos de campeones y runas
+        // Comprimir con calidad 80% (equilibrio óptimo entre nitidez visual de draft y peso ligero)
         val stream = ByteArrayOutputStream()
-        finalBitmap.compress(Bitmap.CompressFormat.JPEG, 96, stream)
+        finalBitmap.compress(Bitmap.CompressFormat.JPEG, 80, stream)
         val byteArray = stream.toByteArray()
         val base64Image = Base64.encodeToString(byteArray, Base64.NO_WRAP)
         

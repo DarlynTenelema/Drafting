@@ -372,8 +372,8 @@ func AnalyzeDraft(ctx context.Context, base64Image string, mainRole, secondaryRo
 		},
 	}
 
-	maxTokens := int32(3000)
-	thinkingBudget := int32(256) // Optimizado para reducir costo de salida manteniendo precisión en inspección visual de campeones
+	maxTokens := int32(2000)
+	thinkingBudget := int32(0) // Desactivado (0 tokens): respuesta inmediata en 1-2s y 0 costo de tokens ocultos de razonamiento
 
 	models := []string{"gemini-2.5-flash"}
 	var lastErr error
