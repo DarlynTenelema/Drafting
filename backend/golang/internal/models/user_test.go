@@ -54,25 +54,34 @@ func TestUserQueryAccounting(t *testing.T) {
 		t.Errorf("Expected AvailableQueries to be 10 (5 bonus + 5 ad), got %d", user.AvailableQueries)
 	}
 
-	// 4. Daily Refresh should hard cap at 3 (never stack beyond 3)
+	// 4. Si el usuario tiene >= 3 consultas totales (aquí tiene 10), RefreshDailyQueries NO regala consultas gratuitas
 	refreshed := user.RefreshDailyQueries("2026-10-25")
-	if !refreshed {
-		t.Errorf("Expected RefreshDailyQueries to return true on new date")
+	if refreshed {
+		t.Errorf("Expected RefreshDailyQueries to return false when user already has >= 3 queries")
 	}
-	if user.DailyQueries != 3 {
-		t.Errorf("Expected DailyQueries to be strictly 3, got %d", user.DailyQueries)
-	}
-	if user.AvailableQueries != 13 {
-		t.Errorf("Expected AvailableQueries to be 13 (3 daily + 5 bonus + 5 ad), got %d", user.AvailableQueries)
+	if user.AvailableQueries != 10 {
+		t.Errorf("Expected AvailableQueries to remain 10, got %d", user.AvailableQueries)
 	}
 
-	// 5. Calling Refresh again on same day should do nothing
-	refreshedAgain := user.RefreshDailyQueries("2026-10-25")
+	// 5. Consumir hasta dejarle solo 1 consulta disponible y verificar que al día siguiente le regala exactamente 2 para completar 3
+	for i := 0; i < 9; i++ {
+		user.ConsumeQuery()
+	}
+	if user.AvailableQueries != 1 {
+		t.Fatalf("Expected AvailableQueries to be 1, got %d", user.AvailableQueries)
+	}
+	refreshedLow := user.RefreshDailyQueries("2026-10-26")
+	if !refreshedLow {
+		t.Errorf("Expected RefreshDailyQueries to return true when AvailableQueries < 3 on new day")
+	}
+	if user.AvailableQueries != 3 {
+		t.Errorf("Expected AvailableQueries to top up to strictly 3, got %d", user.AvailableQueries)
+	}
+
+	// 6. Calling Refresh again on same day should do nothing
+	refreshedAgain := user.RefreshDailyQueries("2026-10-26")
 	if refreshedAgain {
 		t.Errorf("Expected RefreshDailyQueries to return false on same date")
-	}
-	if user.DailyQueries != 3 {
-		t.Errorf("Expected DailyQueries to remain 3, got %d", user.DailyQueries)
 	}
 }
 

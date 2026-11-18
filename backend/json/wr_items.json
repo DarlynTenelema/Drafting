@@ -1,0 +1,252 @@
+{
+  "game": "League of Legends: Wild Rift",
+  "version": "2027.1",
+  "item_system_rules": "REGLA CRÍTICA DE OBJETOS Y BOTAS EN WILD RIFT ACTUAL: 1) Los objetos activos como Reloj de arena de Zhonya (3300g), Cintomisil hextech (2650g), Cimitarra mercurial (3100g), Cortasendas (3100g), Viento huracanado (3100g), Redención (2450g), Medallón de los Solari de Hierro (2500g), Protector pétreo de gárgola (2900g) y Canción de batalla de Shurelya (2500g) ahora son OBJETOS COMPLETOS en la tienda (y tienen componentes activos como Fajín de mercurio 1100g y Brazalete de la buscadora 1400g), NO son encantamientos de botas. 2) Las botas de nivel medio (1000-1200g) evolucionan en Botas Mejoradas de Nivel 3 (2000-2200g): Botas inmortales, Lucidez carmesí, Grebas de metal, Trituradoras encadenadas, Avance blindado, Botas del lanzahechizos y Botas quebrantarmaduras. 3) PROHIBIDO recomendar objetos exclusivos de LoL PC que no estén en este archivo.",
+  "categories": {
+    "Luchador": {
+      "mejoradas": [
+        {"name": "Mecanoespada punki", "cost": 2800, "effect": "Reduce la curación enemiga (Heridas Graves físicas)."},
+        {"name": "Manamune", "cost": 2900, "effect": "Convierte el maná en daño de ataque y evoluciona a Muramana."},
+        {"name": "Eclipse", "cost": 2900, "effect": "Otorga un escudo e inflige daño físico adicional por vida máxima tras golpear con 2 ataques o habilidades."},
+        {"name": "Firmamento desgarrado", "cost": 2900, "effect": "Potencia el primer ataque contra un campeón para asestar crítico y curarte."},
+        {"name": "Experimento de hexarmadura", "cost": 3000, "effect": "Otorga velocidad de habilidad para la definitiva, y velocidad de ataque y movimiento al lanzarla."},
+        {"name": "Fauces de Malmortius", "cost": 3000, "effect": "Otorga un escudo contra daño mágico al recibir daño o en combate."},
+        {"name": "Cuchilla negra", "cost": 3000, "effect": "El daño físico reduce la armadura del enemigo y otorga velocidad de movimiento."},
+        {"name": "Hidra titánica", "cost": 3000, "effect": "Inflige daño físico adicional en cono/área según tu vida máxima."},
+        {"name": "Cortasendas", "cost": 3100, "active": true, "effect": "Activa: Ralentiza a los enemigos cercanos y daña en área tras un breve deslizamiento."},
+        {"name": "Chupasangre", "cost": 3100, "active": true, "effect": "Inflige daño en área alrededor tuyo y restaura vida según los campeones golpeados."},
+        {"name": "Cimitarra mercurial", "cost": 3100, "active": true, "effect": "Activa: Disipa inmediatamente todos los efectos de control de adversario (CC)."},
+        {"name": "Hoja del rey arruinado", "cost": 3100, "effect": "Los ataques infligen daño adicional por vida actual del enemigo y roban velocidad de movimiento."},
+        {"name": "Rencor de Serylda", "cost": 3100, "effect": "Penetración de armadura porcentual y tus habilidades ralentizan a los enemigos."},
+        {"name": "Lanza de Shojin", "cost": 3100, "effect": "Otorga velocidad de habilidades básicas y bonificaciones de daño y movimiento."},
+        {"name": "Rompecascos", "cost": 3100, "effect": "Potencia el avance en paralelo (split-push), otorgando resistencias y daño a estructuras junto a súbditos."},
+        {"name": "Sangría del soberano", "cost": 3200, "effect": "Obtienes gran daño de ataque adicional según tu vida adicional y al perder vida."},
+        {"name": "Ángel de la guarda", "cost": 3200, "effect": "Revive tras morir restaurando vida y maná."},
+        {"name": "Sanguinaria", "cost": 3200, "effect": "Otorga robo de vida crítico y la curación excedente se convierte en un escudo."},
+        {"name": "Calibrador de Sterak", "cost": 3200, "effect": "Otorga AD base porcentual y al recibir daño fuerte activa un gran escudo con tenacidad."},
+        {"name": "Desgarrador divino", "cost": 3300, "effect": "Tras usar una habilidad, tu siguiente ataque inflige daño por vida máxima del enemigo y te cura (ideal anti-tanques)."},
+        {"name": "Baile de la muerte", "cost": 3300, "effect": "Retrasa un porcentaje del daño recibido como sangrado y limpia dicho daño al conseguir una eliminación."},
+        {"name": "Fuerza de trinidad", "cost": 3333, "effect": "Objeto equilibrado de ataque, velocidad y Hoja encantada para duelos y derribo de torretas."}
+      ],
+      "nivel_medio": [
+        {"name": "Pico", "cost": 800, "effect": "+20 Daño de ataque"},
+        {"name": "Brillo", "cost": 800, "effect": "Los ataques infligen daño adicional después de utilizar habilidades."},
+        {"name": "Llamada del verdugo", "cost": 800, "effect": "El daño físico reduce la curación enemiga (corta-curas temprano)."},
+        {"name": "Bacteriófago", "cost": 1000, "effect": "Los ataques aumentan la velocidad de movimiento."},
+        {"name": "Fajín de mercurio", "cost": 1100, "active": true, "effect": "Activa: Disipa el control de adversario."},
+        {"name": "Hacha hogareña", "cost": 1200, "effect": "+20 Daño de ataque y +15% Velocidad de ataque."},
+        {"name": "Cetro vampírico", "cost": 1200, "effect": "+20 Daño de ataque y +8% Robo de vida."},
+        {"name": "Últimas palabras", "cost": 1200, "effect": "Penetración de armadura (%)."},
+        {"name": "Sorbemaleficios", "cost": 1200, "effect": "+20 Daño de ataque, +20 Resistencia mágica y escudo mágico menor."},
+        {"name": "Martillo de guerra de Caulfield", "cost": 1200, "effect": "+25 Daño de ataque y +10 Velocidad de habilidades."}
+      ]
+    },
+    "Asesino": {
+      "mejoradas": [
+        {"name": "Colmillo de serpiente", "cost": 2800, "effect": "Antiescudos: reduce drásticamente los escudos actuales y futuros del enemigo."},
+        {"name": "Filo fantasmal de Youmuu", "cost": 2900, "effect": "Aumenta la velocidad de movimiento fuera de combate y otorga velocidad de ataque al atacar."},
+        {"name": "Manamune", "cost": 2900, "effect": "Convierte el maná en daño de ataque."},
+        {"name": "Filoscuro de Draktharr", "cost": 3000, "effect": "Tu primer ataque contra un campeón inflige daño físico adicional y ralentiza."},
+        {"name": "Fauces de Malmortius", "cost": 3000, "effect": "Otorga un escudo de daño mágico al recibir daño."},
+        {"name": "Filo de la noche", "cost": 3000, "effect": "Otorga letalidad y un escudo de hechizos que bloquea la primera habilidad enemiga."},
+        {"name": "Recaudadora", "cost": 3000, "effect": "Crítico y letalidad; ejecuta instantáneamente a los campeones que bajen del 5% de vida."},
+        {"name": "Cimitarra mercurial", "cost": 3100, "active": true, "effect": "Activa: Disipa el control de adversario."},
+        {"name": "Rencor de Serylda", "cost": 3100, "effect": "Penetración de armadura (%) y ralentización en habilidades."},
+        {"name": "Ángel de la guarda", "cost": 3200, "effect": "Revive tras morir."}
+      ],
+      "nivel_medio": [
+        {"name": "Daga dentada", "cost": 1000, "effect": "Daño de ataque y Penetración de armadura plana (Letalidad)."}
+      ]
+    },
+    "Tirador": {
+      "mejoradas": [
+        {"name": "Dardos rastreademonios", "cost": 2650, "effect": "Tras usar tu habilidad definitiva, obtienes velocidad de ataque y tus siguientes ataques asestan impactos críticos."},
+        {"name": "Cañón de fuego rápido", "cost": 2650, "effect": "Aumenta el alcance de tu ataque con vigor e inflige daño mágico adicional."},
+        {"name": "Huracán de Runaan", "cost": 2650, "effect": "Los ataques a distancia disparan proyectiles adicionales hasta a 2 objetivos cercanos aplicando efectos de impacto."},
+        {"name": "Bailarín espectral", "cost": 2650, "effect": "Otorga gran velocidad de movimiento y velocidad de ataque adicional al atacar."},
+        {"name": "Filoveloz de Navori", "cost": 2650, "effect": "Los ataques básicos reducen el enfriamiento restante de tus habilidades básicas."},
+        {"name": "Final del ingenio", "cost": 2800, "effect": "Resistencia mágica, velocidad de ataque y daño mágico al impacto que te cura cuando tienes poca vida."},
+        {"name": "Puñal de Statikk", "cost": 2900, "effect": "Los ataques con vigor lanzan relámpagos en cadena que infligen daño mágico."},
+        {"name": "Óptica hextech C44", "cost": 2900, "effect": "Aumenta el daño infligido cuanto más lejos estés del objetivo y otorga alcance adicional en eliminaciones."},
+        {"name": "Verdugo de krakens", "cost": 2900, "effect": "Cada tercer ataque consecutivo inflige daño físico adicional creciente."},
+        {"name": "Diente de Nashor", "cost": 2900, "effect": "Velocidad de ataque, fuerza adaptable y daño mágico adicional en cada ataque."},
+        {"name": "Manamune", "cost": 2900, "effect": "Convierte el maná en daño de ataque."},
+        {"name": "Flechas de los Yun Tal", "cost": 3000, "effect": "Los ataques otorgan probabilidad de crítico acumulable y ráfaga de velocidad de ataque."},
+        {"name": "Hoja de furia de Guinsoo", "cost": 3000, "effect": "Velocidad de ataque acumulable y aplica dos veces los efectos de impacto cada pocos ataques."},
+        {"name": "Recordatorio letal", "cost": 3000, "effect": "Crítico, Penetración de armadura (%) y reducción de curaciones enemigas (Heridas Graves)."},
+        {"name": "Fauces de Malmortius", "cost": 3000, "effect": "Otorga un escudo de daño mágico al recibir daño."},
+        {"name": "Segador de esencia", "cost": 3000, "effect": "Tras lanzar una habilidad, tu próximo ataque inflige daño adicional potenciado por crítico y restaura maná."},
+        {"name": "Arcoescudo inmortal", "cost": 3000, "effect": "Crítico y robo de vida; recibes un escudo salvavidas cuando te queda poca vida."},
+        {"name": "Recaudadora", "cost": 3000, "effect": "Ejecuta a los campeones con poca vida."},
+        {"name": "El final", "cost": 3000, "effect": "Alterna entre ataques de Luz y Oscuridad que aumentan tu armadura/RM y tu penetración de armadura y mágica."},
+        {"name": "Navaja de asalto", "cost": 3000, "effect": "Los ataques con vigor infligen daño adicional, ralentizan y otorgan velocidad de movimiento."},
+        {"name": "Viento huracanado", "cost": 3100, "active": true, "effect": "Activa: Otorga un deslizamiento en una dirección y dispara proyectiles que infligen daño adicional a enemigos heridos."},
+        {"name": "Cimitarra mercurial", "cost": 3100, "active": true, "effect": "Activa: Disipa el control de adversario."},
+        {"name": "Hoja del rey arruinado", "cost": 3100, "effect": "Los ataques infligen daño adicional por vida actual."},
+        {"name": "Ángel de la guarda", "cost": 3200, "effect": "Revive tras morir."},
+        {"name": "Sanguinaria", "cost": 3200, "effect": "Obtienes robo de vida y escudo por sobrecuración."},
+        {"name": "Recuerdos de lord Dominik", "cost": 3300, "effect": "Crítico, Penetración de armadura (%) y daño adicional contra objetivos con más vida máxima que tú."},
+        {"name": "Fuerza de trinidad", "cost": 3333, "effect": "Equilibrado con Hoja encantada."},
+        {"name": "Filo infinito", "cost": 3400, "effect": "Aumenta masivamente el daño de ataque y el daño de tus golpes críticos."}
+      ],
+      "nivel_medio": [
+        {"name": "Fragmento de Kircheis", "cost": 800, "effect": "Inflige daño mágico adicional con vigor."},
+        {"name": "Arco curvo", "cost": 900, "effect": "Velocidad de ataque y daño físico al impacto."},
+        {"name": "Carcaj del mediodía", "cost": 1300, "effect": "+20 Daño de ataque y +15% Probabilidad de crítico."},
+        {"name": "Fervor", "cost": 1400, "effect": "Velocidad de ataque, crítico y velocidad de movimiento."},
+        {"name": "Espadón", "cost": 1500, "effect": "+40 Daño de ataque."}
+      ]
+    },
+    "Mágico": {
+      "mejoradas": [
+        {"name": "Diadema susurrante", "cost": 2400, "effect": "Convierte el maná en poder de curaciones y escudos; evoluciona al acumular Lágrima."},
+        {"name": "Redención", "cost": 2450, "active": true, "effect": "Activa: Ilumina una zona y tras un breve lapso cura a los aliados e inflige daño verdadero a enemigos."},
+        {"name": "Morellonomicón", "cost": 2550, "effect": "El daño mágico aplica Heridas Graves (reduce la curación enemiga)."},
+        {"name": "Vara de las edades", "cost": 2600, "effect": "Otorga vida, maná y AP que aumentan cada minuto hasta 10 acumulaciones."},
+        {"name": "Mandato imperial", "cost": 2600, "effect": "Ralentizar o inmovilizar a un campeón lo marca para que los aliados le inflijan daño mágico adicional."},
+        {"name": "Tridente de oceánida", "cost": 2600, "effect": "Antiescudos AP: tus habilidades reducen drásticamente los escudos enemigos."},
+        {"name": "Cintomisil hextech", "cost": 2650, "active": true, "effect": "Activa: Pequeño deslizamiento hacia adelante que dispara una salva de misiles mágicos."},
+        {"name": "Cetro de cristal de Rylai", "cost": 2700, "effect": "Tus habilidades de daño ralentizan la velocidad de movimiento de los enemigos."},
+        {"name": "Precisión infalible", "cost": 2700, "effect": "Golpear a larga distancia o inmovilizar marca al enemigo para infligirle daño adicional."},
+        {"name": "Malignidad", "cost": 2700, "effect": "Otorga velocidad de habilidad para tu definitiva y crea zonas de quemadura que reducen la resistencia mágica al dañar con R."},
+        {"name": "Sobrecarga tormentosa", "cost": 2800, "effect": "Infligir gran daño rápido a un campeón invoca un rayo explosivo que ejecuta y otorga oro."},
+        {"name": "Antorcha de fuego negro", "cost": 2800, "effect": "Las habilidades queman a los enemigos y otorgan AP adicional por cada campeón afectado."},
+        {"name": "Eco de Luden", "cost": 2800, "effect": "Acumula energía para que tu siguiente habilidad inflija daño mágico explosivo en área."},
+        {"name": "Perdición del liche", "cost": 2800, "effect": "Tras usar una habilidad, tu siguiente ataque básico inflige gran daño mágico adicional."},
+        {"name": "Puñal de Statikk", "cost": 2900, "effect": "Los ataques con vigor infligen daño en cadena."},
+        {"name": "Maldición sanguinolenta", "cost": 2900, "effect": "Dañar con habilidades o ataques reduce progresivamente la resistencia mágica del enemigo y te da omnisucción."},
+        {"name": "Diente de Nashor", "cost": 2900, "effect": "Velocidad de ataque y daño mágico al impacto."},
+        {"name": "Velo del hada de la muerte", "cost": 3000, "effect": "Otorga AP, resistencia mágica y un escudo de hechizos que bloquea la siguiente habilidad enemiga."},
+        {"name": "Florescencia sepulcral", "cost": 3000, "effect": "Penetración mágica (%) y al participar en una eliminación crea una nova que cura a los aliados cercanos."},
+        {"name": "Bastón del Vacío", "cost": 3000, "effect": "Alta penetración mágica porcentual contra enemigos que acumulan resistencia mágica."},
+        {"name": "Hoja de furia de Guinsoo", "cost": 3000, "effect": "Aplica efectos de impacto."},
+        {"name": "Tormento de Liandry", "cost": 3000, "effect": "Tus habilidades queman a los enemigos por porcentaje de su vida máxima (ideal anti-tanques)."},
+        {"name": "Bastón del arcángel", "cost": 3000, "effect": "Convierte el maná en AP y evoluciona a Abrazo del Serafín (otorgando escudo salvavidas)."},
+        {"name": "Impulso cósmico", "cost": 3000, "effect": "Alta velocidad de habilidades; infligir daño mágico otorga gran velocidad de movimiento."},
+        {"name": "Amanecer y anochecer", "cost": 3100, "effect": "Tras usar una habilidad, tu próximo ataque golpea dos veces y aplica efectos de impacto dos veces."},
+        {"name": "Orbe infinito", "cost": 3100, "effect": "Tus habilidades infligen daño crítico (+20% daño) a enemigos con menos del 35% de vida."},
+        {"name": "Creagrietas", "cost": 3100, "effect": "Omnisucción y daño creciente en combate que se convierte en daño verdadero al máximo de acumulaciones."},
+        {"name": "Reloj de arena de Zhonya", "cost": 3300, "active": true, "effect": "Activa: Te vuelves completamente invulnerable e inalcanzable durante 2.5 s (Estasis)."},
+        {"name": "Sombrero mortal de Rabadon", "cost": 3400, "effect": "Aumenta masivamente todo tu Poder de Habilidad total."}
+      ],
+      "nivel_medio": [
+        {"name": "Ídolo prohibido", "cost": 700, "effect": "Aumenta el poder de las curaciones y escudos."},
+        {"name": "Vara explosiva", "cost": 800, "effect": "+40 PH"},
+        {"name": "Espejo de cristal de Bandle", "cost": 900, "effect": "+20 PH, regeneración de maná y +10 Velocidad de habilidades."},
+        {"name": "Cenizas predestinadas", "cost": 900, "effect": "Las habilidades infligen daño prolongado por quemadura."},
+        {"name": "Códice diabólico", "cost": 900, "effect": "+25 PH y +10 Velocidad de habilidades."},
+        {"name": "Orbe del olvido", "cost": 900, "effect": "El daño mágico reduce la curación enemiga (corta-curas temprano)."},
+        {"name": "Brisa de éter", "cost": 950, "effect": "+35 PH y +4% Velocidad de movimiento."},
+        {"name": "Amatista del Vacío", "cost": 1000, "effect": "+20 PH y +10% Penetración mágica."},
+        {"name": "Catalizador de eones", "cost": 1100, "effect": "Recibir daño restaura maná y gastar maná restaura vida."},
+        {"name": "Alternador hextech", "cost": 1100, "effect": "Las habilidades infligen daño mágico adicional."},
+        {"name": "Capítulo perdido", "cost": 1200, "effect": "Restaura maná al subir de nivel."},
+        {"name": "Disfraz encantado", "cost": 1300, "effect": "Aumenta el daño en combate."},
+        {"name": "Vara innecesariamente grande", "cost": 1400, "effect": "+65 PH"},
+        {"name": "Brazalete de la buscadora", "cost": 1400, "active": true, "effect": "Activa (1 uso): Se vuelve invulnerable (componente de Zhonya)."},
+        {"name": "Barrera frondosa", "cost": 1600, "effect": "Otorga escudo de hechizos que bloquea una habilidad enemiga."},
+        {"name": "Robaalmas de Mejai", "cost": 1800, "effect": "Los asesinatos y asistencias otorgan acumulaciones de AP y velocidad de movimiento."}
+      ]
+    },
+    "Defensa": {
+      "mejoradas": [
+        {"name": "Máscara abisal", "cost": 2400, "effect": "Resistencia mágica; almacena daño mágico recibido y al inmovilizar a un enemigo explota infligiendo daño mágico."},
+        {"name": "Convergencia de Zeke", "cost": 2400, "effect": "Al lanzar tu habilidad definitiva, te rodea una tormenta que ralentiza y quema a los enemigos cercanos."},
+        {"name": "Trampa para yordles", "cost": 2400, "effect": "Inmovilizar enemigos los marca, potenciando a tus aliados y otorgando oro adicional si el enemigo muere."},
+        {"name": "Promesa de caballero", "cost": 2450, "effect": "Te vincula a un aliado para redirigir parte del daño que recibe hacia ti y curarte con el daño que él inflija."},
+        {"name": "Medallón de los Solari de Hierro", "cost": 2500, "active": true, "effect": "Activa: Otorga un escudo absorbente en área para ti y todos los aliados cercanos."},
+        {"name": "Corazón de hielo", "cost": 2550, "effect": "Alta armadura y maná; aplica acumulaciones que reducen drásticamente la velocidad de ataque de los enemigos."},
+        {"name": "Túnica del mediodía", "cost": 2550, "effect": "Al bajar de vida, aumenta temporalmente tu vida máxima y regenera vida para resistir ráfagas."},
+        {"name": "Llegada del invierno", "cost": 2600, "effect": "Convierte el maná en vida y evoluciona a El Fimbulwinter (otorgando escudos al inmovilizar o ralentizar)."},
+        {"name": "Virtud radiante", "cost": 2650, "effect": "Al lanzar tu habilidad definitiva, aumenta tu vida máxima y cura en área a ti y a tus aliados."},
+        {"name": "Velo del amanecer", "cost": 2700, "effect": "Cuando inmovilizas o te inmovilizan, inflige daño mágico en área y revela a los enemigos cercanos."},
+        {"name": "Fulgor vano", "cost": 2800, "effect": "Resistencia mágica; quema a los enemigos cercanos y detona ondas de daño al eliminar unidades."},
+        {"name": "Presagio de Randuin", "cost": 2800, "effect": "Contrarresta el daño crítico: reduce el daño de impactos críticos y acumula curación contra ellos."},
+        {"name": "Coraza del muerto", "cost": 2800, "effect": "Acumula velocidad de movimiento al desplazarte y ralentiza en tu primer ataque básico."},
+        {"name": "Fuerza de la naturaleza", "cost": 2800, "effect": "Recibir daño mágico acumula velocidad de movimiento y reduce un gran porcentaje de todo el daño mágico posterior."},
+        {"name": "Corazón de acero", "cost": 2800, "effect": "Carga un ataque colosal contra campeones que inflige daño físico y aumenta permanentemente tu vida máxima."},
+        {"name": "Rookern kaénico", "cost": 2800, "effect": "Otorga un enorme escudo contra daño mágico que se regenera al salir de combate."},
+        {"name": "Malla de espinas", "cost": 2850, "effect": "Al recibir ataques básicos refleja daño mágico y aplica Heridas Graves (corta-curas) al atacante."},
+        {"name": "Armadura de Warmog", "cost": 2850, "effect": "Regenera rápidamente toda tu vida cuando estás fuera de combate."},
+        {"name": "Protector pétreo de gárgola", "cost": 2900, "active": true, "effect": "Activa: Otorga un gran escudo personal que aumenta si hay 3 o más enemigos cerca."},
+        {"name": "Égida de fuego solar", "cost": 2900, "effect": "Quema constantemente a los enemigos cercanos escalando con tu vida adicional."},
+        {"name": "Velo del hada de la muerte", "cost": 3000, "effect": "Bloquea una habilidad enemiga."},
+        {"name": "Desesperanza eterna", "cost": 3000, "effect": "Cada pocos segundos en combate contra campeones, drena vida en área curándote según el daño infligido."},
+        {"name": "Guantelete de hielo", "cost": 3000, "effect": "Tras usar una habilidad, tu siguiente ataque crea un campo helado que ralentiza (escala con tu armadura)."},
+        {"name": "Hidra titánica", "cost": 3000, "effect": "Inflige daño adicional en área."},
+        {"name": "Sangría del soberano", "cost": 3200, "effect": "Obtienes daño de ataque según tu vida y vida faltante."},
+        {"name": "Ángel de la guarda", "cost": 3200, "effect": "Revive tras morir."},
+        {"name": "Calibrador de Sterak", "cost": 3200, "effect": "Recibir daño activa un escudo."},
+        {"name": "Coraza dual purpúrea", "cost": 3200, "effect": "En combates prolongados aumenta tu tamaño, otorga tenacidad y amplifica un gran porcentaje tu armadura y RM."},
+        {"name": "Reloj de arena de Zhonya", "cost": 3300, "active": true, "effect": "Activa: Se vuelve invulnerable."},
+        {"name": "Baile de la muerte", "cost": 3300, "effect": "Retrasa el daño recibido."}
+      ],
+      "nivel_medio": [
+        {"name": "Armadura lunar alada", "cost": 900, "effect": "Vida y velocidad de movimiento."},
+        {"name": "Chaleco de cadenas", "cost": 900, "effect": "+40 Armadura."},
+        {"name": "Capa negatrón", "cost": 900, "effect": "+40 Resistencia mágica."},
+        {"name": "Gema avivadora", "cost": 1000, "effect": "+175 Vida y +10 Velocidad de habilidades."},
+        {"name": "Cinturón de gigante", "cost": 1000, "effect": "+300 Vida."},
+        {"name": "Chaleco de zarzas", "cost": 1000, "effect": "Refleja daño y reduce la curación enemiga al ser atacado."},
+        {"name": "Sudario glacial", "cost": 1000, "effect": "+20 Armadura, +150 Maná y +10 Velocidad de habilidades."},
+        {"name": "Malla del guardián", "cost": 1050, "effect": "Reduce la velocidad de ataque de los enemigos que te golpean."},
+        {"name": "Hábito del espectro", "cost": 1100, "effect": "Resistencia mágica y regeneración de vida al recibir daño."},
+        {"name": "Rescoldo de Bami", "cost": 1200, "effect": "Quema a los enemigos cercanos."},
+        {"name": "Puño de Jaurim", "cost": 1200, "effect": "+200 Vida y +15 Daño de ataque."}
+      ]
+    },
+    "Apoyo": {
+      "mejoradas": [
+        {"name": "Ecos de Helia", "cost": 2400, "effect": "Dañar campeones acumula fragmentos; curar o escudar a un aliado consume los fragmentos para curarlo más y dañar al enemigo más cercano."},
+        {"name": "Diadema susurrante", "cost": 2400, "effect": "Convierte el maná en poder de curaciones y escudos."},
+        {"name": "Máscara abisal", "cost": 2400, "effect": "Inflige daño mágico adicional al inmovilizar."},
+        {"name": "Incensario ardiente", "cost": 2400, "effect": "Curar o escudar a un aliado aumenta su velocidad de ataque y le otorga daño mágico al impacto."},
+        {"name": "Bastón de aguas fluidas", "cost": 2400, "effect": "Curar o escudar a un aliado mejora su poder de habilidad y velocidad de habilidades."},
+        {"name": "Convergencia de Zeke", "cost": 2400, "effect": "Inflige daño en área y ralentiza tras usar la definitiva."},
+        {"name": "Trampa para yordles", "cost": 2400, "effect": "Aplicar control de adversario potencia a tus aliados y da oro extra."},
+        {"name": "Redención", "cost": 2450, "active": true, "effect": "Activa: Cura a los aliados en un área."},
+        {"name": "Promesa de caballero", "cost": 2450, "effect": "Redirige el daño de tu aliado hacia ti y te cura."},
+        {"name": "Bendición de Mikael", "cost": 2500, "active": true, "effect": "Activa: Disipa inmediatamente el control de adversario de un aliado y lo cura."},
+        {"name": "Medallón de los Solari de Hierro", "cost": 2500, "active": true, "effect": "Activa: Escudo en área para el equipo."},
+        {"name": "Canción de batalla de Shurelya", "cost": 2500, "active": true, "effect": "Activa: Otorga gran velocidad de movimiento a ti y a los aliados cercanos."},
+        {"name": "Eco armónico", "cost": 2500, "effect": "Moverse y lanzar habilidades carga Armonía para que tu siguiente curación o escudo restaure vida extra a tu aliado y aliados cercanos."},
+        {"name": "Morellonomicón", "cost": 2550, "effect": "El daño mágico reduce la curación enemiga."},
+        {"name": "Corazón de hielo", "cost": 2550, "effect": "Reduce la velocidad de ataque del enemigo."},
+        {"name": "Túnica del mediodía", "cost": 2550, "effect": "Aumenta la vida máxima cuando te queda poca vida."},
+        {"name": "Mandato imperial", "cost": 2600, "effect": "El control de adversario otorga daño adicional a los aliados."},
+        {"name": "Tridente de oceánida", "cost": 2600, "effect": "Reduce los escudos enemigos."},
+        {"name": "Virtud radiante", "cost": 2650, "effect": "Al lanzar tu habilidad definitiva, cura a los aliados."},
+        {"name": "Velo del amanecer", "cost": 2700, "effect": "Los efectos de inmovilización infligen daño y revelan los alrededores."},
+        {"name": "Malla de espinas", "cost": 2850, "effect": "Refleja daño y reduce la curación enemiga."},
+        {"name": "Florescencia sepulcral", "cost": 3000, "effect": "Restaura vida en área al asesinar a un campeón."}
+      ],
+      "iniciales": [
+        {"name": "Hoz espectral", "cost": 500, "effect": "Objeto inicial de Soporte ofensivo: ataca a campeones y estructuras para conseguir oro y evolucionar a Creciente de Sombras."},
+        {"name": "Escudo reliquia", "cost": 500, "effect": "Objeto inicial de Soporte defensivo: ejecuta súbditos para compartir oro y curar a tu aliado, evolucionando a Baluarte de la Montaña."}
+      ]
+    },
+    "Botas": {
+      "basico": [
+        {"name": "Botas de velocidad", "cost": 400, "effect": "Velocidad de movimiento básica."}
+      ],
+      "nivel_medio": [
+        {"name": "Grebas codiciosas", "cost": 1000, "effect": "Fuerza adaptable y omnisucción."},
+        {"name": "Botas jonias de la lucidez", "cost": 1000, "effect": "Reduce el enfriamiento de las habilidades y de los hechizos de invocador."},
+        {"name": "Grebas de berserker", "cost": 1200, "effect": "Daño de ataque y aumenta la velocidad de ataque."},
+        {"name": "Botas de mercurio", "cost": 1200, "effect": "Aumenta la resistencia mágica y reduce el daño mágico recibido."},
+        {"name": "Botas blindadas", "cost": 1200, "effect": "Armadura y reduce el daño físico de los ataques de campeones."},
+        {"name": "Botas de maná", "cost": 1200, "effect": "Poder de habilidad, penetración mágica plana y regeneración de maná."},
+        {"name": "Botas dinámicas", "cost": 1200, "effect": "Daño de ataque y penetración de armadura plana."}
+      ],
+      "mejorado": [
+        {"name": "Botas inmortales", "cost": 2000, "base": "Grebas codiciosas", "effect": "Inflige daño adicional u otorga poder de curaciones y escudos."},
+        {"name": "Lucidez carmesí", "cost": 2000, "base": "Botas jonias de la lucidez", "effect": "Reduce aún más el enfriamiento de las habilidades."},
+        {"name": "Grebas de metal", "cost": 2200, "base": "Grebas de berserker", "effect": "Otorga velocidad de ataque adicional y velocidad de movimiento."},
+        {"name": "Trituradoras encadenadas", "cost": 2200, "base": "Botas de mercurio", "effect": "Otorga un escudo mágico al recibir daño mágico."},
+        {"name": "Avance blindado", "cost": 2200, "base": "Botas blindadas", "effect": "Otorga armadura adicional y un escudo físico."},
+        {"name": "Botas del lanzahechizos", "cost": 2200, "base": "Botas de maná", "effect": "Mayor poder mágico e inflige daño adicional a súbditos."},
+        {"name": "Botas quebrantarmaduras", "cost": 2200, "base": "Botas dinámicas", "effect": "Mayor letalidad y otorga velocidad de movimiento fuera de combate."}
+      ]
+    }
+  }
+}

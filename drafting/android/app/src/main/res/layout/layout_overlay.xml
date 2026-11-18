@@ -4,38 +4,38 @@
     android:layout_height="wrap_content"
     android:animateLayoutChanges="true">
 
-    <!-- Burbuja Minimizada (Estilo WhatsApp) -->
+    <!-- Burbuja Minimizada (Estilo Messenger / Shazam) -->
     <ImageButton
         android:id="@+id/btnCollapsedBubble"
-        android:layout_width="48dp"
-        android:layout_height="48dp"
+        android:layout_width="52dp"
+        android:layout_height="52dp"
         android:layout_gravity="start|top"
         android:background="@drawable/bg_hextech_button"
-        android:src="@drawable/ic_general" 
-        android:tint="#FFFFFF"
+        android:src="@drawable/ic_general"
+        android:tint="#C89B3C"
         android:scaleType="fitCenter"
         android:padding="10dp"
         android:cropToPadding="true"
-        android:elevation="6dp"
-        android:alpha="0.75"
-        android:contentDescription="Expandir Controles"
+        android:elevation="8dp"
+        android:alpha="0.90"
+        android:contentDescription="Expandir Asistente"
         android:visibility="gone" />
 
-    <!-- Contenedor Expandido -->
+    <!-- Contenedor Principal Expandido -->
     <LinearLayout
         android:id="@+id/expandedContainer"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
-        android:padding="8dp"
-        android:alpha="0.85">
+        android:padding="6dp"
+        android:alpha="0.92">
 
-        <!-- Contenedor del Mensaje de la IA (Izquierda) - Ampliado para cómoda lectura -->
+        <!-- Panel de Respuesta de IA + Chatbot en Tiempo Real -->
         <FrameLayout
             android:id="@+id/messageContainer"
             android:layout_width="340dp"
-            android:layout_height="230dp"
-            android:layout_marginEnd="12dp"
+            android:layout_height="260dp"
+            android:layout_marginEnd="10dp"
             android:layout_gravity="center_vertical"
             android:background="@drawable/bg_hextech_panel"
             android:visibility="gone">
@@ -45,7 +45,7 @@
                 android:layout_height="match_parent"
                 android:orientation="vertical">
 
-                <!-- Barra Superior: Título y Botón Cerrar Mensaje -->
+                <!-- Barra Superior: Título, Transparencia, Tamaño, Copiar y Convertir en Botón -->
                 <LinearLayout
                     android:id="@+id/messageHeader"
                     android:layout_width="match_parent"
@@ -125,16 +125,17 @@
                         android:padding="5dp"
                         android:contentDescription="Copiar recomendación" />
 
+                    <!-- Botón para minimizar el panel/chat a un botón compacto sin estorbar en pantalla -->
                     <ImageButton
                         android:id="@+id/btnCloseMessage"
                         android:layout_width="28dp"
                         android:layout_height="28dp"
                         android:background="?android:attr/selectableItemBackgroundBorderless"
-                        android:src="@android:drawable/ic_menu_close_clear_cancel"
-                        android:tint="#CBD5E1"
+                        android:src="@android:drawable/ic_menu_revert"
+                        android:tint="#00E5FF"
                         android:scaleType="fitCenter"
                         android:padding="5dp"
-                        android:contentDescription="Cerrar recomendación" />
+                        android:contentDescription="Convertir en botón compacto" />
                 </LinearLayout>
 
                 <View
@@ -156,20 +157,20 @@
                         android:orientation="vertical"
                         android:gravity="center"
                         android:visibility="gone">
-                        
+
                         <ProgressBar
-                            android:layout_width="36dp"
-                            android:layout_height="36dp"
+                            android:layout_width="34dp"
+                            android:layout_height="34dp"
                             android:indeterminateTint="#00E5FF" />
-                            
+
                         <TextView
                             android:id="@+id/loadingTextView"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:layout_marginTop="10dp"
+                            android:layout_marginTop="8dp"
                             android:text="Analizando partida..."
                             android:textColor="#FFFFFF"
-                            android:textSize="14sp"
+                            android:textSize="13.5sp"
                             android:textStyle="bold" />
                     </LinearLayout>
 
@@ -178,33 +179,94 @@
                         android:id="@+id/resultScrollView"
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
-                        android:paddingStart="14dp"
-                        android:paddingEnd="14dp"
-                        android:paddingTop="10dp"
-                        android:paddingBottom="12dp"
+                        android:paddingStart="12dp"
+                        android:paddingEnd="12dp"
+                        android:paddingTop="8dp"
+                        android:paddingBottom="8dp"
                         android:scrollbars="vertical"
                         android:fadeScrollbars="false"
                         android:visibility="gone">
-                        
+
                         <TextView
                             android:id="@+id/resultTextView"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:textColor="#FFFFFF"
                             android:textStyle="normal"
-                            android:lineSpacingExtra="4dp"
-                            android:textSize="14.5sp" />
+                            android:lineSpacingExtra="3dp"
+                            android:textSize="13.5sp" />
                     </ScrollView>
                 </FrameLayout>
+
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="1dp"
+                    android:background="#2D3748" />
+
+                <!-- Barra de Chatbot en Tiempo Real (Punto 1.8: Runas, Objetos y Dudas, máx 50 palabras) -->
+                <LinearLayout
+                    android:id="@+id/chatBarLayout"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:paddingStart="8dp"
+                    android:paddingEnd="8dp"
+                    android:paddingTop="5dp"
+                    android:paddingBottom="6dp"
+                    android:background="#0F141D">
+
+                    <!-- Botón para colapsar/expandir la barra de chat en un botón pequeño -->
+                    <ImageButton
+                        android:id="@+id/btnCollapseChatBar"
+                        android:layout_width="28dp"
+                        android:layout_height="28dp"
+                        android:layout_marginEnd="6dp"
+                        android:background="@drawable/bg_role_btn"
+                        android:src="@android:drawable/sym_action_chat"
+                        android:tint="#00E5FF"
+                        android:scaleType="fitCenter"
+                        android:padding="5dp"
+                        android:contentDescription="Minimizar o abrir chat" />
+
+                    <EditText
+                        android:id="@+id/chatInputEditText"
+                        android:layout_width="0dp"
+                        android:layout_height="32dp"
+                        android:layout_weight="1"
+                        android:background="@drawable/bg_rounded_dark"
+                        android:paddingStart="10dp"
+                        android:paddingEnd="8dp"
+                        android:hint="Pregunta por runas, objetos o dudas..."
+                        android:textColor="#FFFFFF"
+                        android:textColorHint="#94A3B8"
+                        android:textSize="11.5sp"
+                        android:singleLine="true"
+                        android:maxLength="320"
+                        android:imeOptions="actionSend"
+                        android:inputType="text" />
+
+                    <ImageButton
+                        android:id="@+id/btnSendChat"
+                        android:layout_width="32dp"
+                        android:layout_height="32dp"
+                        android:layout_marginStart="6dp"
+                        android:background="@drawable/bg_hextech_button"
+                        android:src="@android:drawable/ic_menu_send"
+                        android:tint="#C89B3C"
+                        android:scaleType="fitCenter"
+                        android:padding="6dp"
+                        android:contentDescription="Enviar consulta al chat" />
+                </LinearLayout>
             </LinearLayout>
 
-            <!-- Grip táctil para redimensionar arrastrando con el dedo libremente -->
+            <!-- Grip táctil para redimensionar arrastrando desde la esquina -->
             <ImageView
                 android:id="@+id/btnResizeCorner"
-                android:layout_width="22dp"
-                android:layout_height="22dp"
+                android:layout_width="20dp"
+                android:layout_height="20dp"
                 android:layout_gravity="bottom|end"
-                android:layout_margin="3dp"
+                android:layout_margin="2dp"
                 android:padding="2dp"
                 android:src="@drawable/ic_resize_corner"
                 android:tint="#A0C89B3C"
@@ -212,7 +274,7 @@
                 android:contentDescription="Ajustar tamaño arrastrando" />
         </FrameLayout>
 
-        <!-- Controles Principales (Izquierda) -->
+        <!-- Columna de Controles Limpia y Automática (Sin botones de cerrar ni roles) -->
         <LinearLayout
             android:id="@+id/controlsContainer"
             android:layout_width="wrap_content"
@@ -220,16 +282,8 @@
             android:orientation="vertical"
             android:gravity="center_horizontal"
             android:layout_gravity="center_vertical">
-            
-            <ImageView
-                android:id="@+id/dragHandle"
-                android:layout_width="24dp"
-                android:layout_height="24dp"
-                android:layout_marginBottom="12dp"
-                android:src="@drawable/ic_drag_handle"
-                android:contentDescription="Arrastrar" />
 
-            <!-- Botón Principal de Captura (General Draft) -->
+            <!-- Botón Principal de Captura (Se reemplaza automáticamente por btnRefreshDraft tras tomar la 1ra captura) -->
             <ImageButton
                 android:id="@+id/btnCaptureGeneral"
                 android:layout_width="54dp"
@@ -242,172 +296,53 @@
                 android:cropToPadding="true"
                 android:elevation="8dp"
                 android:contentDescription="Analizar Draft" />
-                
-            <!-- Controles Adicionales Inferiores -->
-            <LinearLayout
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:orientation="horizontal"
-                android:layout_marginTop="16dp"
-                android:gravity="center">
-                
-                <!-- Botón de Ocultar/Minimizar (X) -->
-                <ImageButton
-                    android:id="@+id/btnMinimize"
-                    android:layout_width="40dp"
-                    android:layout_height="40dp"
-                    android:layout_marginEnd="10dp"
-                    android:background="@drawable/bg_hextech_button"
-                    android:src="@android:drawable/ic_menu_close_clear_cancel"
-                    android:tint="#FFFFFF"
-                    android:scaleType="fitCenter"
-                    android:padding="8dp"
-                    android:cropToPadding="true"
-                    android:elevation="6dp"
-                    android:contentDescription="Ocultar" />
 
-                <!-- Botón de Apagar Servicio por Completo (Power) -->
-                <ImageButton
-                    android:id="@+id/btnClose"
-                    android:layout_width="40dp"
-                    android:layout_height="40dp"
-                    android:background="@drawable/bg_hextech_close"
-                    android:src="@android:drawable/ic_lock_power_off"
-                    android:tint="#FFFFFF"
-                    android:scaleType="fitCenter"
-                    android:padding="8dp"
-                    android:cropToPadding="true"
-                    android:elevation="6dp"
-                    android:contentDescription="Apagar Sistema" />
-            </LinearLayout>
-        </LinearLayout>
-
-        <!-- Barra Lateral de Roles y Reconsultar (Derecha - donde marcó el usuario) -->
-        <LinearLayout
-            android:id="@+id/rolesBarContainer"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:gravity="center_horizontal"
-            android:layout_gravity="center_vertical"
-            android:layout_marginStart="8dp">
-
-            <!-- Botón Grande y Destacado de Narrador Táctico / TTS (Play/Pause) -->
-            <ImageButton
-                android:id="@+id/btnTtsPlayPause"
-                android:layout_width="50dp"
-                android:layout_height="50dp"
-                android:layout_marginBottom="10dp"
-                android:background="@drawable/bg_hextech_tts"
-                android:src="@drawable/ic_tts_play"
-                android:tint="#00E5FF"
-                android:scaleType="fitCenter"
-                android:padding="10dp"
-                android:cropToPadding="true"
-                android:elevation="8dp"
-                android:contentDescription="Reproducir o pausar narrador táctico" />
-
-            <!-- Separador Neón Luminoso -->
-            <View
-                android:layout_width="32dp"
-                android:layout_height="2dp"
-                android:background="#00E5FF"
-                android:alpha="0.4"
-                android:layout_marginBottom="10dp" />
-
-            <!-- Botón Grande de Reconsultar / Refrescar con Flechas -->
+            <!-- Botón de Reconsultar Alternativas (Oculto al inicio; reemplaza al botón de captura tras la 1ra foto) -->
             <ImageButton
                 android:id="@+id/btnRefreshDraft"
-                android:layout_width="38dp"
-                android:layout_height="38dp"
-                android:layout_marginBottom="8dp"
+                android:layout_width="54dp"
+                android:layout_height="54dp"
                 android:background="@drawable/bg_hextech_button"
                 android:src="@android:drawable/ic_popup_sync"
                 android:tint="#00E5FF"
                 android:scaleType="fitCenter"
-                android:padding="7dp"
+                android:padding="11dp"
+                android:cropToPadding="true"
+                android:elevation="8dp"
+                android:visibility="gone"
+                android:contentDescription="Reconsultar Alternativas sin tomar otra foto" />
+
+            <!-- Botón de Voz / Narrador Táctico (Oculto al inicio; aparece automáticamente tras tomar la captura) -->
+            <ImageButton
+                android:id="@+id/btnTtsPlayPause"
+                android:layout_width="46dp"
+                android:layout_height="46dp"
+                android:layout_marginTop="10dp"
+                android:background="@drawable/bg_hextech_tts"
+                android:src="@drawable/ic_tts_play"
+                android:tint="#00E5FF"
+                android:scaleType="fitCenter"
+                android:padding="9dp"
+                android:cropToPadding="true"
+                android:elevation="8dp"
+                android:visibility="gone"
+                android:contentDescription="Reproducir o pausar voz" />
+
+            <!-- Botón Flotante de Chat Rápido (Permite convertir/abrir el chat desde un botón compacto) -->
+            <ImageButton
+                android:id="@+id/btnQuickChatBubble"
+                android:layout_width="42dp"
+                android:layout_height="42dp"
+                android:layout_marginTop="8dp"
+                android:background="@drawable/bg_hextech_button"
+                android:src="@android:drawable/sym_action_chat"
+                android:tint="#C89B3C"
+                android:scaleType="fitCenter"
+                android:padding="9dp"
                 android:cropToPadding="true"
                 android:elevation="6dp"
-                android:contentDescription="Reconsultar Alternativas" />
-
-            <!-- Separador sutil -->
-            <View
-                android:layout_width="26dp"
-                android:layout_height="1dp"
-                android:background="#334155"
-                android:layout_marginBottom="8dp" />
-
-            <!-- Botones de Rol en Vivo (TOP, JG, MID, ADC, SUP, AUTO) -->
-            <TextView
-                android:id="@+id/btnRoleTop"
-                android:layout_width="38dp"
-                android:layout_height="26dp"
-                android:layout_marginBottom="4dp"
-                android:background="@drawable/bg_role_btn"
-                android:gravity="center"
-                android:text="TOP"
-                android:textColor="#CBD5E1"
-                android:textSize="10sp"
-                android:textStyle="bold" />
-
-            <TextView
-                android:id="@+id/btnRoleJg"
-                android:layout_width="38dp"
-                android:layout_height="26dp"
-                android:layout_marginBottom="4dp"
-                android:background="@drawable/bg_role_btn"
-                android:gravity="center"
-                android:text="JG"
-                android:textColor="#CBD5E1"
-                android:textSize="10sp"
-                android:textStyle="bold" />
-
-            <TextView
-                android:id="@+id/btnRoleMid"
-                android:layout_width="38dp"
-                android:layout_height="26dp"
-                android:layout_marginBottom="4dp"
-                android:background="@drawable/bg_role_btn"
-                android:gravity="center"
-                android:text="MID"
-                android:textColor="#CBD5E1"
-                android:textSize="10sp"
-                android:textStyle="bold" />
-
-            <TextView
-                android:id="@+id/btnRoleAdc"
-                android:layout_width="38dp"
-                android:layout_height="26dp"
-                android:layout_marginBottom="4dp"
-                android:background="@drawable/bg_role_btn"
-                android:gravity="center"
-                android:text="ADC"
-                android:textColor="#CBD5E1"
-                android:textSize="10sp"
-                android:textStyle="bold" />
-
-            <TextView
-                android:id="@+id/btnRoleSup"
-                android:layout_width="38dp"
-                android:layout_height="26dp"
-                android:layout_marginBottom="4dp"
-                android:background="@drawable/bg_role_btn"
-                android:gravity="center"
-                android:text="SUP"
-                android:textColor="#CBD5E1"
-                android:textSize="10sp"
-                android:textStyle="bold" />
-
-            <TextView
-                android:id="@+id/btnRoleAuto"
-                android:layout_width="38dp"
-                android:layout_height="24dp"
-                android:background="@drawable/bg_role_btn"
-                android:gravity="center"
-                android:text="AUTO"
-                android:textColor="#CBD5E1"
-                android:textSize="9sp"
-                android:textStyle="bold" />
+                android:visibility="gone"
+                android:contentDescription="Abrir o minimizar chat táctico" />
         </LinearLayout>
     </LinearLayout>
 </FrameLayout>

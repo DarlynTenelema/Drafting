@@ -1,0 +1,169 @@
+{
+  "game": "League of Legends: Wild Rift",
+  "version": "2027.1",
+  "rune_system_rules": "En Wild Rift una página de runas consta exactamente de: 1 Runa Clave + 3 Runas de la Rama Principal (1 de cada fila) + 1 Runa de una Rama Secundaria. PROHIBIDO recomendar runas exclusivas de LoL PC que no existan en este archivo (como Cosecha de almas de PC antigua, Presencia de ánimo, Entrega de galletas, Calzado mágico,Mercado del futuro, etc.).",
+  "summoner_spells": [
+    {"name": "Destello", "en": "Flash", "pt": "Flash", "fr": "Saut éclair", "cooldown": "150 s", "effect": "Teleportación instantánea a corta distancia."},
+    {"name": "Prender", "en": "Ignite", "pt": "Incendiar", "fr": "Embrasement", "cooldown": "100 s", "effect": "Inflige daño verdadero prolongado y aplica Heridas Graves (corta-curas) durante 5 s."},
+    {"name": "Barrera", "en": "Barrier", "pt": "Barreira", "fr": "Barrière", "cooldown": "120 s", "effect": "Otorga un escudo temporal contra todo tipo de daño."},
+    {"name": "Extenuación", "en": "Exhaust", "pt": "Exaustão", "fr": "Fatigue", "cooldown": "105 s", "effect": "Ralentiza al enemigo y reduce drásticamente el daño que inflige."},
+    {"name": "Curar", "en": "Heal", "pt": "Curar", "fr": "Soin", "cooldown": "130 s", "effect": "Restaura vida y otorga velocidad de movimiento a ti y al aliado más herido."},
+    {"name": "Fantasmal", "en": "Ghost", "pt": "Fantasma", "fr": "Fantôme", "cooldown": "90 s", "effect": "Otorga gran velocidad de movimiento durante 8 s que se extiende 6 s y se reinicia con asesinatos o asistencias."},
+    {"name": "Purificar", "en": "Cleanse", "pt": "Purificar", "fr": "Purge", "cooldown": "110 s", "effect": "Elimina todas las inhabilitaciones (excepto supresión y derribo aéreo) y hechizos de invocador, otorgando tenacidad breve."},
+    {"name": "Castigo", "en": "Smite", "pt": "Golpear", "fr": "Châtiment", "cooldown": "45 s", "effect": "Exclusivo para Jungla. Inflige daño verdadero a monstruos y evoluciona a Castigo Desafiante."},
+    {"name": "Teleportar", "en": "Teleport", "pt": "Teleporte", "fr": "Téléportation", "cooldown": "180 s", "effect": "Canaliza para teletransportarse a una estructura, guardián o unidad aliada."}
+  ],
+  "keystones": [
+    {
+      "name": "Electrocutar",
+      "en": "Electrocute",
+      "category": "Daño explosivo",
+      "effect": "En 3 s, golpea a un mismo campeón enemigo con 3 ataques básicos o habilidades para infligir 60-210 de daño adaptable adicional (20-13 s enfriamiento)."
+    },
+    {
+      "name": "Cosecha oscura",
+      "en": "Dark Harvest",
+      "category": "Daño adicional, amplificación de acumulaciones",
+      "effect": "Al dañar a un campeón con menos del 50% de vida, infliges daño adaptable y cosechas su alma (+11 daño permanente por alma). Enfriamiento 20 s, se reinicia a 1 s con asesinatos o asistencias."
+    },
+    {
+      "name": "Fortalecimiento",
+      "en": "Empowerment",
+      "category": "Daño adicional contra campeones",
+      "effect": "Al asestar 3 ataques consecutivos a un campeón enemigo, inflige 40-165 de daño adaptable adicional y potencia todo el daño que infliges un 8% hasta abandonar el combate."
+    },
+    {
+      "name": "Compás letal",
+      "en": "Lethal Tempo",
+      "category": "Velocidad de ataque",
+      "effect": "Acumula velocidad de ataque hasta 6 veces al atacar campeones. Con acumulaciones máximas, los ataques disparan una bala adicional que inflige daño adaptable escalable con tu velocidad de ataque adicional."
+    },
+    {
+      "name": "Pies veloces",
+      "en": "Fleet Footwork",
+      "category": "Movilidad, curación",
+      "effect": "Con 100 acumulaciones de Energía, el siguiente ataque gana +40% velocidad de ataque, cura 15-110 de vida, da +20% velocidad de movimiento por 1 s y al atacar a un campeón restaura 8% del maná o energía faltante."
+    },
+    {
+      "name": "Conquistador",
+      "en": "Conqueror",
+      "category": "Acumula daño y succión",
+      "effect": "Golpear a un campeón otorga hasta 6 acumulaciones de fuerza adaptable. Con el máximo de acumulaciones, obtienes omnisucción adicional."
+    },
+    {
+      "name": "Garras del inmortal",
+      "en": "Grasp of the Undying",
+      "category": "Tanque, curación",
+      "effect": "Cada 3 s en combate potencia tu siguiente ataque contra un campeón con 3% de tu vida máxima como daño mágico, te cura 1.3% y otorga +8 de vida permanente (efectos reducidos 60% a distancia)."
+    },
+    {
+      "name": "Guardián",
+      "en": "Guardian",
+      "category": "Protección, escudo",
+      "effect": "Protege a aliados cercanos o alcanzados por tus habilidades; al recibir daño relevante ambos obtienen un escudo de 40-165 (+6% vida adicional +15% AP) durante 1.5 s."
+    },
+    {
+      "name": "Aery",
+      "en": "Summon Aery",
+      "category": "Desgaste, protección",
+      "effect": "Tus ataques y habilidades envían a Aery a un objetivo para dañar a enemigos (15-70) u otorgar un escudo a los aliados (20-100)."
+    },
+    {
+      "name": "Cometa arcano",
+      "en": "Arcane Comet",
+      "category": "Hostigar desde lejos, amplificación de acumulaciones",
+      "effect": "Infligir daño con una habilidad proyecta un cometa a la ubicación del campeón enemigo. Cada impacto de cometa contra campeones aumenta permanentemente el daño de los siguientes cometas (+2 por impacto)."
+    },
+    {
+      "name": "Irrupción de fase",
+      "en": "Phase Rush",
+      "category": "Movilidad, velocidad de habilidades",
+      "effect": "Golpear a un campeón 3 veces en 4 s otorga gran velocidad de movimiento (40%-60% cuerpo a cuerpo, 20%-35% distancia), +10 de velocidad de habilidades básicas y reduce 20% el enfriamiento restante de habilidades básicas."
+    },
+    {
+      "name": "Primer golpe",
+      "en": "First Strike",
+      "category": "Iniciación, amplificación de daño, oro adicional",
+      "effect": "Iniciar combate contra un campeón enemigo te otorga 10 de oro y +7% de daño verdadero adicional durante 3 s, ganando oro equivalente al daño adicional infligido (60% cuerpo a cuerpo, 45% a distancia)."
+    },
+    {
+      "name": "Soberano gélido",
+      "en": "Glacial Augment",
+      "category": "Control, ralentización",
+      "effect": "Al inmovilizar a un campeón enemigo forma 3 rayos de hielo que ralentizan durante 3 s, te otorga una capa de hielo protector (+35 y +75% armadura/RM por 2.5 s) que luego explota infligiendo daño mágico en área."
+    }
+  ],
+  "trees": {
+    "Dominación": {
+      "slot_1": [
+        {"name": "Golpe bajo", "en": "Cheap Shot", "effect": "Inflige 10-45 de daño verdadero adicional a enemigos con velocidad de movimiento reducida o inmovilizados (5 s enfriamiento)."},
+        {"name": "Impacto repentino", "en": "Sudden Impact", "effect": "Tras usar un deslizamiento, salto, teleportación o salir de sigilo, tu siguiente ataque o habilidad inflige 10-65 de daño verdadero adicional (escala a niveles 5 y 9 dando +10% vel. de movimiento)."},
+        {"name": "Ataque potenciado", "en": "Empowered Attack", "effect": "Cada 8 s potencia tu siguiente ataque básico para infligir 20-60 de daño adaptable adicional contra campeones."}
+      ],
+      "slot_2": [
+        {"name": "Asalto encadenado", "en": "Chain Assault", "effect": "Infligir daño con una habilidad activa aplica una marca; los 2 próximos ataques o habilidades activas contra ese campeón infligen daño adaptable adicional (15 s enfriamiento)."},
+        {"name": "Tirano", "en": "Tyrant", "effect": "Al infligir daño a un campeón con menos del 50% de vida, infliges 20-70 (+6% AD adicional +3% AP) de daño adaptable adicional (10 s enfriamiento)."},
+        {"name": "Soberbia", "en": "Eyeball Collector / Hubris", "effect": "Las eliminaciones de campeones enemigos en 3 s tras dañarlos otorgan fuerza adaptable temporal durante 30 s que escala por cada eliminación conseguida."}
+      ],
+      "slot_3": [
+        {"name": "Colección de globos oculares", "en": "Eyeball Collector", "effect": "Otorga 1.5 de AD o 3 de AP permanentemente al participar en eliminaciones de campeones o monstruos épicos (hasta 8 acumulaciones)."},
+        {"name": "Cazador incesante", "en": "Relentless Hunter", "effect": "Otorga 10 de velocidad de movimiento fuera de combate + 2 por cada eliminación de campeón o monstruo épico (hasta 5 veces)."},
+        {"name": "Guardián zombi", "en": "Zombie Ward", "effect": "Eliminar guardianes enemigos crea un guardián zombi aliado por 120 s y otorga 3 AD o 6 AP adicional (máximo 5 acumulaciones)."}
+      ]
+    },
+    "Precisión": {
+      "slot_1": [
+        {"name": "Brutal", "en": "Brutal", "effect": "Los ataques básicos infligen 5 + 6% AD adicional como daño adaptable de impacto contra campeones."},
+        {"name": "Triunfo", "en": "Triumph", "effect": "Las eliminaciones restauran 10% de la vida perdida, 10% del maná/energía máximos y otorgan +35 de velocidad de movimiento por 2 s."},
+        {"name": "Fervor de batalla", "en": "Battle Fervor", "effect": "Otorga 1.4% de amplificación de daño de las habilidades básicas cada 1 s en combate contra campeones (hasta 3 acumulaciones)."}
+      ],
+      "slot_2": [
+        {"name": "Último esfuerzo", "en": "Last Stand", "effect": "Con menos del 60% de vida, infliges entre 5% y 11% de daño adicional a campeones (máximo al 30% de vida)."},
+        {"name": "Derribado", "en": "Giant Slayer", "effect": "Tus ataques e impactos infligen un 6.5% de daño adicional a campeones enemigos que tengan más del 60% de vida."},
+        {"name": "Golpe de gracia", "en": "Coup de Grace", "effect": "Inflige un 8% de daño adicional a campeones enemigos que tengan menos del 40% de vida."}
+      ],
+      "slot_3": [
+        {"name": "Leyenda: Presteza", "en": "Legend: Alacrity", "effect": "Otorga desde 3% hasta un 18% de velocidad de ataque adicional acumulando eliminaciones."},
+        {"name": "Leyenda: Velocidad", "en": "Legend: Haste", "effect": "Otorga hasta 15 de velocidad de habilidades adicional al derrotar monstruos, súbditos o campeones."},
+        {"name": "Leyenda: Linaje", "en": "Legend: Bloodline", "effect": "Otorga desde 1% hasta un 7% de omnisucción acumulando eliminaciones."}
+      ]
+    },
+    "Valor": {
+      "slot_1": [
+        {"name": "Demoler", "en": "Demolish", "effect": "Tu tercer ataque contra una torreta inflige gran daño físico adicional escalando con tu vida máxima (30 s enfriamiento)."},
+        {"name": "Fuente de vida", "en": "Font of Life", "effect": "Golpear a un campeón enemigo te cura a ti y al aliado cercano con menos vida (escalando con tu vida máxima y AP)."},
+        {"name": "Coraje del coloso", "en": "Courage of the Colossus", "effect": "Otorga un escudo que absorbe 25-45 (+1% vida máxima) durante 3 s al inmovilizar a un campeón enemigo."},
+        {"name": "Inquebrantable", "en": "Unflinching", "effect": "Otorga 3% de armadura y RM + 2% adicional por cada campeón enemigo cercano (máximo 3, otorgando además 20% resistencia a ralentizaciones)."}
+      ],
+      "slot_2": [
+        {"name": "Fuerzas renovadas", "en": "Second Wind", "effect": "Otorga +5 vida cada 5 s y tras recibir daño de un campeón regenera 3 + 1.5% de la vida faltante (el doble en campeones cuerpo a cuerpo)."},
+        {"name": "Orbe anulador", "en": "Nullifying Orb", "effect": "Al bajar del 35% de vida máxima, obtienes un escudo que absorbe 60-180 de daño durante 4 s (60 s enfriamiento)."},
+        {"name": "Revestimiento de huesos", "en": "Bone Plating", "effect": "Tras recibir daño de un campeón, el golpe actual y los 3 siguientes en 1.5 s infligen 30-60 menos de daño (40 s enfriamiento)."}
+      ],
+      "slot_3": [
+        {"name": "Sobrecrecimiento", "en": "Overgrowth", "effect": "Acumula vida máxima permanente cuando mueren súbditos o monstruos cerca (+3% de vida máxima extra al llegar a 30 acumulaciones)."},
+        {"name": "Revitalizar", "en": "Revitalize", "effect": "Amplifica un 5% tus curaciones y escudos (y un 10% adicional si el objetivo tiene menos del 40% de vida)."},
+        {"name": "Perseverancia", "en": "Perseverance", "effect": "Otorga 10% de tenacidad permanente y +10-15 de armadura y resistencia mágica durante 1.5 s cuando te inmovilizan."}
+      ]
+    },
+    "Inspiración": {
+      "slot_1": [
+        {"name": "Arcanólogo axiomático", "en": "Axiom Arcanist", "effect": "Tu habilidad definitiva obtiene +10% de daño, curación y escudos (+5% en daño en área) y participar en asesinatos reduce un 7% su enfriamiento restante."},
+        {"name": "Banda de maná", "en": "Manaflow Band", "effect": "Golpear a un campeón enemigo con una habilidad aumenta permanentemente tu maná máximo en 30 (hasta 300 de maná)."},
+        {"name": "Botanista", "en": "Sweet Tooth / Botanist", "effect": "Destruir una planta otorga 10 de oro y potencia un 20% los efectos de Frutos de miel, Flor del adivino y Piña explosiva."},
+        {"name": "Hextello", "en": "Hexflash", "effect": "Cuando Destello está en enfriamiento, permite canalizar Hextello para teletransportarte a corta distancia (18 s enfriamiento)."}
+      ],
+      "slot_2": [
+        {"name": "Trascendencia", "en": "Transcendence", "effect": "+5 velocidad de habilidades a nivel 1, +5 a nivel 5, y a nivel 9 golpear objetivos reduce un 8% el enfriamiento básico (8 s enfriamiento)."},
+        {"name": "Celeridad", "en": "Celerity", "effect": "Otorga +2% de velocidad de movimiento y aumenta un 7% todas las bonificaciones de velocidad de movimiento."},
+        {"name": "Concentración absoluta", "en": "Absolute Focus", "effect": "Con más del 65% de vida, obtienes 2-20 de AD o 4-40 de AP adicional."}
+      ],
+      "slot_3": [
+        {"name": "Piroláser", "en": "Scorch", "effect": "Infligir daño con una habilidad quema al campeón enemigo por 21-49 de daño mágico adicional tras 1 s (8 s enfriamiento)."},
+        {"name": "Capa del nimbo", "en": "Nimbus Cloak", "effect": "Usar un hechizo de invocador otorga 10%-40% de velocidad de movimiento adicional durante 3 s."},
+        {"name": "Se avecina tormenta", "en": "Gathering Storm", "effect": "Cada 3 minutos a partir del minuto 6 otorga AD o AP adaptable creciente para el juego tardío."},
+        {"name": "Semillero ixtalí", "en": "Ixtali Seedjar", "effect": "Al destruir una planta obtienes una semilla para replantar Frutos de miel, Flor del adivino o Piña explosiva donde quieras."}
+      ]
+    }
+  }
+}

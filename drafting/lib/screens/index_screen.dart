@@ -27,6 +27,7 @@ import 'manual_draft_screen.dart';
 import 'store_screen.dart';
 import 'trivia_screen.dart';
 import 'lol_pc_scanner_screen.dart';
+import 'dodge_simulator_screen.dart' deferred as dodge_sim;
 
 class IndexScreen extends StatefulWidget {
   final String sessionToken;
@@ -73,6 +74,13 @@ class _IndexScreenState extends State<IndexScreen> with WidgetsBindingObserver {
   static const bool showDonationsTab = false;
 
   int _currentTab = 2; // 0: Eventos, 1: Logros, 2: Home, 3: Trivia, 4: Tienda (o 4: Donaciones, 5: Tienda si showDonationsTab=true)
+
+  /// Sistema de Lazy Load y Priorización estilo SO:
+  /// - Solo se montan en RAM las pestañas que el usuario realmente ha visitado.
+  /// - Cuando el simulador 2D de alta prioridad está activo, todas las pantallas en segundo plano
+  ///   congelan sus Tickers/Animaciones (0% uso de CPU/GPU en background).
+  final Set<int> _visitedTabs = {2};
+  bool _isHighPriorityGameRunning = false;
 
   @override
   void initState() {
@@ -126,13 +134,6 @@ class _IndexScreenState extends State<IndexScreen> with WidgetsBindingObserver {
         _selectedGameMode = prefs.getString('game_mode') ?? 'wild_rift';
       });
     }
-  }
-
-  Future<void> _updateSelectedRole(String role) async {
-    HapticFeedback.selectionClick();
-    setState(() => _selectedMainRole = role);
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('selected_main_role', role);
   }
 
   Future<void> _updateOtpChampion(String champ) async {
@@ -586,7 +587,7 @@ class _IndexScreenState extends State<IndexScreen> with WidgetsBindingObserver {
       onUserEarnedReward: () async {
         try {
           final response = await ApiClient.post('/api/v1/user/obtain-queries', authenticated: true);
-          int added = 5;
+          int added = 2;
 
           if (response.statusCode == 200) {
             final data = jsonDecode(response.body);
@@ -960,6 +961,47 @@ class _IndexScreenState extends State<IndexScreen> with WidgetsBindingObserver {
     _fetchUserData();
   }
 
+  /// Abre el Simulador 2D de Esquivo de Habilidades con Lazy Loading (Deferred Library)
+  /// y Priorización de Recursos estilo SO (hibernando todos los Tickers de las demás pantallas).
+  Future<void> _openDodgeSimulator() async {
+    HapticFeedback.mediumImpact();
+    // 1. Cargamos el módulo del motor 2D bajo demanda (Lazy Load)
+    await dodge_sim.loadLibrary();
+    if (!mounted) return;
+
+    // 2. Hibernamos las animaciones/tickers de todas las pestañas de Drafting
+    // y liberamos caché temporal de imágenes decodificadas innecesarias
+    PaintingBinding.instance.imageCache.clearLiveImages();
+    setState(() {
+      _isHighPriorityGameRunning = true;
+    });
+
+    try {
+      await Navigator.of(context).push(
+        PageRouteBuilder(
+           opaque: true,
+          transitionDuration: const Duration(milliseconds: 220),
+          pageBuilder: (_, __, ___) => dodge_sim.DodgeSimulatorScreen(
+            userName: (_userName != null && _userName!.trim().isNotEmpty)
+                ? _userName!
+                : 'Invocador',
+            userPhotoUrl: _userPhotoUrl,
+          ),
+          transitionsBuilder: (_, animation, __, child) {
+            return FadeTransition(opacity: animation, child: child);
+          },
+        ),
+      );
+    } finally {
+      // 3. Al salir del juego, restauramos la prioridad normal de la interfaz
+      if (mounted) {
+        setState(() {
+          _isHighPriorityGameRunning = false;
+        });
+      }
+    }
+  }
+
   void _showSecurityInfoDialog() {
     HapticFeedback.lightImpact();
     showDialog(
@@ -1150,53 +1192,17 @@ class _IndexScreenState extends State<IndexScreen> with WidgetsBindingObserver {
     );
   }
 
-  Widget _buildRoleChip(String id, String label, IconData icon) {
-    final isSelected = _selectedMainRole.toLowerCase().contains(id.toLowerCase()) || _selectedMainRole == id;
-    return Padding(
-      padding: const EdgeInsets.only(right: 6),
-      child: InkWell(
-        onTap: () => _updateSelectedRole(id),
-        borderRadius: BorderRadius.circular(12),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-          decoration: BoxDecoration(
-            color: isSelected ? const Color(0xFF00E5FF).withValues(alpha: 0.15) : const Color(0xFF131B2E),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: isSelected ? const Color(0xFF00E5FF) : Colors.white10,
-              width: isSelected ? 1.4 : 1,
-            ),
-            boxShadow: isSelected
-                ? [
-                    BoxShadow(
-                      color: const Color(0xFF00E5FF).withValues(alpha: 0.25),
-                      blurRadius: 6,
-                    ),
-                  ]
-                : null,
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                icon,
-                size: 13,
-                color: isSelected ? const Color(0xFF00E5FF) : Colors.white60,
-              ),
-              const SizedBox(width: 4),
-              Text(
-                label,
-                style: GoogleFonts.outfit(
-                  fontSize: 11.5,
-                  fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
-                  color: isSelected ? Colors.white : Colors.white60,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
+  /// Envuelve cada pestaña en un contenedor con Lazy Load y control de prioridad de CPU/GPU (`TickerMode`).
+  /// Si la pestaña aún no se ha visitado, no se instancia en memoria.
+  /// Si la pestaña está oculta o el Simulador 2D está corriendo, sus Tickers se congelan (0% lag).
+  Widget _buildPrioritizedTab(int tabIndex, Widget Function() builder) {
+    if (!_visitedTabs.contains(tabIndex)) {
+      return const SizedBox.shrink();
+    }
+    final bool isTabActive = !_isHighPriorityGameRunning && _currentTab == tabIndex;
+    return TickerMode(
+      enabled: isTabActive,
+      child: builder(),
     );
   }
 
@@ -1211,37 +1217,52 @@ class _IndexScreenState extends State<IndexScreen> with WidgetsBindingObserver {
           body: IndexedStack(
             index: _currentTab,
             children: [
-              EventsScreen(
-                key: _eventsKey,
-                isTab: true,
-                userEmail: _userEmail,
-                onLiveEventChanged: (live) {
-                  if (mounted) {
-                    setState(() => _liveEvent = live);
-                  }
-                },
+              _buildPrioritizedTab(
+                0,
+                () => EventsScreen(
+                  key: _eventsKey,
+                  isTab: true,
+                  userEmail: _userEmail,
+                  onLiveEventChanged: (live) {
+                    if (mounted) {
+                      setState(() => _liveEvent = live);
+                    }
+                  },
+                ),
               ),
-              AchievementsScreen(
-                referralCode: _referralCode ?? '',
-                referralCount: _referralCount,
-                referralRewardsClaimed: _referralRewardsClaimed,
-                hasRedeemedReferral: _hasRedeemedReferral,
-                onDataChanged: _fetchUserData,
-                isTab: true,
-              ),
-              _buildHomeContent(),
-              TriviaScreen(
-                onLivesChanged: _fetchUserData,
-                isTab: true,
-              ),
-              if (showDonationsTab)
-                DonationsScreen(
+              _buildPrioritizedTab(
+                1,
+                () => AchievementsScreen(
+                  referralCode: _referralCode ?? '',
+                  referralCount: _referralCount,
+                  referralRewardsClaimed: _referralRewardsClaimed,
+                  hasRedeemedReferral: _hasRedeemedReferral,
                   onDataChanged: _fetchUserData,
                   isTab: true,
                 ),
-              StoreScreen(
-                onDataChanged: _fetchUserData,
-                isTab: true,
+              ),
+              _buildPrioritizedTab(2, _buildHomeContent),
+              _buildPrioritizedTab(
+                3,
+                () => TriviaScreen(
+                  onLivesChanged: _fetchUserData,
+                  isTab: true,
+                ),
+              ),
+              if (showDonationsTab)
+                _buildPrioritizedTab(
+                  4,
+                  () => DonationsScreen(
+                    onDataChanged: _fetchUserData,
+                    isTab: true,
+                  ),
+                ),
+              _buildPrioritizedTab(
+                showDonationsTab ? 5 : 4,
+                () => StoreScreen(
+                  onDataChanged: _fetchUserData,
+                  isTab: true,
+                ),
               ),
             ],
           ),
@@ -1782,83 +1803,59 @@ class _IndexScreenState extends State<IndexScreen> with WidgetsBindingObserver {
 
               const SizedBox(height: 16),
 
-              // --- 2.8 SELECTOR DE ROL ACTIVO EN PARTIDA & MODO OTP ---
+              // --- 2.8 SELECTOR DE CAMPEÓN OTP (Detección de Rol, Bans y Picks 100% Automática) ---
               if (_selectedGameMode == 'wild_rift') ...[
                 Container(
-                  margin: const EdgeInsets.symmetric(horizontal: 20),
-                  child: Column(
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  margin: const EdgeInsets.symmetric(horizontal: 24),
+                  child: InkWell(
+                    onTap: _showOtpChampionPickerModal,
+                    borderRadius: BorderRadius.circular(14),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
+                      decoration: BoxDecoration(
+                        color: _selectedOtpChampion.isNotEmpty
+                            ? const Color(0xFFC89B3C).withValues(alpha: 0.18)
+                            : const Color(0xFF131B2E).withValues(alpha: 0.9),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(
+                          color: _selectedOtpChampion.isNotEmpty
+                              ? const Color(0xFFC89B3C)
+                              : Colors.white12,
+                          width: 1.2,
+                        ),
+                      ),
+                      child: Row(
                         children: [
-                          Text(
-                            'TU ROL EN PARTIDA:',
-                            style: GoogleFonts.outfit(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w800,
-                              color: Colors.white54,
-                              letterSpacing: 0.8,
+                          Icon(
+                            Icons.star_rounded,
+                            size: 18,
+                            color: _selectedOtpChampion.isNotEmpty
+                                ? const Color(0xFFFDE047)
+                                : const Color(0xFF00E5FF),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              _selectedOtpChampion.isNotEmpty
+                                  ? 'Campeón OTP: $_selectedOtpChampion (Detección automática de rol)'
+                                  : 'Seleccionar Campeón OTP (Opcional • Rol 100% automático)',
+                              style: GoogleFonts.outfit(
+                                fontSize: 12.5,
+                                fontWeight: FontWeight.w700,
+                                color: _selectedOtpChampion.isNotEmpty
+                                    ? const Color(0xFFFDE047)
+                                    : Colors.white70,
+                              ),
                             ),
                           ),
-                          InkWell(
-                            onTap: _showOtpChampionPickerModal,
-                            borderRadius: BorderRadius.circular(10),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                              decoration: BoxDecoration(
-                                color: _selectedOtpChampion.isNotEmpty
-                                    ? const Color(0xFFC89B3C).withValues(alpha: 0.2)
-                                    : Colors.white.withValues(alpha: 0.05),
-                                borderRadius: BorderRadius.circular(10),
-                                border: Border.all(
-                                  color: _selectedOtpChampion.isNotEmpty
-                                      ? const Color(0xFFC89B3C)
-                                      : Colors.white12,
-                                ),
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(
-                                    Icons.star_rounded,
-                                    size: 13,
-                                    color: _selectedOtpChampion.isNotEmpty
-                                        ? const Color(0xFFFDE047)
-                                        : Colors.white38,
-                                  ),
-                                  const SizedBox(width: 4),
-                                  Text(
-                                    _selectedOtpChampion.isNotEmpty
-                                        ? 'OTP: $_selectedOtpChampion'
-                                        : '+ OTP / Mi Champ',
-                                    style: GoogleFonts.outfit(
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.w700,
-                                      color: _selectedOtpChampion.isNotEmpty
-                                          ? const Color(0xFFFDE047)
-                                          : Colors.white60,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
+                          const Icon(
+                            Icons.edit_rounded,
+                            size: 15,
+                            color: Colors.white54,
                           ),
                         ],
                       ),
-                      const SizedBox(height: 8),
-                      SingleChildScrollView(
-                        scrollDirection: Axis.horizontal,
-                        child: Row(
-                          children: [
-                            _buildRoleChip('Top', 'Solo / Top', Icons.shield_outlined),
-                            _buildRoleChip('Jungle', 'Jungla', Icons.park_outlined),
-                            _buildRoleChip('Mid', 'Mid', Icons.bolt_rounded),
-                            _buildRoleChip('ADC', 'Dúo / ADC', Icons.crisis_alert_rounded),
-                            _buildRoleChip('Support', 'Soporte', Icons.favorite_border_rounded),
-                          ],
-                        ),
-                      ),
-                    ],
+                    ),
                   ),
                 ),
                 const SizedBox(height: 14),
@@ -1946,23 +1943,47 @@ class _IndexScreenState extends State<IndexScreen> with WidgetsBindingObserver {
 
               const SizedBox(height: 16),
 
-              // --- 3.5 BOTÓN DE ACCESO AL MODO MANUAL TÁCTICO (ANTI-BAN / IPAD) ---
+              // --- 3.5 BOTÓN DE ACCESO AL MODO MANUAL TÁCTICO (ANTI-BAN / IPAD) Y SIMULADOR 2D ---
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 32),
-                child: OutlinedButton.icon(
-                  onPressed: _openManualDraft,
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: const Color(0xFF00E5FF),
-                    side: BorderSide(color: const Color(0xFF00E5FF).withValues(alpha: 0.4), width: 1.2),
-                    padding: const EdgeInsets.symmetric(vertical: 11),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                    backgroundColor: const Color(0xFF00E5FF).withValues(alpha: 0.06),
-                  ),
-                  icon: const Icon(Icons.touch_app_rounded, size: 18),
-                  label: Text(
-                    'Modo Manual Táctico (Anti-Ban / iPad)',
-                    style: GoogleFonts.outfit(fontSize: 13, fontWeight: FontWeight.bold),
-                  ),
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: _openManualDraft,
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: const Color(0xFF00E5FF),
+                          side: BorderSide(color: const Color(0xFF00E5FF).withValues(alpha: 0.4), width: 1.2),
+                          padding: const EdgeInsets.symmetric(vertical: 11, horizontal: 10),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                          backgroundColor: const Color(0xFF00E5FF).withValues(alpha: 0.06),
+                        ),
+                        icon: const Icon(Icons.touch_app_rounded, size: 17),
+                        label: Text(
+                          'Modo Manual',
+                          style: GoogleFonts.outfit(fontSize: 12.5, fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: _openDodgeSimulator,
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: const Color(0xFF10B981),
+                          side: BorderSide(color: const Color(0xFF10B981).withValues(alpha: 0.5), width: 1.2),
+                          padding: const EdgeInsets.symmetric(vertical: 11, horizontal: 10),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                          backgroundColor: const Color(0xFF10B981).withValues(alpha: 0.08),
+                        ),
+                        icon: const Icon(Icons.sports_esports_rounded, size: 17),
+                        label: Text(
+                          'Reflejos 2D (MVP)',
+                          style: GoogleFonts.outfit(fontSize: 12.5, fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
 
@@ -2071,9 +2092,14 @@ class _IndexScreenState extends State<IndexScreen> with WidgetsBindingObserver {
         child: InkWell(
           onTap: () {
             HapticFeedback.selectionClick();
-            setState(() => _currentTab = index);
+            setState(() {
+              _visitedTabs.add(index);
+              _currentTab = index;
+            });
             if (index == 0) {
-              _eventsKey.currentState?.onTabVisitedFirstTime();
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                _eventsKey.currentState?.onTabVisitedFirstTime();
+              });
             }
             _fetchUserData();
           },

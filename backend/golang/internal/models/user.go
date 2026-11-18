@@ -174,14 +174,23 @@ func (user *User) AddPurchasedQueries(amount int) {
 	user.RecalculateAvailableQueries()
 }
 
-// RefreshDailyQueries restablece las consultas diarias a 3 (máximo 3, NUNCA acumula más allá de 3)
+// RefreshDailyQueries (Ajuste de control 2027):
+// Solo si el sistema detecta que el usuario tiene MENOS de 3 consultas totales disponibles y han pasado 24 horas (nuevo día),
+// le regala únicamente las que hagan falta para completar las 3 (ej. si tiene 1 le da 2, si tiene 2 le da 1, si tiene >= 3 no le da nada).
 func (user *User) RefreshDailyQueries(today string) bool {
 	user.CheckSubscriptionExpiry()
+	user.RecalculateAvailableQueries()
 	if user.LastDailyRewardDate != today {
-		user.DailyQueries = 3 // Tope estricto de 3
 		user.LastDailyRewardDate = today
-		user.RecalculateAvailableQueries()
-		return true
+		if user.AvailableQueries < 3 {
+			needed := 3 - user.AvailableQueries
+			user.DailyQueries += needed
+			if user.DailyQueries > 3 {
+				user.DailyQueries = 3
+			}
+			user.RecalculateAvailableQueries()
+			return true
+		}
 	}
 	return false
 }

@@ -53,6 +53,7 @@ func InitVertexClient() error {
 	}
 
 	aiClient = client
+	initWRKnowledge()
 	log.Println("✅ Cliente Gemini Enterprise Agent Platform inicializado correctamente para Producción.")
 	return nil
 }
@@ -80,279 +81,212 @@ func buildDraftPrompt(mainRole, secondaryRole, autofillRole, gameMode, otpChampi
 		excludeList = strings.TrimSpace(excludeChampions[0])
 	}
 
-	roleClauseEs := "detectando automáticamente la posición asignada y las necesidades de la composición"
-	if mainRole != "" && !strings.EqualFold(mainRole, "Auto") {
-		roleClauseEs = fmt.Sprintf("considerando los roles preferidos: %s, %s, %s", mainRole, secondaryRole, autofillRole)
-	}
-
-	roleClausePt := "detectando automaticamente a rota atribuída e as necessidades da composição"
-	if mainRole != "" && !strings.EqualFold(mainRole, "Auto") {
-		roleClausePt = fmt.Sprintf("considerando as rotas preferidas: %s, %s, %s", mainRole, secondaryRole, autofillRole)
-	}
-
-	roleClauseEn := "automatically detecting the assigned role and composition needs"
-	if mainRole != "" && !strings.EqualFold(mainRole, "Auto") {
-		roleClauseEn = fmt.Sprintf("considering preferred roles: %s, %s, %s", mainRole, secondaryRole, autofillRole)
-	}
-
-	roleClauseFr := "en détectant automatiquement le rôle assigné et les besoins de la composition"
-	if mainRole != "" && !strings.EqualFold(mainRole, "Auto") {
-		roleClauseFr = fmt.Sprintf("en tenant compte des rôles préférés : %s, %s, %s", mainRole, secondaryRole, autofillRole)
+	wrCatalog := ""
+	if !isPC {
+		wrCatalog = GetWildRiftChampionsContext()
 	}
 
 	var excludeClauseEs, excludeClausePt, excludeClauseEn, excludeClauseFr string
 	if excludeList != "" {
 		excludeClauseEs = fmt.Sprintf("\n\nAVISO DE RECONSULTA: El jugador ya vio las siguientes opciones y solicita nuevas alternativas: %s. ESTÁ ESTRICTAMENTE PROHIBIDO repetir cualquiera de esos campeones. Brinda un nuevo PLAN A óptimo diferente y dos recomendaciones similares distintas.", excludeList)
-		excludeClausePt = fmt.Sprintf("\n\nAVISO DE ATUALIZAÇÃO: O jogador já viu as siguientes opções e solicita novas alternativas: %s. É ESTRITAMENTE PROIBIDO repetir qualquer um desses campeões. Forneça um novo PLANO A ótimo diferente e duas recomendações semelhantes distintas.", excludeList)
+		excludeClausePt = fmt.Sprintf("\n\nAVISO DE ATUALIZAÇÃO: O jogador já viu as seguintes opções e solicita novas alternativas: %s. É ESTRITAMENTE PROIBIDO repetir qualquer um desses campeões. Forneça um novo PLANO A ótimo diferente e duas recomendações semelhantes distintas.", excludeList)
 		excludeClauseEn = fmt.Sprintf("\n\nREFRESH NOTICE: The player has already seen these options and requests new alternatives: %s. You are STRICTLY FORBIDDEN from repeating any of these champions. Provide a new, different optimal PLAN A and two different similar recommendations.", excludeList)
 		excludeClauseFr = fmt.Sprintf("\n\nAVIS D'ACTUALISATION : Le joueur a déjà vu ces options et demande de nouvelles alternatives : %s. Il est STRICTEMENT INTERDIT de répéter l'un de ces champions. Fournis un nouveau PLAN A optimal différent et deux recommandations similaires distinctes.", excludeList)
 	}
 
 	var otpClauseEs, otpClausePt, otpClauseEn, otpClauseFr string
 	if cleanOtp := strings.TrimSpace(otpChampions); cleanOtp != "" {
-		targetRole := mainRole
-		if targetRole == "" || strings.EqualFold(targetRole, "Auto") {
-			targetRole = "detectada"
-		}
 		otpClauseEs = fmt.Sprintf(`
 
-REGLA ESPECIAL DE JUGADOR OTP (%s) Y FALLBACK POR AUTOFILL:
+REGLA ESPECIAL DE JUGADOR OTP (%s) Y DETECCIÓN AUTOMÁTICA DE ROL:
 - El jugador es especialista / OTP con: %s.
 - VIABILIDAD POR ROL Y REGLA DE AUTOFILL:
-  1. Si la línea asignada (o fijada: %s) es una posición estándar y VIABLE para su OTP (%s), dale máxima prioridad como PLAN A o explica cómo jugarlo en este emparejamiento.
-  2. Si la línea asignada NO es viable para su OTP (por ejemplo: Autofill a Soporte, ADC, Jungla o Top donde dicho campeón no cumple el rol ni es estándar), ESTÁ ESTRICTAMENTE PROHIBIDO FORZAR SU OTP.
-     En la línea de 'Situación' advierte brevemente entre paréntesis: '(Tu OTP %s no es viable en la línea de %s)'.
-     En el 'PLAN A' recomienda el mejor campeón counter/meta estándar para ganar esa posición asignada.
-     En 'Recomendaciones similares' incluye opciones cómodas y naturales para dicho rol.`, cleanOtp, cleanOtp, targetRole, cleanOtp, cleanOtp, targetRole)
+  1. Si la línea asignada en pantalla es una posición estándar y VIABLE para su OTP (%s) y no está baneado ni elegido, dale máxima prioridad como PLAN A o explica cómo jugarlo en este emparejamiento.
+  2. Si la línea asignada NO es viable para su OTP (por ejemplo: Autofill a Soporte, ADC, Jungla o Top donde dicho campeón no cumple el rol), ESTÁ ESTRICTAMENTE PROHIBIDO FORZAR SU OTP. En 'Situación' advierte brevemente: '(Tu OTP %s no es viable en el rol asignado)' y recomienda el mejor campeón counter/meta estándar.`, cleanOtp, cleanOtp, cleanOtp, cleanOtp)
 
 		otpClausePt = fmt.Sprintf(`
 
-REGRA ESPECIAL DE JOGADOR OTP (%s) E FALLBACK POR AUTOFILL:
+REGRA ESPECIAL DE JOGADOR OTP (%s) E DETECÇÃO AUTOMÁTICA DE ROTA:
 - O jogador é especialista / OTP com: %s.
-- VIABILIDADE POR ROTA E REGRA DE AUTOFILL:
-  1. Se a rota atribuída (ou selecionada: %s) for VIÁVEL para seu OTP (%s), dê prioridade máxima como PLANO A ou explique como jogá-lo nesta partida.
-  2. Se a rota atribuída NÃO for viável para seu OTP (exemplo: caiu Autofill como Suporte, ADC ou Selva onde esse campeão não cumpre a função), É PROIBIDO FORÇAR SEU OTP.
-     Na linha de 'Situação' alerte brevemente entre parênteses: '(Seu OTP %s não é viável na rota de %s)'.
-     No 'PLANO A' recomende o melhor campeão ótimo padrão para vencer nessa rota.`, cleanOtp, cleanOtp, targetRole, cleanOtp, cleanOtp, targetRole)
+- VIABILIDADE POR ROTA:
+  1. Se a rota atribuída na tela for VIÁVEL para seu OTP (%s) e ele estiver disponível, dê prioridade máxima como PLANO A.
+  2. Se a rota atribuída NÃO for viável para seu OTP, É PROIBIDO FORÇAR SEU OTP. Na linha de 'Situação' alerte brevemente: '(Seu OTP %s não é viável na rota atribuída)' e recomende o melhor campeão ótimo padrão.`, cleanOtp, cleanOtp, cleanOtp, cleanOtp)
 
 		otpClauseEn = fmt.Sprintf(`
 
-SPECIAL OTP PLAYER RULE (%s) & AUTOFILL FALLBACK:
+SPECIAL OTP PLAYER RULE (%s) & AUTOMATIC ROLE DETECTION:
 - The player is a dedicated OTP / specialist on: %s.
-- ROLE VIABILITY & AUTOFILL RULE:
-  1. If the assigned (or selected: %s) lane is a standard and VIABLE role for their OTP champion (%s), give it top priority as PLAN A or explain how to pilot it into this matchup.
-  2. If the assigned lane is NOT viable for their OTP champion (for example: autofilled into Support, ADC, Jungle, or Top where this champion does not fit), DO NOT FORCE THE OTP.
-     In the 'Situation' line, briefly add in parentheses: '(Your OTP %s is not viable in the %s role)'.
-     In 'PLAN A', recommend the best optimal standard counter champion to secure the win in that assigned lane.`, cleanOtp, cleanOtp, targetRole, cleanOtp, cleanOtp, targetRole)
+- ROLE VIABILITY:
+  1. If the assigned lane on screen is a standard and VIABLE role for their OTP champion (%s) and it is available, give it top priority as PLAN A.
+  2. If the assigned lane is NOT viable for their OTP champion, DO NOT FORCE THE OTP. In 'Situation', briefly add: '(Your OTP %s is not viable in the assigned role)' and recommend the best optimal standard counter champion.`, cleanOtp, cleanOtp, cleanOtp, cleanOtp)
 
 		otpClauseFr = fmt.Sprintf(`
 
-RÈGLE SPÉCIALE JOUEUR OTP (%s) ET GESTION DE L'AUTOFILL :
+RÈGLE SPÉCIALE JOUEUR OTP (%s) ET DÉTECTION AUTOMATIQUE DU RÔLE :
 - Le joueur est spécialiste / OTP sur : %s.
-- VIABILITÉ DU RÔLE ET AUTOFILL :
-  1. Si le rôle assigné (ou sélectionné : %s) est standard et VIABLE pour son champion OTP (%s), donne-lui priorité absolue en PLAN A.
-  2. Si le rôle assigné N'EST PAS viable pour son champion OTP (ex: autofill Support, ADC ou Jungle où cet OTP ne fonctionne pas), IL EST STRICTEMENT INTERDIT DE FORCER L'OTP.
-     Dans la ligne 'Situation', indique brièvement entre parenthèses : '(Ton OTP %s n'est pas viable comme %s)'.
-     En 'PLAN A', recommande le meilleur champion adapté et performant pour cette voie.`, cleanOtp, cleanOtp, targetRole, cleanOtp, cleanOtp, targetRole)
+- VIABILITÉ DU RÔLE :
+  1. Si le rôle assigné à l'écran est VIABLE pour son champion OTP (%s) et qu'il est disponible, donne-lui priorité absolue en PLAN A.
+  2. Si le rôle assigné N'EST PAS viable pour son champion OTP, IL EST INTERDIT DE FORCER L'OTP. Dans 'Situation', indique brièvement : '(Ton OTP %s n'est pas viable sur ce rôle)' et recommande le meilleur champion adapté.`, cleanOtp, cleanOtp, cleanOtp, cleanOtp)
+	}
+
+	gameTitle := "League of Legends: Wild Rift"
+	if isPC {
+		gameTitle = "League of Legends (PC)"
 	}
 
 	switch NormalizeLanguage(lang) {
 	case "pt":
-		if isPC {
-			return fmt.Sprintf(`Você é um Analista Mestre e Challenger de League of Legends (PC).
-Analise a captura de tela durante a seleção de campeões (draft) %s.
+		return fmt.Sprintf(`Você é um Analista Mestre e Challenger de %s.
+Analise a captura de tela durante a seleção de campeões (draft) detectando AUTOMATICAMENTE:
+1) A rota atribuída ao jogador (Baron/Top, Jungle, Mid, Dragon/ADC ou Support)
+2) Os campeões banidos (bloqueados)
+3) Os campeões já selecionados pelos aliados e inimigos.%s
 
-REGRAS CRÍTICAS DE CONCISÃO (30 SEGUNDOS):
+REGRAS CRÍTICAS DE CONCISÃO E FORMATO (30 SEGUNDOS):
 - O jogador tem apenas 30 segundos. Seja direto, tático e conciso.
-- PROIBIDO TERMINANTEMENTE escrever introduções como 'Vamos analisar...', saudações ou listar nomes de aliados e jogadores.
-- PROIBIDO USAR ASTERISCOS (**) OU ESTILOS MARKDOWN. Apenas texto limpo e tópicos com ponto (•).
+- PROIBIDO TERMINANTEMENTE recomendar runas ou feitiços nesta resposta (apenas campeões e por que são as melhores opções).
+- PROIBIDO escrever introduções, saudações ou usar asteriscos (**). Apenas texto limpo e tópicos com ponto (•).
 - SUA RESPOSTA DEVE COMEÇAR DIRETA E IMEDIATAMENTE COM 'Situação:'.
+- Na última linha, inclua obrigatoriamente a tag de contexto interno: CONTEXTO_DRAFT: {"role":"...","bans":["..."],"allies":["..."],"enemies":["..."],"suggested":["..."]}
 
 ESTRUTURA EXATA (OBRIGATÓRIA):
-Situação: [Diagnóstico breve da partida: o que o rival ameaça e do que sua equipe precisa]
-Por que esta escolha: [Explicação clara e tática do porquê recomendamos este campeão para vencer esta partida]
+Situação: [Rota detectada + diagnóstico breve do que o rival ameaça e do que sua equipe precisa]
+Por que esta escolha: [Explicação clara e tática de por que este campeão é a melhor opção para vencer esta partida]
 
 PLANO A: [Nome do Campeão]
-• Feitiços: [Feitiços recomendados, ex: Flash + Incendiar / Teleporte]
-• Runas: [Runa essencial + runas secundárias]
 • Plano de ação: [Quem focar/anular no time rival e melhor sinergia com sua equipe]
 
 Recomendações semelhantes:
-• [Campeão 2]: [Por que compartilha kit similar ou cumpre função similar em 1 linha]
-• [Campeão 3]: [Por que compartilha kit similar ou cumpre função similar em 1 linha]%s%s`, roleClausePt, excludeClausePt, otpClausePt)
-		}
-		return fmt.Sprintf(`Você é um Analista Mestre e Challenger de League of Legends: Wild Rift.
-Analise a tela de seleção de campeões (draft) considerando as rotas preferidas: %s, %s, %s.
-
-REGRAS CRÍTICAS DE CONCISÃO (30 SEGUNDOS):
-- O jogador tem apenas 30 segundos. Seja direto, tático e conciso.
-- PROIBIDO TERMINANTEMENTE escrever introduções como 'Vamos analisar...', saudações ou listar nomes de aliados e jogadores.
-- PROIBIDO USAR ASTERISCOS (**) OU ESTILOS MARKDOWN. Apenas texto limpo e tópicos com ponto (•).
-- SUA RESPOSTA DEVE COMEÇAR DIRETA E IMEDIATAMENTE COM 'Situação:'.
-
-ESTRUTURA EXATA (OBRIGATÓRIA):
-Situação: [Diagnóstico breve da partida: o que o rival ameaça e do que sua equipe precisa]
-Por que esta escolha: [Explicação clara e tática do porquê recomendamos este campeão para vencer esta partida]
-
-PLANO A: [Nome do Campeão]
-• Feitiços: [Feitiços recomendados]
-• Runas: [Runa essencial + runas secundárias]
-• Plano de ação: [Quem focar/anular no time rival e melhor sinergia com sua equipe]
-
-Recomendações semelhantes:
-• [Campeão 2]: [Por que compartilha kit similar ou cumpre função similar em 1 linha]
-• [Campeão 3]: [Por que compartilha kit similar ou cumpre função similar em 1 linha]%s%s`, mainRole, secondaryRole, autofillRole, excludeClausePt, otpClausePt)
+• [Campeão 2]: [Por que é uma excelente alternativa tática nesta partida em 1 linha]
+• [Campeão 3]: [Por que é uma excelente alternativa tática nesta partida em 1 linha]%s%s
+CONTEXTO_DRAFT: {"role":"RotaDetectada","bans":[],"allies":[],"enemies":[],"suggested":[]}`, gameTitle, wrCatalog, excludeClausePt, otpClausePt)
 
 	case "en":
-		if isPC {
-			return fmt.Sprintf(`You are a Master and Challenger Analyst for League of Legends (PC).
-Analyze the screenshot during champion select (draft) %s.
+		return fmt.Sprintf(`You are a Master and Challenger Analyst for %s.
+Analyze the champion select (draft) screenshot by AUTOMATICALLY detecting:
+1) The player's assigned role (Baron/Top, Jungle, Mid, Dragon/ADC, or Support)
+2) Banned champions
+3) Allied and enemy selected champions.%s
 
-CRITICAL CONCISENESS RULES (30 SECONDS):
+CRITICAL CONCISENESS & FORMAT RULES (30 SECONDS):
 - The player only has 30 seconds. Be sharp, direct, and actionable.
-- STRICTLY FORBIDDEN from writing intros like 'Let us analyze...', greetings, or listing teammates and players.
-- DO NOT USE ASTERISKS (**) OR MARKDOWN STYLES. Plain text and bullet points (•) only.
+- STRICTLY FORBIDDEN from giving rune or summoner spell advice here (only champions and why they are the best options).
+- DO NOT write intros, greetings, or use asterisks (**). Plain text and bullet points (•) only.
 - YOUR RESPONSE MUST START DIRECTLY AND IMMEDIATELY WITH 'Situation:'.
+- On the very last line, always include the internal context tag: CONTEXTO_DRAFT: {"role":"...","bans":["..."],"allies":["..."],"enemies":["..."],"suggested":["..."]}
 
 EXACT STRUCTURE (MANDATORY):
-Situation: [Brief match analysis: what the enemy threatens and what your team needs]
-Why this pick: [Clear tactical explanation of why we recommend this champion to win]
+Situation: [Detected role + brief match analysis: what the enemy threatens and what your team needs]
+Why this pick: [Clear tactical explanation of why this champion is the best option to win this match]
 
 PLAN A: [Champion Name]
-• Spells: [Recommended summoner spells, e.g. Flash + Ignite / Teleport]
-• Runes: [Keystone + key secondary runes]
 • Action plan: [Which enemy to counter/target and key synergy with your team]
 
 Similar recommendations:
-• [Champion 2]: [Why it fits well or serves a similar purpose in 1 line]
-• [Champion 3]: [Why it fits well or serves a similar purpose in 1 line]%s%s`, roleClauseEn, excludeClauseEn, otpClauseEn)
-		}
-		return fmt.Sprintf(`You are a Master and Challenger Analyst for League of Legends: Wild Rift.
-Analyze the champion select (draft) screen considering the preferred roles: %s, %s, %s.
-
-CRITICAL CONCISENESS RULES (30 SECONDS):
-- The player only has 30 seconds. Be sharp, direct, and actionable.
-- STRICTLY FORBIDDEN from writing intros like 'Let us analyze...', greetings, or listing teammates and players.
-- DO NOT USE ASTERISKS (**) OR MARKDOWN STYLES. Plain text and bullet points (•) only.
-- YOUR RESPONSE MUST START DIRECTLY AND IMMEDIATELY WITH 'Situation:'.
-
-EXACT STRUCTURE (MANDATORY):
-Situation: [Brief match analysis: what the enemy threatens and what your team needs]
-Why this pick: [Clear tactical explanation of why we recommend this champion to win]
-
-PLAN A: [Champion Name]
-• Spells: [Recommended summoner spells]
-• Runes: [Keystone + key secondary runes]
-• Action plan: [Which enemy to counter/target and key synergy with your team]
-
-Similar recommendations:
-• [Champion 2]: [Why it fits well or serves a similar purpose in 1 line]
-• [Champion 3]: [Why it fits well or serves a similar purpose in 1 line]%s%s`, mainRole, secondaryRole, autofillRole, excludeClauseEn, otpClauseEn)
+• [Champion 2]: [Why it is a strong tactical alternative in this match in 1 line]
+• [Champion 3]: [Why it is a strong tactical alternative in this match in 1 line]%s%s
+CONTEXTO_DRAFT: {"role":"DetectedRole","bans":[],"allies":[],"enemies":[],"suggested":[]}`, gameTitle, wrCatalog, excludeClauseEn, otpClauseEn)
 
 	case "fr":
-		if isPC {
-			return fmt.Sprintf(`Tu es un Analyste Maître et Challenger de League of Legends (PC).
-Analyse la capture d'écran pendant la sélection des champions (draft) %s.
+		return fmt.Sprintf(`Tu es un Analyste Maître et Challenger de %s.
+Analyse la capture d'écran de sélection des champions (draft) en détectant AUTOMATIQUEMENT :
+1) Le rôle assigné au joueur (Baron/Top, Jungle, Mid, Dragon/ADC ou Support)
+2) Les champions bannis
+3) Les champions sélectionnés par les alliés et les ennemis.%s
 
-RÈGLES CRITIQUES DE CONCISION (30 SECONDES) :
+RÈGLES CRITIQUES DE CONCISION ET FORMAT (30 SECONDES) :
 - Le joueur n'a que 30 secondes. Sois direct, tactique et concis.
-- INTERDICTION STRICTE d'écrire des introductions comme 'Analysons...', des salutations ou de lister les alliés et joueurs.
-- INTERDICTION D'UTILISER DES ASTÉRISQUES (**) OU DU MARKDOWN. Texte brut et puces (•) uniquement.
+- INTERDICTION STRICTE de donner des conseils sur les runes ou les sorts d'invocateur ici (uniquement les champions et pourquoi ce sont les meilleures options).
+- INTERDICTION d'utiliser des astérisques (**) ou d'écrire des introductions. Texte brut et puces (•) uniquement.
 - TA RÉPONSE DOIT COMMENCER DIRECTEMENT ET IMMÉDIATEMENT PAR 'Situation :'.
+- Sur la toute dernière ligne, inclus obligatoirement : CONTEXTO_DRAFT: {"role":"...","bans":["..."],"allies":["..."],"enemies":["..."],"suggested":["..."]}
 
 STRUCTURE EXACTE (OBLIGATOIRE) :
-Situation : [Bref diagnostic de la partie : menaces adverses et besoins de ton équipe]
-Pourquoi ce choix : [Explication claire et tactique de la raison pour laquelle nous recommandons ce champion]
+Situation : [Rôle détecté + bref diagnostic : menaces adverses et besoins de ton équipe]
+Pourquoi ce choix : [Explication claire et tactique de pourquoi ce champion est la meilleure option pour gagner]
 
 PLAN A : [Nom du Champion]
-• Sorts : [Sorts d'invocateur recommandés, ex: Saut éclair + Embrasement / Téléportation]
-• Runes : [Rune fondamentale + runes secondaires]
 • Plan d'action : [Quel ennemi contrer/cibler et meilleure synergie avec ton équipe]
 
 Recommandations similaires :
-• [Champion 2] : [Pourquoi il convient bien ou remplit un rôle similaire en 1 ligne]
-• [Champion 3] : [Pourquoi il convient bien ou remplit un rôle similaire en 1 ligne]%s%s`, roleClauseFr, excludeClauseFr, otpClauseFr)
-		}
-		return fmt.Sprintf(`Tu es un Analyste Maître et Challenger de League of Legends: Wild Rift.
-Analyse l'écran de sélection des champions (draft) en tenant compte des rôles préférés : %s, %s, %s.
-
-RÈGLES CRITIQUES DE CONCISION (30 SECONDES) :
-- Le joueur n'a que 30 secondes. Sois direct, tactique et concis.
-- INTERDICTION STRICTE d'écrire des introductions comme 'Analysons...', des salutations ou de lister les alliés et joueurs.
-- INTERDICTION D'UTILISER DES ASTÉRISQUES (**) OU DU MARKDOWN. Texte brut et puces (•) únicamente.
-- TA RÉPONSE DOIT COMMENCER DIRECTEMENT ET IMMÉDIATEMENT PAR 'Situation :'.
-
-STRUCTURE EXACTE (OBLIGATOIRE) :
-Situation : [Bref diagnostic de la partie : menaces adverses et besoins de ton équipe]
-Pourquoi ce choix : [Explication claire et tactique de la raison pour laquelle nous recommandons ce champion]
-
-PLAN A : [Nom du Champion]
-• Sorts : [Sorts d'invocateur recommandés]
-• Runes : [Rune fondamentale + runes secondaires]
-• Plan d'action : [Quel ennemi contrer/cibler et meilleure synergie avec ton équipe]
-
-Recommandations similaires :
-• [Champion 2] : [Pourquoi il convient bien ou remplit un rôle similaire en 1 ligne]
-• [Champion 3] : [Pourquoi il convient bien ou remplit un rôle similaire en 1 ligne]%s%s`, mainRole, secondaryRole, autofillRole, excludeClauseFr, otpClauseFr)
+• [Champion 2] : [Pourquoi c'est une excellente alternative tactique en 1 ligne]
+• [Champion 3] : [Pourquoi c'est une excellente alternative tactique en 1 ligne]%s%s
+CONTEXTO_DRAFT: {"role":"RoleDetecte","bans":[],"allies":[],"enemies":[],"suggested":[]}`, gameTitle, wrCatalog, excludeClauseFr, otpClauseFr)
 
 	default:
-		if isPC {
-			return fmt.Sprintf(`Eres un Analista Maestro y Challenger de League of Legends (PC).
-Analiza la captura de pantalla durante la selección de campeones (draft) %s.
+		return fmt.Sprintf(`Eres un Analista Maestro y Challenger de %s.
+Analiza la captura de pantalla de selección de campeones (draft) detectando AUTOMÁTICAMENTE:
+1) El rol asignado al jugador (Baron/Top, Jungla, Mid, Dragon/ADC o Soporte)
+2) Los campeones bloqueados (baneados)
+3) Los campeones ya seleccionados por aliados y enemigos.%s
 
-REGLAS CRÍTICAS DE CONCISIÓN (30 SEGUNDOS):
+REGLAS CRÍTICAS DE CONCISIÓN Y FORMATO (30 SEGUNDOS):
 - El jugador solo tiene 30 segundos. Sé directo, táctico y accionable.
-- PROHIBIDO TERMINANTEMENTE escribir introducciones como 'Analicemos...', saludar o listar a los aliados o jugadores.
-- PROHIBIDO USAR ASTERISCOS (**) O NEGRITAS MARKDOWN. Solo texto limpio y viñetas con punto (•).
+- PROHIBIDO TERMINANTEMENTE dar consejos sobre runas o hechizos de invocador en esta respuesta (solo los campeones y explicando por qué son las mejores opciones).
+- PROHIBIDO escribir introducciones como 'Analicemos...', saludar o usar asteriscos (**). Solo texto limpio y viñetas con punto (•).
 - TU RESPUESTA DEBE COMENZAR DIRECTA E INMEDIATAMENTE CON LA PALABRA 'Situación:'.
+- En la última línea incluye obligatoriamente el resumen estructurado para reconsultas: CONTEXTO_DRAFT: {"role":"...","bans":["..."],"allies":["..."],"enemies":["..."],"suggested":["..."]}
 
 ESTRUCTURA EXACTA (OBLIGATORIA):
-Situación: [Análisis breve de la partida: qué plantea o amenaza el rival y qué carencia o ventaja tiene tu equipo]
-Por qué este pick: [Explicación clara y táctica de por qué recomendamos a este campeón para ganar esta partida]
+Situación: [Rol detectado + análisis breve de qué amenaza el rival y qué necesita tu equipo]
+Por qué este pick: [Explicación clara y táctica de por qué recomendamos a este campeón como la mejor opción para ganar]
 
 PLAN A: [Nombre del Campeón]
-• Hechizos: [Hechizos de invocador recomendados, ej: Destello + Prender / Teleportación]
-• Runas: [Rama principal + Runa clave + 2 runas secundarias prioritarias]
 • Plan de acción: [A qué campeón rival priorizar o contrarrestar y tu mejor sinergia con el equipo]
 
 Recomendaciones similares:
-• [Campeón 2]: [Por qué comparte kit similar o cumple la misma función en 1 línea]
-• [Campeón 3]: [Por qué comparte kit similar o cumple la misma función en 1 línea]%s%s`, roleClauseEs, excludeClauseEs, otpClauseEs)
-		}
-		return fmt.Sprintf(`Eres un Analista Maestro y Challenger de League of Legends: Wild Rift.
-Analiza la pantalla de selección de campeones (draft) considerando los roles preferidos: %s, %s, %s.
-
-REGLAS CRÍTICAS DE CONCISIÓN (30 SEGUNDOS):
-- El jugador solo tiene 30 segundos. Sé directo, táctico y accionable.
-- PROHIBIDO TERMINANTEMENTE escribir introducciones como 'Analicemos...', saludar o listar a los aliados o jugadores.
-- PROHIBIDO USAR ASTERISCOS (**) O NEGRITAS MARKDOWN. Solo texto limpio y viñetas con punto (•).
-- TU RESPUESTA DEBE COMENZAR DIRECTA E INMEDIATAMENTE CON LA PALABRA 'Situación:'.
-
-ESTRUCTURA EXACTA (OBLIGATORIA):
-Situación: [Análisis breve de la partida: qué plantea o amenaza el rival y qué carencia o ventaja tiene tu equipo]
-Por qué este pick: [Explicación clara y táctica de por qué recomendamos a este campeón para ganar esta partida]
-
-PLAN A: [Nombre del Campeón]
-• Hechizos: [Hechizos recomendados]
-• Runas: [Runa clave + runas secundarias prioritarias]
-• Plan de acción: [A qué campeón rival priorizar o contrarrestar y tu mejor sinergia con el equipo]
-
-Recomendaciones similares:
-• [Campeón 2]: [Por qué comparte kit similar o cumple la misma función en 1 línea]
-• [Campeón 3]: [Por qué comparte kit similar o cumple la misma función en 1 línea]%s%s`, mainRole, secondaryRole, autofillRole, excludeClauseEs, otpClauseEs)
+• [Campeón 2]: [Por qué es una excelente opción alternativa para esta partida en 1 línea]
+• [Campeón 3]: [Por qué es una excelente opción alternativa para esta partida en 1 línea]%s%s
+CONTEXTO_DRAFT: {"role":"RolDetectado","bans":[],"allies":[],"enemies":[],"suggested":[]}`, gameTitle, wrCatalog, excludeClauseEs, otpClauseEs)
 	}
 }
 
-func AnalyzeDraft(ctx context.Context, base64Image string, mainRole, secondaryRole, autofillRole string, gameMode string, otpChampions string, lang string, excludeChampions ...string) (string, int32, error) {
-	if aiClient == nil {
-		return "", 0, fmt.Errorf("el cliente de IA no ha sido inicializado")
+func extractTextAndDraftContext(raw string) (string, string) {
+	outText := raw
+	draftCtx := ""
+
+	if idx := strings.Index(outText, "CONTEXTO_DRAFT:"); idx != -1 {
+		draftCtx = strings.TrimSpace(outText[idx+len("CONTEXTO_DRAFT:"):])
+		if nl := strings.IndexAny(draftCtx, "\r\n"); nl != -1 {
+			draftCtx = strings.TrimSpace(draftCtx[:nl])
+		}
+		outText = strings.TrimSpace(outText[:idx])
 	}
 
-	// Decode base64 image
+	// Recortar cualquier divagación antes de "Situación:" o "PLAN A:"
+	if idx := strings.Index(outText, "Situación:"); idx > 0 {
+		outText = outText[idx:]
+	} else if idx := strings.Index(outText, "Situacion:"); idx > 0 {
+		outText = outText[idx:]
+	} else if idx := strings.Index(outText, "Situação:"); idx > 0 {
+		outText = outText[idx:]
+	} else if idx := strings.Index(outText, "Situation:"); idx > 0 {
+		outText = outText[idx:]
+	} else if idx := strings.Index(outText, "Situation :"); idx > 0 {
+		outText = outText[idx:]
+	} else if idx := strings.Index(outText, "PLAN A:"); idx > 0 {
+		outText = outText[idx:]
+	} else if idx := strings.Index(outText, "PLANO A:"); idx > 0 {
+		outText = outText[idx:]
+	}
+
+	outText = strings.ReplaceAll(outText, "**", "")
+	outText = strings.ReplaceAll(outText, "###", "")
+	outText = strings.ReplaceAll(outText, "##", "")
+	outText = strings.TrimSpace(outText)
+
+	return outText, draftCtx
+}
+
+func AnalyzeDraft(ctx context.Context, base64Image string, mainRole, secondaryRole, autofillRole string, gameMode string, otpChampions string, lang string, excludeChampions ...string) (string, string, int32, error) {
+	if aiClient == nil {
+		return "", "", 0, fmt.Errorf("el cliente de IA no ha sido inicializado")
+	}
+
 	imgData, err := base64.StdEncoding.DecodeString(base64Image)
 	if err != nil {
 		log.Printf("Error decoding base64 image: %v", err)
-		return "", 0, fmt.Errorf("invalid image format")
+		return "", "", 0, fmt.Errorf("invalid image format")
 	}
 
 	selectedLang := "es"
@@ -372,8 +306,8 @@ func AnalyzeDraft(ctx context.Context, base64Image string, mainRole, secondaryRo
 		},
 	}
 
-	maxTokens := int32(2000)
-	thinkingBudget := int32(0) // Desactivado (0 tokens): respuesta inmediata en 1-2s y 0 costo de tokens ocultos de razonamiento
+	maxTokens := int32(1200)
+	thinkingBudget := int32(0)
 
 	models := []string{"gemini-2.5-flash"}
 	var lastErr error
@@ -381,17 +315,16 @@ func AnalyzeDraft(ctx context.Context, base64Image string, mainRole, secondaryRo
 	var usedModel string
 
 	for _, model := range models {
-		config := &genai.GenerateContentConfig{
+		cfg := &genai.GenerateContentConfig{
 			MaxOutputTokens: maxTokens,
 		}
-		// Gemini 2.5 soporta thinking_config; desactivamos el pensamiento para draft en tiempo real
 		if strings.Contains(model, "2.5") {
-			config.ThinkingConfig = &genai.ThinkingConfig{
+			cfg.ThinkingConfig = &genai.ThinkingConfig{
 				ThinkingBudget: &thinkingBudget,
 			}
 		}
 
-		resp, lastErr = aiClient.Models.GenerateContent(ctx, model, contents, config)
+		resp, lastErr = aiClient.Models.GenerateContent(ctx, model, contents, cfg)
 		if lastErr == nil && resp != nil {
 			usedModel = model
 			log.Printf("✅ Recomendación generada exitosamente con modelo: %s (lang=%s)", usedModel, selectedLang)
@@ -401,7 +334,7 @@ func AnalyzeDraft(ctx context.Context, base64Image string, mainRole, secondaryRo
 	}
 
 	if lastErr != nil || resp == nil {
-		return "", 0, fmt.Errorf("falló generación con modelos IA: %w", lastErr)
+		return "", "", 0, fmt.Errorf("falló generación con modelos IA: %w", lastErr)
 	}
 
 	if resp.Text() != "" {
@@ -416,40 +349,275 @@ func AnalyzeDraft(ctx context.Context, base64Image string, mainRole, secondaryRo
 			)
 		}
 
-		outText := resp.Text()
-
-		// Recortar cualquier divagación o introducción antes de "Situación:" o "PLAN A:"
-		if idx := strings.Index(outText, "Situación:"); idx > 0 {
-			outText = outText[idx:]
-		} else if idx := strings.Index(outText, "Situacion:"); idx > 0 {
-			outText = outText[idx:]
-		} else if idx := strings.Index(outText, "Situação:"); idx > 0 {
-			outText = outText[idx:]
-		} else if idx := strings.Index(outText, "Situation:"); idx > 0 {
-			outText = outText[idx:]
-		} else if idx := strings.Index(outText, "PLAN A:"); idx > 0 {
-			outText = outText[idx:]
-		} else if idx := strings.Index(outText, "PLANO A:"); idx > 0 {
-			outText = outText[idx:]
+		cleanText, draftContext := extractTextAndDraftContext(resp.Text())
+		if draftContext == "" {
+			draftContext = fmt.Sprintf(`{"role":"Auto","summary":%q}`, cleanText)
 		}
-
-		// Eliminar todo rastro de asteriscos y títulos markdown
-		outText = strings.ReplaceAll(outText, "**", "")
-		outText = strings.ReplaceAll(outText, "###", "")
-		outText = strings.ReplaceAll(outText, "##", "")
-		outText = strings.TrimSpace(outText)
-
-		return outText, tokens, nil
+		return cleanText, draftContext, tokens, nil
 	}
 
-	return "No clear recommendation could be generated.", 0, nil
+	return "No clear recommendation could be generated.", "", 0, nil
+}
+
+// ReconsultDraftFromContext (Puntos 1.2 y 1.6):
+// Reconsulta alternativas usando ÚNICAMENTE los datos internos que dejó la primera captura (sin reenviar imagen).
+func ReconsultDraftFromContext(ctx context.Context, draftContext string, otpChampions string, gameMode string, lang string, excludeChampions string) (string, string, int32, error) {
+	if aiClient == nil {
+		return "", "", 0, fmt.Errorf("el cliente de IA no ha sido inicializado")
+	}
+
+	selectedLang := NormalizeLanguage(lang)
+	isPC := strings.EqualFold(strings.TrimSpace(gameMode), "lol_pc") || strings.EqualFold(strings.TrimSpace(gameMode), "pc")
+	gameTitle := "League of Legends: Wild Rift"
+	wrCatalog := ""
+	if isPC {
+		gameTitle = "League of Legends (PC)"
+	} else {
+		wrCatalog = GetWildRiftChampionsContext()
+	}
+
+	var prompt string
+	switch selectedLang {
+	case "pt":
+		prompt = fmt.Sprintf(`Você é um Analista Mestre e Challenger de %s.
+Dados extraídos da captura do draft atual: %s
+Campeões já sugeridos anteriormente (PROIBIDO REPETIR QUALQUER UM DELES): %s
+OTP do jogador (se aplicável): %s
+%s
+Pense em uma NOVA resposta alternativa com campeões diferentes para a mesma rota e partida.
+PROIBIDO incluir runas ou feitiços. Sem asteriscos (**).
+
+ESTRUTURA EXATA:
+Situação: [Breve foco tático para esta nova alternativa na mesma rota]
+Por que esta escolha: [Por que este novo campeão vence a composição inimiga]
+
+PLANO A: [Novo Campeão Principal]
+• Plano de ação: [Quem focar/anular e como jogar a partida]
+
+Recomendações semelhantes:
+• [Novo Campeão 2]: [Por que é uma ótima opção alternativa em 1 linha]
+• [Novo Campeão 3]: [Por que é uma ótima opção alternativa em 1 linha]`, gameTitle, draftContext, excludeChampions, otpChampions, wrCatalog)
+
+	case "en":
+		prompt = fmt.Sprintf(`You are a Master and Challenger Analyst for %s.
+Data extracted from the current draft screenshot: %s
+Previously suggested champions (STRICTLY FORBIDDEN TO REPEAT ANY OF THESE): %s
+Player OTP (if any): %s
+%s
+Think of a NEW alternative response with different champions for the exact same role and match.
+DO NOT include runes or summoner spells. No asterisks (**).
+
+EXACT STRUCTURE:
+Situation: [Brief tactical focus for this new alternative in the same role]
+Why this pick: [Why this new champion counters the enemy composition]
+
+PLAN A: [New Main Champion]
+• Action plan: [Which enemy to target/counter and how to play the match]
+
+Similar recommendations:
+• [New Champion 2]: [Why it is a strong alternative in 1 line]
+• [New Champion 3]: [Why it is a strong alternative in 1 line]`, gameTitle, draftContext, excludeChampions, otpChampions, wrCatalog)
+
+	case "fr":
+		prompt = fmt.Sprintf(`Tu es un Analyste Maître et Challenger de %s.
+Données extraites de la capture du draft actuel : %s
+Champions déjà suggérés (INTERDICTION STRICTE DE LES RÉPÉTER) : %s
+OTP du joueur : %s
+%s
+Propose une NOUVELLE réponse alternative avec des champions différents pour le même rôle.
+INTERDICTION d'inclure des runes ou des sorts. Pas d'astérisques (**).
+
+STRUCTURE EXACTE :
+Situation : [Bref angle tactique pour cette nouvelle alternative]
+Pourquoi ce choix : [Pourquoi ce nouveau champion gagne contre la composition adverse]
+
+PLAN A : [Nouveau Champion Principal]
+• Plan d'action : [Quel ennemi cibler/contrer et comment jouer]
+
+Recommandations similaires :
+• [Nouveau Champion 2] : [Pourquoi c'est une bonne alternative en 1 ligne]
+• [Nouveau Champion 3] : [Pourquoi c'est une bonne alternative en 1 ligne]`, gameTitle, draftContext, excludeChampions, otpChampions, wrCatalog)
+
+	default:
+		prompt = fmt.Sprintf(`Eres un Analista Maestro y Challenger de %s.
+Datos extraídos de la captura de pantalla del draft actual: %s
+Campeones ya recomendados anteriormente (ESTÁ ESTRICTAMENTE PROHIBIDO REPETIR CUALQUIERA DE ELLOS): %s
+OTP del jugador (si aplica): %s
+%s
+Con estos datos de la partida, piensa en una NUEVA respuesta alternativa con campeones distintos para el mismo rol asignado.
+PROHIBIDO dar consejos de runas o hechizos. PROHIBIDO usar asteriscos (**).
+
+ESTRUCTURA EXACTA:
+Situación: [Enfoque táctico breve para esta nueva alternativa en el mismo rol]
+Por qué este pick: [Explicación clara de por qué este nuevo campeón es excelente opción en esta partida]
+
+PLAN A: [Nuevo Campeón Principal]
+• Plan de acción: [A qué rival priorizar o contrarrestar y sinergia con tu equipo]
+
+Recomendaciones similares:
+• [Nuevo Campeón 2]: [Por qué es una gran alternativa en 1 línea]
+• [Nuevo Campeón 3]: [Por qué es una gran alternativa en 1 línea]`, gameTitle, draftContext, excludeChampions, otpChampions, wrCatalog)
+	}
+
+	contents := []*genai.Content{
+		{
+			Role: "user",
+			Parts: []*genai.Part{
+				{Text: prompt},
+			},
+		},
+	}
+
+	maxTokens := int32(900)
+	thinkingBudget := int32(0)
+
+	cfg := &genai.GenerateContentConfig{
+		MaxOutputTokens: maxTokens,
+		ThinkingConfig: &genai.ThinkingConfig{
+			ThinkingBudget: &thinkingBudget,
+		},
+	}
+
+	resp, err := aiClient.Models.GenerateContent(ctx, "gemini-2.5-flash", contents, cfg)
+	if err != nil || resp == nil {
+		return "", draftContext, 0, fmt.Errorf("falló reconsulta IA: %w", err)
+	}
+
+	var tokens int32 = 0
+	if resp.UsageMetadata != nil {
+		tokens = resp.UsageMetadata.TotalTokenCount
+		log.Printf("📊 [Reconsulta Sin Imagen] Tokens - Prompt: %d, Salida: %d, Total: %d",
+			resp.UsageMetadata.PromptTokenCount,
+			resp.UsageMetadata.CandidatesTokenCount,
+			resp.UsageMetadata.TotalTokenCount,
+		)
+	}
+
+	cleanText, _ := extractTextAndDraftContext(resp.Text())
+	return cleanText, draftContext, tokens, nil
+}
+
+// AnalyzeDraftChat (Puntos 1.8 y 2):
+// Chatbot en tiempo real entrenado con los JSONs oficiales de Runas, Objetos y Campeones de Wild Rift.
+func AnalyzeDraftChat(ctx context.Context, userMessage string, draftContext string, otpChampions string, gameMode string, lang string) (string, int32, error) {
+	if aiClient == nil {
+		return "", 0, fmt.Errorf("el cliente de IA no ha sido inicializado")
+	}
+
+	selectedLang := NormalizeLanguage(lang)
+	isPC := strings.EqualFold(strings.TrimSpace(gameMode), "lol_pc") || strings.EqualFold(strings.TrimSpace(gameMode), "pc")
+	gameTitle := "League of Legends: Wild Rift"
+	wrKnowledge := ""
+	if isPC {
+		gameTitle = "League of Legends (PC)"
+	} else {
+		wrKnowledge = GetWildRiftChatContext(userMessage, draftContext)
+	}
+
+	if strings.TrimSpace(draftContext) == "" {
+		draftContext = "Sin captura previa activa (consulta directa del jugador)."
+	}
+
+	var prompt string
+	switch selectedLang {
+	case "pt":
+		prompt = fmt.Sprintf(`Você é o Coach Tático em tempo real de %s dentro do app Drafting.
+Contexto atual da partida (extraído da captura): %s
+%s
+Pergunta do jogador: "%s"
+
+REGRAS CRÍTICAS:
+- Responda de forma direta, ultra concisa (máximo 80-100 palavras) e 100%% fiel ao Wild Rift atual.
+- Se o jogador perguntar sobre runas, indique: 1 Runa Essencial + 3 Runas da Árvore Principal + 1 Runa Secundária que realmente existam na base acima.
+- Se perguntar sobre itens/build, recomende apenas itens e botas nível 3 reais do Wild Rift.
+- PROIBIDO usar asteriscos (**). Use apenas texto limpo e tópicos (•).`, gameTitle, draftContext, wrKnowledge, userMessage)
+
+	case "en":
+		prompt = fmt.Sprintf(`You are the real-time Tactical Coach for %s inside the Drafting app.
+Current match context (from screenshot): %s
+%s
+Player question: "%s"
+
+CRITICAL RULES:
+- Answer directly, concisely (max 80-100 words), and 100%% accurately for current Wild Rift.
+- If asked about runes, specify: 1 Keystone + 3 Primary Tree Runes + 1 Secondary Rune from the official Wild Rift database above.
+- If asked about items/builds, only recommend real Wild Rift items and Tier 3 boots.
+- DO NOT use asterisks (**). Use plain text and bullet points (•) only.`, gameTitle, draftContext, wrKnowledge, userMessage)
+
+	case "fr":
+		prompt = fmt.Sprintf(`Tu es le Coach Tactique en temps réel de %s dans l'application Drafting.
+Contexte actuel de la partie : %s
+%s
+Question du joueur : "%s"
+
+RÈGLES CRITIQUES :
+- Réponds directement, de façon très concise (max 80-100 mots) et 100%% fidèle à Wild Rift.
+- Si le joueur demande des runes, indique : 1 Rune Fondamentale + 3 Runes Principales + 1 Rune Secondaire existant dans Wild Rift.
+- INTERDICTION d'utiliser des astérisques (**). Texte brut et puces (•) uniquement.`, gameTitle, draftContext, wrKnowledge, userMessage)
+
+	default:
+		prompt = fmt.Sprintf(`Eres el Entrenador Táctico en tiempo real de %s dentro de Drafting.
+Contexto actual de la partida (detectado en la captura): %s
+%s
+Pregunta del jugador: "%s"
+
+REGLAS CRÍTICAS:
+- Responde directo al grano, muy conciso (máximo 80-100 palabras, lectura rápida en partida) y 100%% apegado a lo que existe realmente en Wild Rift (PROHIBIDO mezclar con LoL PC).
+- Si pregunta por runas, dale exactamente el formato de Wild Rift: 1 Runa Clave + 3 Runas de Rama Principal + 1 Runa Secundaria usando solo las runas reales de la base de datos.
+- Si pregunta por objetos o build, recomienda solo objetos y botas mejoradas reales de Wild Rift.
+- PROHIBIDO usar asteriscos (**). Usa solo texto limpio y viñetas con punto (•).`, gameTitle, draftContext, wrKnowledge, userMessage)
+	}
+
+	contents := []*genai.Content{
+		{
+			Role: "user",
+			Parts: []*genai.Part{
+				{Text: prompt},
+			},
+		},
+	}
+
+	maxTokens := int32(700)
+	thinkingBudget := int32(0)
+
+	cfg := &genai.GenerateContentConfig{
+		MaxOutputTokens: maxTokens,
+		ThinkingConfig: &genai.ThinkingConfig{
+			ThinkingBudget: &thinkingBudget,
+		},
+	}
+
+	resp, err := aiClient.Models.GenerateContent(ctx, "gemini-2.5-flash", contents, cfg)
+	if err != nil || resp == nil {
+		return "", 0, fmt.Errorf("falló chat IA: %w", err)
+	}
+
+	var tokens int32 = 0
+	if resp.UsageMetadata != nil {
+		tokens = resp.UsageMetadata.TotalTokenCount
+		log.Printf("📊 [Chat Tiempo Real] Tokens - Prompt: %d, Salida: %d, Total: %d",
+			resp.UsageMetadata.PromptTokenCount,
+			resp.UsageMetadata.CandidatesTokenCount,
+			resp.UsageMetadata.TotalTokenCount,
+		)
+	}
+
+	outText := resp.Text()
+	outText = strings.ReplaceAll(outText, "**", "")
+	outText = strings.ReplaceAll(outText, "###", "")
+	outText = strings.ReplaceAll(outText, "##", "")
+	outText = strings.TrimSpace(outText)
+	return outText, tokens, nil
 }
 
 func buildManualDraftPrompt(mainRole, myChampion, enemyChampion, gameMode, lang string, excludeChampions ...string) string {
 	isPC := strings.EqualFold(strings.TrimSpace(gameMode), "lol_pc") || strings.EqualFold(strings.TrimSpace(gameMode), "pc")
 	gameTitle := "League of Legends: Wild Rift"
+	wrContext := ""
 	if isPC {
 		gameTitle = "League of Legends (PC)"
+	} else {
+		wrContext = "\n" + GetWildRiftChampionsContext() + "\n" + GetWildRiftChatContext(myChampion+" "+enemyChampion, mainRole)
 	}
 
 	excludeList := ""
@@ -464,7 +632,7 @@ func buildManualDraftPrompt(mainRole, myChampion, enemyChampion, gameMode, lang 
 	case "pt":
 		if hasMyChamp {
 			return fmt.Sprintf(`Você é um Treinador e Analista Mestre/Challenger de %s.
-O jogador está na rota '%s' e jogará com '%s' enfrentando '%s' na rota.
+O jogador está na rota '%s' e jogará com '%s' enfrentando '%s' na rota.%s
 
 Forneça um guia tático direto, rápido e acionável para os próximos 30 segundos:
 - PROIBIDO USAR ASTERISCOS (**) OU ESTILOS MARKDOWN. Apenas texto limpo e tópicos com ponto (•).
@@ -474,16 +642,16 @@ Situação: [Diagnóstico em 1 frase curta do confronto %s vs %s]
 
 PLANO DE JOGO:
 • Feitiços: [Feitiços de invocador ideais contra este rival]
-• Runas: [Runa essencial + runas secundárias defensivas/ofensivas necessárias]
-• Itens e Build: [Primeiros 3 itens prioritários, corta-cura ou penetração se necessário]
-• Tática de Linha: [Como punir o rival, níveis de pico de poder e cuidados principais]`, gameTitle, mainRole, myChampion, enemyChampion, myChampion, enemyChampion)
+• Runas: [Runa essencial + 3 runas principais + 1 secundária do Wild Rift]
+• Itens e Build: [Primeiros 3 itens prioritários e botas do Wild Rift]
+• Tática de Linha: [Como punir o rival, níveis de pico de poder e cuidados principais]`, gameTitle, mainRole, myChampion, enemyChampion, wrContext, myChampion, enemyChampion)
 		}
 		excludeClause := ""
 		if excludeList != "" {
 			excludeClause = fmt.Sprintf("\nPROIBIDO sugerir qualquer um destes campeões já visualizados: %s.", excludeList)
 		}
 		return fmt.Sprintf(`Você é um Treinador e Analista Mestre/Challenger de %s.
-O jogador joga na rota '%s' e o adversário direto escolheu '%s'.
+O jogador joga na rota '%s' e o adversário direto escolheu '%s'.%s
 Recomende o melhor campeão para contra-atacar (Counter) e vencer a rota.%s
 - PROIBIDO USAR ASTERISCOS (**) OU ESTILOS MARKDOWN. Apenas texto limpo e tópicos com ponto (•).
 
@@ -493,18 +661,18 @@ Situação: [Diagnóstico em 1 frase curta das fraquezas de %s]
 PLANO A: [Nome do Melhor Counter na rota %s]
 • Por que vence: [Vantagem direta do kit de habilidades sobre %s]
 • Feitiços: [Feitiços de invocador recomendados]
-• Runas: [Runa essencial e secundárias prioritárias]
+• Runas: [Runa essencial e secundárias prioritárias do Wild Rift]
 • Itens essenciais: [Primeiros 2 itens recomendados contra %s]
 • Tática de Linha: [Como jogar o confronto nos primeiros 5 minutos]
 
 Recomendações semelhantes:
 • [Campeão 2]: [Por que é uma boa alternativa contra %s]
-• [Campeão 3]: [Por que é uma boa alternativa contra %s]`, gameTitle, mainRole, enemyChampion, excludeClause, enemyChampion, mainRole, enemyChampion, enemyChampion, enemyChampion, enemyChampion)
+• [Campeão 3]: [Por que é uma boa alternativa contra %s]`, gameTitle, mainRole, enemyChampion, wrContext, excludeClause, enemyChampion, mainRole, enemyChampion, enemyChampion, enemyChampion, enemyChampion)
 
 	case "en":
 		if hasMyChamp {
 			return fmt.Sprintf(`You are a Master and Challenger Coach/Analyst for %s.
-The player is in lane '%s' playing as '%s' facing '%s'.
+The player is in lane '%s' playing as '%s' facing '%s'.%s
 
 Provide a direct, concise, and tactical guide for champion select (under 30s):
 - DO NOT USE ASTERISKS (**) OR MARKDOWN STYLES. Plain text and bullet points (•) only.
@@ -514,16 +682,16 @@ Situation: [1 short sentence diagnosing %s vs %s matchup]
 
 TACTICAL PLAN:
 • Spells: [Optimal summoner spells against this rival]
-• Runes: [Keystone + crucial secondary defensive/offensive runes]
-• Core Build: [First 3 core items, anti-heal or armor pen if necessary]
-• Lane Strategy: [How to trade, power spikes, and what to watch out for]`, gameTitle, mainRole, myChampion, enemyChampion, myChampion, enemyChampion)
+• Runes: [Keystone + 3 primary runes + 1 secondary rune from Wild Rift]
+• Core Build: [First 3 core items and boots from Wild Rift]
+• Lane Strategy: [How to trade, power spikes, and what to watch out for]`, gameTitle, mainRole, myChampion, enemyChampion, wrContext, myChampion, enemyChampion)
 		}
 		excludeClause := ""
 		if excludeList != "" {
 			excludeClause = fmt.Sprintf("\nSTRICTLY FORBIDDEN to suggest these champions already shown: %s.", excludeList)
 		}
 		return fmt.Sprintf(`You are a Master and Challenger Coach/Analyst for %s.
-The player plays in '%s' lane and the direct lane opponent picked '%s'.
+The player plays in '%s' lane and the direct lane opponent picked '%s'.%s
 Recommend the optimal counter-pick champion to win lane.%s
 - DO NOT USE ASTERISKS (**) OR MARKDOWN STYLES. Plain text and bullet points (•) only.
 
@@ -533,18 +701,18 @@ Situation: [1 short sentence diagnosing %s's main weaknesses]
 PLAN A: [Best Counter Champion for %s lane]
 • Why it counters: [Direct kit advantage over %s]
 • Spells: [Recommended summoner spells]
-• Runes: [Optimal keystone and secondary runes]
+• Runes: [Optimal keystone and secondary runes from Wild Rift]
 • Core Build: [First 2 items to counter %s]
 • Lane Strategy: [How to dominate the matchup early game]
 
 Similar recommendations:
 • [Champion 2]: [Why it is a strong alternative against %s]
-• [Champion 3]: [Why it is a strong alternative against %s]`, gameTitle, mainRole, enemyChampion, excludeClause, enemyChampion, mainRole, enemyChampion, enemyChampion, enemyChampion, enemyChampion)
+• [Champion 3]: [Why it is a strong alternative against %s]`, gameTitle, mainRole, enemyChampion, wrContext, excludeClause, enemyChampion, mainRole, enemyChampion, enemyChampion, enemyChampion, enemyChampion)
 
 	case "fr":
 		if hasMyChamp {
 			return fmt.Sprintf(`Tu es un Coach et Analyste Maître/Challenger de %s.
-Le joueur est sur la voie '%s' avec '%s' contre '%s'.
+Le joueur est sur la voie '%s' avec '%s' contre '%s'.%s
 
 Donne un guide tactique direct et clair pour les 30 prochaines secondes :
 - INTERDICTION D'UTILISER DES ASTÉRISQUES (**) OU DU MARKDOWN. Texte brut et puces (•) uniquement.
@@ -554,16 +722,16 @@ Situation : [Diagnostic en 1 phrase courte du match %s vs %s]
 
 PLAN TACTIQUE :
 • Sorts : [Sorts d'invocateur idéaux contre ce rival]
-• Runes : [Rune fondamentale + runes secondaires clés]
-• Objets essentiels : [3 premiers objets prioritaires, anti-soin ou pénétration si nécessaire]
-• Tactique de voie : [Comment punir le rival et gérer les pics de puissance]`, gameTitle, mainRole, myChampion, enemyChampion, myChampion, enemyChampion)
+• Runes : [Rune fondamentale + runes secondaires de Wild Rift]
+• Objets essentiels : [3 premiers objets prioritaires de Wild Rift]
+• Tactique de voie : [Comment punir le rival et gérer les pics de puissance]`, gameTitle, mainRole, myChampion, enemyChampion, wrContext, myChampion, enemyChampion)
 		}
 		excludeClause := ""
 		if excludeList != "" {
 			excludeClause = fmt.Sprintf("\nINTERDICTION de suggérer ces champions déjà vus : %s.", excludeList)
 		}
 		return fmt.Sprintf(`Tu es un Coach et Analyste Maître/Challenger de %s.
-Le joueur joue sur la voie '%s' et l'adversaire direct a choisi '%s'.
+Le joueur joue sur la voie '%s' et l'adversaire direct a choisi '%s'.%s
 Recommande le meilleur champion pour contrer (Counter) et remporter la voie.%s
 - INTERDICTION D'UTILISER DES ASTÉRISQUES (**) OU DU MARKDOWN. Texte brut et puces (•) uniquement.
 
@@ -573,18 +741,18 @@ Situation : [Diagnostic en 1 phrase courte des faiblesses de %s]
 PLAN A : [Meilleur Champion Counter sur la voie %s]
 • Pourquoi il gagne : [Avantage direct du kit contre %s]
 • Sorts : [Sorts d'invocateur recommandés]
-• Runes : [Rune fondamentale et secondaires prioritaires]
+• Runes : [Rune fondamentale et secondaires prioritaires de Wild Rift]
 • Objets essentiels : [2 premiers objets recommandés contre %s]
 • Tactique de voie : [Comment dominer le face-à-face]
 
 Recommandations similaires :
 • [Champion 2] : [Pourquoi c'est une bonne alternative contre %s]
-• [Champion 3] : [Pourquoi c'est une bonne alternative contre %s]`, gameTitle, mainRole, enemyChampion, excludeClause, enemyChampion, mainRole, enemyChampion, enemyChampion, enemyChampion, enemyChampion)
+• [Champion 3] : [Pourquoi c'est une bonne alternative contre %s]`, gameTitle, mainRole, enemyChampion, wrContext, excludeClause, enemyChampion, mainRole, enemyChampion, enemyChampion, enemyChampion, enemyChampion)
 
 	default: // "es"
 		if hasMyChamp {
 			return fmt.Sprintf(`Eres un Entrenador y Analista Maestro/Challenger de %s.
-El jugador va en la línea '%s' jugando con '%s' contra '%s'.
+El jugador va en la línea '%s' jugando con '%s' contra '%s'.%s
 
 Genera una guía táctica directa, clara y accionable para los 30 segundos del draft:
 - FORMATO OBLIGATORIO: PROHIBIDO USAR ASTERISCOS (**) O ESTILOS MARKDOWN. Solo texto limpio y viñetas con punto (•).
@@ -593,17 +761,17 @@ ESTRUCTURA EXACTA:
 Situación: [Diagnóstico en 1 frase corta del matchup %s vs %s]
 
 PLAN TÁCTICO:
-• Hechizos: [Hechizos de invocador óptimos contra este rival]
-• Runas: [Runa clave indispensable + secundarias defensivas u ofensivas clave]
-• Build de Objetos: [Primeros 3 objetos prioritarios, corta-curas o penetración si aplica]
-• Táctica de Línea: [Cómo tradear, niveles de ventaja y principales precauciones]`, gameTitle, mainRole, myChampion, enemyChampion, myChampion, enemyChampion)
+• Hechizos: [Hechizos de invocador óptimos de Wild Rift contra este rival]
+• Runas: [1 Runa clave + 3 de rama principal + 1 secundaria reales de Wild Rift]
+• Build de Objetos: [Primeros 3 objetos prioritarios y botas reales de Wild Rift]
+• Táctica de Línea: [Cómo tradear, niveles de ventaja y principales precauciones]`, gameTitle, mainRole, myChampion, enemyChampion, wrContext, myChampion, enemyChampion)
 		}
 		excludeClause := ""
 		if excludeList != "" {
 			excludeClause = fmt.Sprintf("\nPROHIBIDO sugerir cualquiera de estos campeones ya visualizados: %s.", excludeList)
 		}
 		return fmt.Sprintf(`Eres un Entrenador y Analista Maestro/Challenger de %s.
-El jugador va en la línea '%s' y el rival directo ya seleccionó a '%s'.
+El jugador va en la línea '%s' y el rival directo ya seleccionó a '%s'.%s
 Recomienda el mejor contra-pick (Counter) para ganar la línea.%s
 - FORMATO OBLIGATORIO: PROHIBIDO USAR ASTERISCOS (**) O ESTILOS MARKDOWN. Solo texto limpio y viñetas con punto (•).
 
@@ -612,14 +780,14 @@ Situación: [Diagnóstico en 1 frase corta de las debilidades de %s]
 
 PLAN A: [Mejor Campeón Counter en %s]
 • Por qué le gana: [Ventaja directa de habilidades sobre %s explicada con sencillez]
-• Hechizos: [Hechizos de invocador recomendados]
-• Runas: [Runa clave + secundarias prioritarias]
-• Build clave: [Primeros 2 objetos recomendados contra %s]
+• Hechizos: [Hechizos de invocador recomendados en Wild Rift]
+• Runas: [1 Runa clave + 3 principales + 1 secundaria reales de Wild Rift]
+• Build clave: [Primeros 2 objetos y botas recomendados en Wild Rift contra %s]
 • Táctica de Línea: [Cómo castigarlo en los primeros niveles]
 
 Recomendaciones similares:
 • [Campeón 2]: [Por qué funciona bien contra %s]
-• [Campeón 3]: [Por qué funciona bien contra %s]`, gameTitle, mainRole, enemyChampion, excludeClause, enemyChampion, mainRole, enemyChampion, enemyChampion, enemyChampion, enemyChampion)
+• [Campeón 3]: [Por qué funciona bien contra %s]`, gameTitle, mainRole, enemyChampion, wrContext, excludeClause, enemyChampion, mainRole, enemyChampion, enemyChampion, enemyChampion, enemyChampion)
 	}
 }
 
@@ -645,7 +813,7 @@ func AnalyzeManualDraft(ctx context.Context, mainRole, myChampion, enemyChampion
 	}
 
 	maxTokens := int32(1800)
-	thinkingBudget := int32(0) // Ultra rápido (1 segundo) y sin costo de razonamiento extendido
+	thinkingBudget := int32(0)
 
 	models := []string{"gemini-2.5-flash"}
 	var lastErr error
@@ -653,16 +821,16 @@ func AnalyzeManualDraft(ctx context.Context, mainRole, myChampion, enemyChampion
 	var usedModel string
 
 	for _, model := range models {
-		config := &genai.GenerateContentConfig{
+		cfg := &genai.GenerateContentConfig{
 			MaxOutputTokens: maxTokens,
 		}
 		if strings.Contains(model, "2.5") {
-			config.ThinkingConfig = &genai.ThinkingConfig{
+			cfg.ThinkingConfig = &genai.ThinkingConfig{
 				ThinkingBudget: &thinkingBudget,
 			}
 		}
 
-		resp, lastErr = aiClient.Models.GenerateContent(ctx, model, contents, config)
+		resp, lastErr = aiClient.Models.GenerateContent(ctx, model, contents, cfg)
 		if lastErr == nil && resp != nil {
 			usedModel = model
 			log.Printf("✅ Análisis manual generado exitosamente con modelo: %s (lang=%s)", usedModel, selectedLang)
