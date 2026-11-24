@@ -278,15 +278,347 @@ func extractTextAndDraftContext(raw string) (string, string) {
 	return outText, draftCtx
 }
 
-func AnalyzeDraft(ctx context.Context, base64Image string, mainRole, secondaryRole, autofillRole string, gameMode string, otpChampions string, lang string, excludeChampions ...string) (string, string, int32, error) {
+// DraftAIResult encapsula la salida estructurada de los modelos Classic, Flake 1.0 y Aureon 1.0
+type DraftAIResult struct {
+	ScreenText   string
+	VoiceScript  string
+	DraftContext string
+	Tokens       int32
+}
+
+func buildClassicPrompt(gameMode, otpChampions, lang, excludeList string) string {
+	isPC := strings.EqualFold(strings.TrimSpace(gameMode), "lol_pc") || strings.EqualFold(strings.TrimSpace(gameMode), "pc")
+	gameTitle := "League of Legends: Wild Rift"
+	if isPC {
+		gameTitle = "League of Legends (PC)"
+	}
+
+	excludeClause := ""
+	if excludeList != "" {
+		excludeClause = fmt.Sprintf("\nPROHIBIDO repetir estos campeones ya mostrados: %s.", excludeList)
+	}
+	otpClause := ""
+	if cleanOtp := strings.TrimSpace(otpChampions); cleanOtp != "" {
+		otpClause = fmt.Sprintf("\nOTP del jugador: %s (úsalo solo si es viable en el rol detectado).", cleanOtp)
+	}
+
+	switch NormalizeLanguage(lang) {
+	case "pt":
+		return fmt.Sprintf(`Você é um assistente rápido de %s (Modelo Classic).
+Analise a captura de tela do draft, identifique a rota do jogador e dê uma resposta direta e rápida.
+PROIBIDO usar asteriscos (**) ou saudações. Apenas texto limpo e tópicos (•).
+Na última linha inclua: CONTEXTO_DRAFT: {"role":"...","bans":[],"allies":[],"enemies":[],"suggested":[]}
+
+ESTRUTURA EXATA:
+CAMPEÃO: [Melhor campeão para a rota]
+• Runas: [Runa essencial + runas principais]
+• Estratégia rápida: [Como jogar a rota em 2 linhas curtas]
+Alternativas: [Campeão 2], [Campeão 3]%s%s`, gameTitle, excludeClause, otpClause)
+
+	case "en":
+		return fmt.Sprintf(`You are a fast draft assistant for %s (Classic Model).
+Analyze the draft screenshot, detect the player's assigned lane, and give a quick, direct answer.
+NO asterisks (**) or greetings. Plain text and bullet points (•) only.
+On the last line include: CONTEXTO_DRAFT: {"role":"...","bans":[],"allies":[],"enemies":[],"suggested":[]}
+
+EXACT STRUCTURE:
+CHAMPION: [Best champion for the lane]
+• Runes: [Keystone + core runes]
+• Quick strategy: [How to play the lane in 2 short lines]
+Alternatives: [Champion 2], [Champion 3]%s%s`, gameTitle, excludeClause, otpClause)
+
+	case "fr":
+		return fmt.Sprintf(`Tu es un assistant rapide de %s (Modèle Classic).
+Analyse la capture du draft, détecte le rôle assigné et donne une réponse directe et rapide.
+PAS d'astérisques (**) ni de salutations. Texte brut et puces (•) uniquement.
+Sur la dernière ligne inclus : CONTEXTO_DRAFT: {"role":"...","bans":[],"allies":[],"enemies":[],"suggested":[]}
+
+STRUCTURE EXACTE :
+CHAMPION : [Meilleur champion pour la voie]
+• Runes : [Rune fondamentale + runes principales]
+• Stratégie rapide : [Comment jouer la voie en 2 lignes courtes]
+Alternatives : [Champion 2], [Champion 3]%s%s`, gameTitle, excludeClause, otpClause)
+
+	default:
+		return fmt.Sprintf(`Eres un asistente rápido de %s (Modelo Classic).
+Analiza la captura de pantalla del draft, detecta el rol asignado al jugador y da una respuesta directa y rápida.
+PROHIBIDO usar asteriscos (**) ni saludos. Solo texto limpio y viñetas (•).
+En la última línea incluye: CONTEXTO_DRAFT: {"role":"...","bans":[],"allies":[],"enemies":[],"suggested":[]}
+
+ESTRUCTURA EXACTA:
+CAMPEÓN: [Mejor campeón para la línea]
+• Runas: [Runa clave + runas principales]
+• Estrategia rápida: [Cómo jugar la línea y ganar en 2 líneas cortas]
+Alternativas: [Campeón 2], [Campeón 3]%s%s`, gameTitle, excludeClause, otpClause)
+	}
+}
+
+func buildFlakePrompt(gameMode, otpChampions, lang, excludeList string) string {
+	isPC := strings.EqualFold(strings.TrimSpace(gameMode), "lol_pc") || strings.EqualFold(strings.TrimSpace(gameMode), "pc")
+	gameTitle := "League of Legends: Wild Rift"
+	wrKnowledge := ""
+	if isPC {
+		gameTitle = "League of Legends (PC)"
+	} else {
+		wrKnowledge = GetWildRiftChampionsContext() + "\n" + GetWildRiftChatContext("", "")
+	}
+
+	excludeClause := ""
+	if excludeList != "" {
+		excludeClause = fmt.Sprintf("\nESTRÍCTAMENTE PROHIBIDO repetir estos campeones ya mostrados: %s.", excludeList)
+	}
+	otpClause := ""
+	if cleanOtp := strings.TrimSpace(otpChampions); cleanOtp != "" {
+		otpClause = fmt.Sprintf("\nOTP del jugador: %s (priorízalo solo si es viable en el rol asignado; si no, avisa brevemente).", cleanOtp)
+	}
+
+	switch NormalizeLanguage(lang) {
+	case "pt":
+		return fmt.Sprintf(`Você é o Flake 1.0, Analista Tático Challenger de %s.
+Analise com precisão a captura de tela do draft detectando: 1) Rota atribuída, 2) Campeões banidos pelo time inimigo, 3) Campeões escolhidos pelos inimigos, 4) Campeões escolhidos pelos aliados.
+%s
+REGRAS:
+- PROIBIDO usar asteriscos (**) ou saudações. Apenas texto limpo e tópicos (•).
+- Use exclusivamente campeões e runas reais do banco acima.
+- Na última linha inclua: CONTEXTO_DRAFT: {"role":"...","bans":[],"allies":[],"enemies":[],"suggested":[]}
+
+ESTRUTURA EXATA:
+Razonamiento: [Explique por que estas escolhas vencem o draft analisando: o que o inimigo baniu (ex. baniu campeão de duelo), o que o inimigo escolheu e o que seus aliados já escolheram]
+
+PLANO A: [Melhor Campeão]
+• [Campeão 2]: [Por que encaixa nesta situação em 1 linha]
+• [Campeão 3]: [Por que encaixa nesta situação em 1 linha]
+
+Runas recomendadas (PLANO A):
+• [1 Runa Essencial + 3 Runas da Árvore Principal + 1 Secundária]%s%s`, gameTitle, wrKnowledge, excludeClause, otpClause)
+
+	case "en":
+		return fmt.Sprintf(`You are Flake 1.0, a Challenger Tactical Analyst for %s.
+Accurately analyze the draft screenshot detecting: 1) Assigned role, 2) Enemy banned champions, 3) Enemy picked champions, 4) Allied picked champions.
+%s
+RULES:
+- NO asterisks (**) or greetings. Plain text and bullet points (•) only.
+- Use ONLY real champions and runes from the database above.
+- On the last line include: CONTEXTO_DRAFT: {"role":"...","bans":[],"allies":[],"enemies":[],"suggested":[]}
+
+EXACT STRUCTURE:
+Reasoning: [Explain why these picks win the draft based on enemy bans (what they fear), enemy picks, and allied picks]
+
+PLAN A: [Best Champion]
+• [Champion 2]: [Why it fits this draft in 1 line]
+• [Champion 3]: [Why it fits this draft in 1 line]
+
+Recommended Runes (PLAN A):
+• [1 Keystone + 3 Primary Tree Runes + 1 Secondary Rune]%s%s`, gameTitle, wrKnowledge, excludeClause, otpClause)
+
+	case "fr":
+		return fmt.Sprintf(`Tu es Flake 1.0, Analyste Tactique Challenger de %s.
+Analyse précisément la capture du draft : 1) Rôle assigné, 2) Champions bannis par l'ennemi, 3) Champions pris par l'ennemi, 4) Champions alliés.
+%s
+RÈGLES :
+- PAS d'astérisques (**) ni de salutations. Texte brut et puces (•) uniquement.
+- Utilise uniquement les vrais champions et runes de la base ci-dessus.
+- Sur la dernière ligne inclus : CONTEXTO_DRAFT: {"role":"...","bans":[],"allies":[],"enemies":[],"suggested":[]}
+
+STRUCTURE EXACTE :
+Raisonnement : [Explique pourquoi ces choix gagnent le draft en tenant compte des bans ennemis, des picks ennemis et des picks alliés]
+
+PLAN A : [Meilleur Champion]
+• [Champion 2] : [Pourquoi il convient dans cette situation en 1 ligne]
+• [Champion 3] : [Pourquoi il convient dans cette situation en 1 ligne]
+
+Runes recommandées (PLAN A) :
+• [1 Rune Fondamentale + 3 Runes Principales + 1 Secondaire]%s%s`, gameTitle, wrKnowledge, excludeClause, otpClause)
+
+	default:
+		return fmt.Sprintf(`Eres Flake 1.0, Analista Táctico Challenger de %s.
+Analiza con máxima precisión la captura de pantalla del draft detectando: 1) Rol asignado, 2) Campeones bloqueados (baneados) por el equipo enemigo, 3) Campeones pickeados por el equipo enemigo, 4) Campeones pickeados por tu equipo aliado.
+%s
+REGLAS:
+- PROHIBIDO usar asteriscos (**) ni saludos. Solo texto limpio y viñetas (•).
+- Usa exclusivamente campeones y runas reales de la base de datos de arriba.
+- En la última línea incluye: CONTEXTO_DRAFT: {"role":"...","bans":[],"allies":[],"enemies":[],"suggested":[]}
+
+ESTRUCTURA EXACTA:
+Razonamiento: [Explica con detalle táctico por qué das estas opciones tomando en cuenta lo que el enemigo bloqueó (ej. si baneó Darius, teme combates extendidos), lo que el enemigo pickeó y lo que tu equipo aliado ya pickeó]
+
+PLAN A: [Mejor Campeón para tu línea]
+• [Campeón 2]: [Por qué encaja en esta situación en 1 línea]
+• [Campeón 3]: [Por qué encaja en esta situación en 1 línea]
+
+Runas recomendadas (PLAN A):
+• [1 Runa Clave + 3 Runas de Rama Principal + 1 Runa Secundaria]%s%s`, gameTitle, wrKnowledge, excludeClause, otpClause)
+	}
+}
+
+func buildAureonPrompt(gameMode, otpChampions, lang, excludeList string) string {
+	isPC := strings.EqualFold(strings.TrimSpace(gameMode), "lol_pc") || strings.EqualFold(strings.TrimSpace(gameMode), "pc")
+	gameTitle := "League of Legends: Wild Rift"
+	wrKnowledge := ""
+	if isPC {
+		gameTitle = "League of Legends (PC)"
+	} else {
+		wrKnowledge = GetWildRiftChampionsContext() + "\n" + GetWildRiftChatContext("", "")
+	}
+
+	excludeClause := ""
+	if excludeList != "" {
+		excludeClause = fmt.Sprintf("\nESTRICTAMENTE PROHIBIDO repetir estos campeones: %s.", excludeList)
+	}
+	otpClause := ""
+	if cleanOtp := strings.TrimSpace(otpChampions); cleanOtp != "" {
+		otpClause = fmt.Sprintf("\nOTP del jugador: %s (inclúyelo si es viable en el rol asignado).", cleanOtp)
+	}
+
+	switch NormalizeLanguage(lang) {
+	case "pt":
+		return fmt.Sprintf(`Você é Aureon 1.0, a IA ultra avançada de Draft para %s.
+Analise a captura de tela com precisão absoluta (rota atribuída, bans inimigos, picks inimigos e picks aliados).
+%s
+REGRAS CRÍTICAS:
+- Todos os 3 campeões sugeridos DEVEM compartilhar o MESMO propósito tático na partida (ex: engaje pesado, poke à distância, splitpush ou anti-assassino) para que a explicação de voz cubra todos de forma unificada.
+- PROIBIDO usar asteriscos (**).
+- Divida sua resposta EXATAMENTE nestes 3 blocos com as tags exatas SCREEN_START, SCREEN_END, VOICE_START, VOICE_END e CONTEXTO_DRAFT:
+
+SCREEN_START
+PLANO A: [Campeão 1]
+Alternativas (mesmo propósito): [Campeão 2], [Campeão 3]
+Runas: [1 Runa Essencial + 3 Principais + 1 Secundária]
+SCREEN_END
+
+VOICE_START
+[Explicação falada natural, fluida e sem símbolos (máximo 130 palavras, ~700 caracteres) explicando por que esses campeões vencem este Draft considerando bans inimigos, picks rivais e aliados, e qual é o propósito comum que eles cumprem na partida sem explicar campeão por campeão.]
+VOICE_END
+
+CONTEXTO_DRAFT: {"role":"...","bans":[],"allies":[],"enemies":[],"suggested":[]}%s%s`, gameTitle, wrKnowledge, excludeClause, otpClause)
+
+	case "en":
+		return fmt.Sprintf(`You are Aureon 1.0, the ultra-advanced Draft AI for %s.
+Analyze the screenshot with absolute precision (assigned role, enemy bans, enemy picks, and allied picks).
+%s
+CRITICAL RULES:
+- All 3 recommended champions MUST share the SAME tactical purpose in the match so the voice explanation covers all of them cohesively instead of going champion by champion.
+- NO asterisks (**).
+- Split your output into these EXACT blocks using the exact tags SCREEN_START, SCREEN_END, VOICE_START, VOICE_END, and CONTEXTO_DRAFT:
+
+SCREEN_START
+PLAN A: [Champion 1]
+Alternatives (same purpose): [Champion 2], [Champion 3]
+Runes: [1 Keystone + 3 Primary + 1 Secondary]
+SCREEN_END
+
+VOICE_START
+[Natural, fluent spoken explanation with no symbols (max 130 words, ~700 characters) explaining why these champions win this Draft considering enemy bans, enemy picks, and allied picks, and the shared tactical purpose they fulfill together.]
+VOICE_END
+
+CONTEXTO_DRAFT: {"role":"...","bans":[],"allies":[],"enemies":[],"suggested":[]}%s%s`, gameTitle, wrKnowledge, excludeClause, otpClause)
+
+	case "fr":
+		return fmt.Sprintf(`Tu es Aureon 1.0, l'IA de Draft ultra avancée pour %s.
+Analyse la capture avec une précision absolue (rôle assigné, bans ennemis, picks ennemis et alliés).
+%s
+RÈGLES CRITIQUES :
+- Les 3 champions recommandés DOIVENT partager le MÊME objectif tactique dans la partie afin que l'explication vocale les couvre ensemble sans détailler champion par champion.
+- PAS d'astérisques (**).
+- Divise ta réponse EXACTEMENT avec les balises SCREEN_START, SCREEN_END, VOICE_START, VOICE_END et CONTEXTO_DRAFT :
+
+SCREEN_START
+PLAN A : [Champion 1]
+Alternatives (même objectif) : [Champion 2], [Champion 3]
+Runes : [1 Rune Fondamentale + 3 Principales + 1 Secondaire]
+SCREEN_END
+
+VOICE_START
+[Explication orale naturelle et fluide sans symboles (max 130 mots, ~700 caractères) expliquant pourquoi ces champions gagnent ce Draft selon les bans, les ennemis et les alliés, et leur rôle commun dans la partie.]
+VOICE_END
+
+CONTEXTO_DRAFT: {"role":"...","bans":[],"allies":[],"enemies":[],"suggested":[]}%s%s`, gameTitle, wrKnowledge, excludeClause, otpClause)
+
+	default:
+		return fmt.Sprintf(`Eres Aureon 1.0, la IA ultra avanzada de Draft para %s.
+Analiza la captura de pantalla con precisión absoluta (rol asignado, bans enemigos, picks enemigos y picks aliados).
+%s
+REGLAS CRÍTICAS:
+- Los 3 campeones recomendados DEBEN compartir el MISMO propósito táctico dentro de la partida (ej. combate extendido, iniciación en equipo, anti-asesinos o poke a distancia) para que la explicación de voz abarque a todos de forma unificada sin explicar campeón por campeón.
+- PROHIBIDO usar asteriscos (**).
+- Divide tu respuesta EXACTAMENTE con las etiquetas SCREEN_START, SCREEN_END, VOICE_START, VOICE_END y CONTEXTO_DRAFT:
+
+SCREEN_START
+PLAN A: [Campeón 1]
+Alternativas (mismo propósito): [Campeón 2], [Campeón 3]
+Runas: [1 Runa Clave + 3 Rama Principal + 1 Secundaria]
+SCREEN_END
+
+VOICE_START
+[Explicación hablada natural, fluida y sin símbolos ni viñetas (máximo 130 palabras, ~700 caracteres) explicando por qué estos campeones dominan este Draft tomando en cuenta los bans enemigos, los picks rivales y aliados, y el propósito táctico común que cumplen en la partida sin ir campeón por campeón.]
+VOICE_END
+
+CONTEXTO_DRAFT: {"role":"...","bans":[],"allies":[],"enemies":[],"suggested":[]}%s%s`, gameTitle, wrKnowledge, excludeClause, otpClause)
+	}
+}
+
+func parseAureonSections(raw string) (screenText, voiceScript, draftCtx string) {
+	working := raw
+	if idx := strings.Index(working, "CONTEXTO_DRAFT:"); idx != -1 {
+		draftCtx = strings.TrimSpace(working[idx+len("CONTEXTO_DRAFT:"):])
+		if nl := strings.IndexAny(draftCtx, "\r\n"); nl != -1 {
+			draftCtx = strings.TrimSpace(draftCtx[:nl])
+		}
+		working = strings.TrimSpace(working[:idx])
+	}
+
+	extractTag := func(src, startTag, endTag string) string {
+		sIdx := strings.Index(src, startTag)
+		if sIdx == -1 {
+			return ""
+		}
+		after := src[sIdx+len(startTag):]
+		eIdx := strings.Index(after, endTag)
+		if eIdx == -1 {
+			return strings.TrimSpace(after)
+		}
+		return strings.TrimSpace(after[:eIdx])
+	}
+
+	screenText = extractTag(working, "SCREEN_START", "SCREEN_END")
+	voiceScript = extractTag(working, "VOICE_START", "VOICE_END")
+
+	clean := func(s string) string {
+		s = strings.ReplaceAll(s, "**", "")
+		s = strings.ReplaceAll(s, "###", "")
+		s = strings.ReplaceAll(s, "##", "")
+		return strings.TrimSpace(s)
+	}
+
+	screenText = clean(screenText)
+	voiceScript = clean(voiceScript)
+
+	if screenText == "" {
+		fallback, ctx := extractTextAndDraftContext(raw)
+		screenText = fallback
+		if draftCtx == "" {
+			draftCtx = ctx
+		}
+	}
+	if voiceScript == "" {
+		voiceScript = screenText
+	}
+	return screenText, voiceScript, draftCtx
+}
+
+// AnalyzeDraftByModel ejecuta el análisis del Draft usando la arquitectura del modelo solicitado:
+// - "classic": sin JSONs, respuesta rápida (Campeón + Runas + estrategia), voz local.
+// - "flake": con JSONs de Wild Rift, razonamiento de bans/picks aliados y enemigos + runas, voz local.
+// - "aureon": con JSONs de Wild Rift, salida dividida (pantalla rápida + guion de voz extendido para WaveNet).
+func AnalyzeDraftByModel(ctx context.Context, modelTier string, base64Image string, mainRole, secondaryRole, autofillRole string, gameMode string, otpChampions string, lang string, excludeChampions ...string) (DraftAIResult, error) {
 	if aiClient == nil {
-		return "", "", 0, fmt.Errorf("el cliente de IA no ha sido inicializado")
+		return DraftAIResult{}, fmt.Errorf("el cliente de IA no ha sido inicializado")
 	}
 
 	imgData, err := base64.StdEncoding.DecodeString(base64Image)
 	if err != nil {
 		log.Printf("Error decoding base64 image: %v", err)
-		return "", "", 0, fmt.Errorf("invalid image format")
+		return DraftAIResult{}, fmt.Errorf("invalid image format")
 	}
 
 	selectedLang := "es"
@@ -294,7 +626,26 @@ func AnalyzeDraft(ctx context.Context, base64Image string, mainRole, secondaryRo
 		selectedLang = NormalizeLanguage(lang)
 	}
 
-	prompt := buildDraftPrompt(mainRole, secondaryRole, autofillRole, gameMode, otpChampions, selectedLang, excludeChampions...)
+	excludeList := ""
+	if len(excludeChampions) > 0 && strings.TrimSpace(excludeChampions[0]) != "" {
+		excludeList = strings.TrimSpace(excludeChampions[0])
+	}
+
+	tier := strings.ToLower(strings.TrimSpace(modelTier))
+	var prompt string
+	var maxTokens int32
+	switch tier {
+	case "flake":
+		prompt = buildFlakePrompt(gameMode, otpChampions, selectedLang, excludeList)
+		maxTokens = 1100
+	case "aureon":
+		prompt = buildAureonPrompt(gameMode, otpChampions, selectedLang, excludeList)
+		maxTokens = 1300
+	default:
+		tier = "classic"
+		prompt = buildClassicPrompt(gameMode, otpChampions, selectedLang, excludeList)
+		maxTokens = 550
+	}
 
 	contents := []*genai.Content{
 		{
@@ -306,57 +657,62 @@ func AnalyzeDraft(ctx context.Context, base64Image string, mainRole, secondaryRo
 		},
 	}
 
-	maxTokens := int32(1200)
 	thinkingBudget := int32(0)
-
-	models := []string{"gemini-2.5-flash"}
-	var lastErr error
-	var resp *genai.GenerateContentResponse
-	var usedModel string
-
-	for _, model := range models {
-		cfg := &genai.GenerateContentConfig{
-			MaxOutputTokens: maxTokens,
-		}
-		if strings.Contains(model, "2.5") {
-			cfg.ThinkingConfig = &genai.ThinkingConfig{
-				ThinkingBudget: &thinkingBudget,
-			}
-		}
-
-		resp, lastErr = aiClient.Models.GenerateContent(ctx, model, contents, cfg)
-		if lastErr == nil && resp != nil {
-			usedModel = model
-			log.Printf("✅ Recomendación generada exitosamente con modelo: %s (lang=%s)", usedModel, selectedLang)
-			break
-		}
-		log.Printf("⚠️ Modelo '%s' falló: %v. Intentando siguiente modelo...", model, lastErr)
+	cfg := &genai.GenerateContentConfig{
+		MaxOutputTokens: maxTokens,
+		ThinkingConfig: &genai.ThinkingConfig{
+			ThinkingBudget: &thinkingBudget,
+		},
 	}
 
-	if lastErr != nil || resp == nil {
-		return "", "", 0, fmt.Errorf("falló generación con modelos IA: %w", lastErr)
+	resp, err := aiClient.Models.GenerateContent(ctx, "gemini-2.5-flash", contents, cfg)
+	if err != nil || resp == nil {
+		return DraftAIResult{}, fmt.Errorf("falló generación con modelo %s: %w", tier, err)
 	}
 
-	if resp.Text() != "" {
-		var tokens int32 = 0
-		if resp.UsageMetadata != nil {
-			tokens = resp.UsageMetadata.TotalTokenCount
-			log.Printf("📊 [%s] Tokens - Prompt: %d, Salida: %d, Total: %d",
-				usedModel,
-				resp.UsageMetadata.PromptTokenCount,
-				resp.UsageMetadata.CandidatesTokenCount,
-				resp.UsageMetadata.TotalTokenCount,
-			)
-		}
-
-		cleanText, draftContext := extractTextAndDraftContext(resp.Text())
-		if draftContext == "" {
-			draftContext = fmt.Sprintf(`{"role":"Auto","summary":%q}`, cleanText)
-		}
-		return cleanText, draftContext, tokens, nil
+	var tokens int32 = 0
+	if resp.UsageMetadata != nil {
+		tokens = resp.UsageMetadata.TotalTokenCount
+		log.Printf("📊 [%s / gemini-2.5-flash] Tokens - Prompt: %d, Salida: %d, Total: %d",
+			tier,
+			resp.UsageMetadata.PromptTokenCount,
+			resp.UsageMetadata.CandidatesTokenCount,
+			resp.UsageMetadata.TotalTokenCount,
+		)
 	}
 
-	return "No clear recommendation could be generated.", "", 0, nil
+	rawText := resp.Text()
+	if strings.TrimSpace(rawText) == "" {
+		return DraftAIResult{ScreenText: "No clear recommendation could be generated.", Tokens: tokens}, nil
+	}
+
+	if tier == "aureon" {
+		screenText, voiceScript, draftCtx := parseAureonSections(rawText)
+		if draftCtx == "" {
+			draftCtx = fmt.Sprintf(`{"role":"Auto","summary":%q}`, screenText)
+		}
+		return DraftAIResult{
+			ScreenText:   screenText,
+			VoiceScript:  voiceScript,
+			DraftContext: draftCtx,
+			Tokens:       tokens,
+		}, nil
+	}
+
+	cleanText, draftCtx := extractTextAndDraftContext(rawText)
+	if draftCtx == "" {
+		draftCtx = fmt.Sprintf(`{"role":"Auto","summary":%q}`, cleanText)
+	}
+	return DraftAIResult{
+		ScreenText:   cleanText,
+		DraftContext: draftCtx,
+		Tokens:       tokens,
+	}, nil
+}
+
+func AnalyzeDraft(ctx context.Context, base64Image string, mainRole, secondaryRole, autofillRole string, gameMode string, otpChampions string, lang string, excludeChampions ...string) (string, string, int32, error) {
+	res, err := AnalyzeDraftByModel(ctx, "classic", base64Image, mainRole, secondaryRole, autofillRole, gameMode, otpChampions, lang, excludeChampions...)
+	return res.ScreenText, res.DraftContext, res.Tokens, err
 }
 
 // ReconsultDraftFromContext (Puntos 1.2 y 1.6):
@@ -863,4 +1219,158 @@ func AnalyzeManualDraft(ctx context.Context, mainRole, myChampion, enemyChampion
 	}
 
 	return "No se pudo generar recomendación manual.", 0, nil
+}
+
+// DraftVisionState representa el contrato DraftVisionJSON (Tarea 0.1) extraído de una captura de Wild Rift.
+type DraftVisionState struct {
+	Role       string   `json:"role"`
+	DraftPhase string   `json:"draft_phase"` // "first_pick" | "mid_draft" | "last_pick" | "full_locked"
+	MyPick     string   `json:"my_pick"`
+	Bans       []string `json:"bans"`
+	Allies     []string `json:"allies"`
+	Enemies    []string `json:"enemies"`
+}
+
+func normalizeVisionRole(raw string, fallbackRole ...string) string {
+	switch strings.ToLower(strings.TrimSpace(raw)) {
+	case "baron", "top", "solo":
+		return "Baron"
+	case "jungle", "jungla", "jg":
+		return "Jungle"
+	case "dragon", "adc", "bot", "duo":
+		return "Dragon"
+	case "support", "soporte", "supp", "sup":
+		return "Support"
+	case "mid", "medio":
+		return "Mid"
+	}
+	if len(fallbackRole) > 0 && strings.TrimSpace(fallbackRole[0]) != "" && !strings.EqualFold(strings.TrimSpace(fallbackRole[0]), "auto") {
+		return normalizeVisionRole(fallbackRole[0])
+	}
+	return "Mid"
+}
+
+func inferVisionPhase(rawPhase string, myPick string, allies []string, enemies []string) string {
+	p := strings.ToLower(strings.TrimSpace(rawPhase))
+	if strings.TrimSpace(myPick) != "" || p == "full_locked" || p == "locked" || (len(allies) >= 4 && len(enemies) >= 5) {
+		return "full_locked"
+	}
+	if len(enemies) == 0 || p == "first_pick" {
+		return "first_pick"
+	}
+	if len(enemies) >= 4 || p == "last_pick" {
+		return "last_pick"
+	}
+	return "mid_draft"
+}
+
+func parseDraftVisionJSON(raw string, fallbackRole ...string) (DraftVisionState, error) {
+	cleaned := strings.TrimSpace(raw)
+	cleaned = strings.TrimPrefix(cleaned, "```json")
+	cleaned = strings.TrimPrefix(cleaned, "```")
+	cleaned = strings.TrimSuffix(cleaned, "```")
+	cleaned = strings.TrimSpace(cleaned)
+
+	if start := strings.Index(cleaned, "{"); start != -1 {
+		if end := strings.LastIndex(cleaned, "}"); end > start {
+			cleaned = cleaned[start : end+1]
+		}
+	}
+
+	var state DraftVisionState
+	if err := json.Unmarshal([]byte(cleaned), &state); err != nil {
+		return DraftVisionState{}, err
+	}
+	state.Role = normalizeVisionRole(state.Role, fallbackRole...)
+	state.MyPick = strings.TrimSpace(state.MyPick)
+	if state.Bans == nil {
+		state.Bans = []string{}
+	}
+	if state.Allies == nil {
+		state.Allies = []string{}
+	}
+	if state.Enemies == nil {
+		state.Enemies = []string{}
+	}
+	state.DraftPhase = inferVisionPhase(state.DraftPhase, state.MyPick, state.Allies, state.Enemies)
+	return state, nil
+}
+
+// ExtractDraftVision extrae únicamente el JSON compacto del estado del draft desde una captura de Wild Rift
+// (~90% menos tokens que AnalyzeDraftByModel). Usa gemini-2.5-flash-lite con fallback a gemini-2.5-flash.
+func ExtractDraftVision(ctx context.Context, base64Image string, fallbackRole ...string) (DraftVisionState, int32, error) {
+	if aiClient == nil {
+		return DraftVisionState{}, 0, fmt.Errorf("el cliente de IA no ha sido inicializado")
+	}
+
+	imgData, err := base64.StdEncoding.DecodeString(base64Image)
+	if err != nil {
+		return DraftVisionState{}, 0, fmt.Errorf("invalid image format")
+	}
+
+	const visionPrompt = `Extract the Wild Rift champion select state from this screenshot.
+Return ONLY valid JSON with this exact schema:
+{"role":"Baron|Jungle|Mid|Dragon|Support","draft_phase":"first_pick|mid_draft|last_pick|full_locked","my_pick":"","bans":[],"allies":[],"enemies":[]}
+Rules:
+- role: the local player's assigned lane.
+- draft_phase: "first_pick" if 0 enemies picked yet; "mid_draft" if 1-3 enemies picked; "last_pick" if 4-5 enemies picked and local player hasn't locked; "full_locked" if the local player already locked their champion or all 10 champions are selected.
+- my_pick: champion name already locked by the local player ("" if not picked yet).
+- bans: 0 to 10 banned champion names (empty array if none/skipped).
+- allies: 0 to 4 other allied picked champion names (excluding my_pick).
+- enemies: 0 to 5 enemy picked champion names.
+- Use official Wild Rift champion names only. No explanations.`
+
+	contents := []*genai.Content{
+		{
+			Role: "user",
+			Parts: []*genai.Part{
+				{Text: visionPrompt},
+				{InlineData: &genai.Blob{Data: imgData, MIMEType: "image/jpeg"}},
+			},
+		},
+	}
+
+	thinkingBudget := int32(0)
+	cfg := &genai.GenerateContentConfig{
+		MaxOutputTokens:  200,
+		ResponseMIMEType: "application/json",
+		ThinkingConfig: &genai.ThinkingConfig{
+			ThinkingBudget: &thinkingBudget,
+		},
+	}
+
+	models := []string{"gemini-2.5-flash-lite", "gemini-2.5-flash", "gemini-2.5-flash-lite"}
+	var resp *genai.GenerateContentResponse
+	var lastErr error
+	var usedModel string
+
+	for attempt, m := range models {
+		resp, lastErr = aiClient.Models.GenerateContent(ctx, m, contents, cfg)
+		if lastErr == nil && resp != nil && strings.TrimSpace(resp.Text()) != "" {
+			usedModel = m
+			break
+		}
+		log.Printf("⚠️ [extract-vision intento %d] %s falló: %v", attempt+1, m, lastErr)
+	}
+
+	if lastErr != nil || resp == nil {
+		return DraftVisionState{}, 0, fmt.Errorf("falló extracción de visión: %w", lastErr)
+	}
+
+	var tokens int32 = 0
+	if resp.UsageMetadata != nil {
+		tokens = resp.UsageMetadata.TotalTokenCount
+		log.Printf("📊 [extract-vision / %s] Tokens - Prompt: %d, Salida: %d, Total: %d",
+			usedModel,
+			resp.UsageMetadata.PromptTokenCount,
+			resp.UsageMetadata.CandidatesTokenCount,
+			resp.UsageMetadata.TotalTokenCount,
+		)
+	}
+
+	state, err := parseDraftVisionJSON(resp.Text(), fallbackRole...)
+	if err != nil {
+		return DraftVisionState{}, tokens, fmt.Errorf("JSON de visión inválido: %w", err)
+	}
+	return state, tokens, nil
 }

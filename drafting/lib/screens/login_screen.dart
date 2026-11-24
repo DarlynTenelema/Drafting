@@ -141,7 +141,7 @@ class _LoginScreenState extends State<LoginScreen> {
   Widget build(BuildContext context) {
     return ValueListenableBuilder<String>(
       valueListenable: LanguageService.instance.languageNotifier,
-      builder: (context, _, __) {
+      builder: (context, _, _) {
         final lang = LanguageService.instance;
         final opt = lang.currentOption;
         return Scaffold(

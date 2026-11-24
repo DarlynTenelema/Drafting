@@ -4,8 +4,9 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../core/services/api_client.dart';
-import '../core/services/language_service.dart';
 import '../core/services/session_service.dart';
+import '../shared/mixins/localized_state_mixin.dart';
+import '../theme/app_theme.dart';
 
 class AchievementsScreen extends StatefulWidget {
   final String referralCode;
@@ -29,7 +30,8 @@ class AchievementsScreen extends StatefulWidget {
   State<AchievementsScreen> createState() => _AchievementsScreenState();
 }
 
-class _AchievementsScreenState extends State<AchievementsScreen> {
+class _AchievementsScreenState extends State<AchievementsScreen>
+    with LocalizedStateMixin<AchievementsScreen> {
   final TextEditingController _codeController = TextEditingController();
   bool _isRedeeming = false;
   String? _errorMessage;
@@ -45,14 +47,7 @@ class _AchievementsScreenState extends State<AchievementsScreen> {
     _count = widget.referralCount;
     _claimed = widget.referralRewardsClaimed;
     _hasRedeemed = widget.hasRedeemedReferral;
-    LanguageService.instance.languageNotifier.addListener(_onLanguageChanged);
     _checkClipboardForCode();
-  }
-
-  void _onLanguageChanged() {
-    if (mounted) {
-      setState(() {});
-    }
   }
 
   @override
@@ -103,17 +98,15 @@ class _AchievementsScreenState extends State<AchievementsScreen> {
 
   @override
   void dispose() {
-    LanguageService.instance.languageNotifier.removeListener(_onLanguageChanged);
     _codeController.dispose();
     super.dispose();
   }
 
   Future<void> _redeemCode() async {
-    final lang = LanguageService.instance;
     final code = _extractReferralCode(_codeController.text);
     if (code.isEmpty) {
       setState(() {
-        _errorMessage = lang.tr('ach_enter_code_err');
+        _errorMessage = tr('ach_enter_code_err');
       });
       return;
     }
@@ -140,7 +133,7 @@ class _AchievementsScreenState extends State<AchievementsScreen> {
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         setState(() {
-          _successMessage = data['message'] ?? lang.tr('ach_redeem_ok');
+          _successMessage = data['message'] ?? tr('ach_redeem_ok');
           _hasRedeemed = true;
           _codeController.clear();
         });
@@ -153,7 +146,7 @@ class _AchievementsScreenState extends State<AchievementsScreen> {
     } catch (e) {
       if (mounted) {
         setState(() {
-          _errorMessage = lang.tr('ach_net_err');
+          _errorMessage = tr('ach_net_err');
         });
       }
     } finally {
@@ -166,15 +159,14 @@ class _AchievementsScreenState extends State<AchievementsScreen> {
   }
 
   void _copyToClipboard(String text, {bool isFullMessage = false}) {
-    final lang = LanguageService.instance;
     final toCopy = isFullMessage
-        ? lang.tr('ach_invite_msg', {'code': text})
+        ? tr('ach_invite_msg', {'code': text})
         : text;
     Clipboard.setData(ClipboardData(text: toCopy));
     HapticFeedback.lightImpact();
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        backgroundColor: const Color(0xFF10B981),
+        backgroundColor: AppTheme.hextechEmerald,
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         content: Row(
@@ -182,7 +174,7 @@ class _AchievementsScreenState extends State<AchievementsScreen> {
             const Icon(Icons.check_circle, color: Colors.white, size: 20),
             const SizedBox(width: 8),
             Expanded(
-              child: Text(isFullMessage ? lang.tr('ach_msg_copied') : lang.tr('ach_code_copied')),
+              child: Text(isFullMessage ? tr('ach_msg_copied') : tr('ach_code_copied')),
             ),
           ],
         ),
@@ -193,16 +185,15 @@ class _AchievementsScreenState extends State<AchievementsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final lang = LanguageService.instance;
     final int currentFriends = _count.clamp(0, 10);
     final int friendsNeeded = (10 - currentFriends).clamp(0, 10);
     final bool isMaxedOut = currentFriends >= 10 || _claimed >= 10;
     final int earnedQueries = currentFriends * 5;
 
     return Scaffold(
-      backgroundColor: const Color(0xFF0B0E14),
+      backgroundColor: AppTheme.darkScaffold,
       appBar: AppBar(
-        backgroundColor: const Color(0xFF0F172A),
+        backgroundColor: AppTheme.background,
         elevation: 0,
         automaticallyImplyLeading: !widget.isTab,
         leading: widget.isTab
@@ -214,10 +205,10 @@ class _AchievementsScreenState extends State<AchievementsScreen> {
         title: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.emoji_events_rounded, color: Color(0xFF10B981), size: 22),
+            const Icon(Icons.emoji_events_rounded, color: AppTheme.hextechEmerald, size: 22),
             const SizedBox(width: 8),
             Text(
-              lang.tr('ach_appbar'),
+              tr('ach_appbar'),
               style: GoogleFonts.outfit(
                 fontSize: 20,
                 fontWeight: FontWeight.bold,
@@ -230,7 +221,7 @@ class _AchievementsScreenState extends State<AchievementsScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh_rounded, color: Colors.white70),
-            tooltip: lang.tr('ach_refresh_tooltip'),
+            tooltip: tr('ach_refresh_tooltip'),
             onPressed: () {
               HapticFeedback.lightImpact();
               widget.onDataChanged();
@@ -242,19 +233,12 @@ class _AchievementsScreenState extends State<AchievementsScreen> {
         width: double.infinity,
         height: double.infinity,
         decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              Color(0xFF0F172A),
-              Color(0xFF080B11),
-            ],
-          ),
+          gradient: AppTheme.screenBackgroundGradient,
         ),
         child: SafeArea(
           child: RefreshIndicator(
-            color: const Color(0xFF10B981),
-            backgroundColor: const Color(0xFF0F172A),
+            color: AppTheme.hextechEmerald,
+            backgroundColor: AppTheme.background,
             onRefresh: () async {
               widget.onDataChanged();
             },
@@ -273,17 +257,17 @@ class _AchievementsScreenState extends State<AchievementsScreen> {
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,
                         colors: [
-                          const Color(0xFF10B981).withValues(alpha: 0.18),
-                          const Color(0xFF0F172A),
+                          AppTheme.hextechEmerald.withValues(alpha: 0.18),
+                          AppTheme.background,
                         ],
                       ),
                       border: Border.all(
-                        color: const Color(0xFF10B981).withValues(alpha: 0.4),
+                        color: AppTheme.hextechEmerald.withValues(alpha: 0.4),
                         width: 1.2,
                       ),
                       boxShadow: [
                         BoxShadow(
-                          color: const Color(0xFF10B981).withValues(alpha: 0.1),
+                          color: AppTheme.hextechEmerald.withValues(alpha: 0.1),
                           blurRadius: 20,
                           offset: const Offset(0, 6),
                         ),
@@ -298,7 +282,7 @@ class _AchievementsScreenState extends State<AchievementsScreen> {
                               padding: const EdgeInsets.all(10),
                               decoration: const BoxDecoration(
                                 shape: BoxShape.circle,
-                                color: Color(0xFF10B981),
+                                color: AppTheme.hextechEmerald,
                               ),
                               child: const Icon(Icons.emoji_events_rounded, color: Colors.white, size: 24),
                             ),
@@ -308,7 +292,7 @@ class _AchievementsScreenState extends State<AchievementsScreen> {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
-                                    lang.tr('ach_hero_title'),
+                                    tr('ach_hero_title'),
                                     style: GoogleFonts.outfit(
                                       fontSize: 18,
                                       fontWeight: FontWeight.bold,
@@ -317,7 +301,7 @@ class _AchievementsScreenState extends State<AchievementsScreen> {
                                   ),
                                   const SizedBox(height: 2),
                                   Text(
-                                    lang.tr('ach_hero_sub'),
+                                    tr('ach_hero_sub'),
                                     style: TextStyle(
                                       fontSize: 12,
                                       color: Colors.white.withValues(alpha: 0.7),
@@ -329,14 +313,14 @@ class _AchievementsScreenState extends State<AchievementsScreen> {
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                               decoration: BoxDecoration(
-                                color: const Color(0xFF10B981).withValues(alpha: 0.25),
+                                color: AppTheme.hextechEmerald.withValues(alpha: 0.25),
                                 borderRadius: BorderRadius.circular(12),
-                                border: Border.all(color: const Color(0xFF10B981)),
+                                border: Border.all(color: AppTheme.hextechEmerald),
                               ),
                               child: Text(
                                 '$currentFriends/10',
                                 style: const TextStyle(
-                                  color: Color(0xFF10B981),
+                                  color: AppTheme.hextechEmerald,
                                   fontWeight: FontWeight.bold,
                                   fontSize: 13,
                                 ),
@@ -350,7 +334,7 @@ class _AchievementsScreenState extends State<AchievementsScreen> {
                           child: LinearProgressIndicator(
                             value: (currentFriends / 10).clamp(0.0, 1.0),
                             backgroundColor: Colors.white.withValues(alpha: 0.1),
-                            valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF10B981)),
+                            valueColor: const AlwaysStoppedAnimation<Color>(AppTheme.hextechEmerald),
                             minHeight: 10,
                           ),
                         ),
@@ -361,18 +345,18 @@ class _AchievementsScreenState extends State<AchievementsScreen> {
                             Expanded(
                               child: Text(
                                 isMaxedOut
-                                    ? lang.tr('ach_maxed')
-                                    : lang.tr('ach_progress', {'earned': '$earnedQueries', 'needed': '$friendsNeeded'}),
+                                    ? tr('ach_maxed')
+                                    : tr('ach_progress', {'earned': '$earnedQueries', 'needed': '$friendsNeeded'}),
                                 style: TextStyle(
                                   fontSize: 12,
                                   fontWeight: FontWeight.w600,
-                                  color: isMaxedOut ? const Color(0xFF10B981) : Colors.white70,
+                                  color: isMaxedOut ? AppTheme.hextechEmerald : Colors.white70,
                                 ),
                               ),
                             ),
                             const SizedBox(width: 8),
                             Text(
-                              lang.tr('ach_friends_count', {'count': '$currentFriends'}),
+                              tr('ach_friends_count', {'count': '$currentFriends'}),
                               style: TextStyle(
                                 fontSize: 11,
                                 color: Colors.white.withValues(alpha: 0.5),
@@ -395,13 +379,13 @@ class _AchievementsScreenState extends State<AchievementsScreen> {
                             Color borderColor = Colors.white.withValues(alpha: 0.08);
 
                             if (isClaimed) {
-                              iconColor = const Color(0xFF10B981);
-                              bgColor = const Color(0xFF10B981).withValues(alpha: 0.15);
-                              borderColor = const Color(0xFF10B981).withValues(alpha: 0.4);
+                              iconColor = AppTheme.hextechEmerald;
+                              bgColor = AppTheme.hextechEmerald.withValues(alpha: 0.15);
+                              borderColor = AppTheme.hextechEmerald.withValues(alpha: 0.4);
                             } else if (isCurrent) {
-                              iconColor = const Color(0xFF00E5FF);
-                              bgColor = const Color(0xFF00E5FF).withValues(alpha: 0.15);
-                              borderColor = const Color(0xFF00E5FF).withValues(alpha: 0.5);
+                              iconColor = AppTheme.hextechCyan;
+                              bgColor = AppTheme.hextechCyan.withValues(alpha: 0.15);
+                              borderColor = AppTheme.hextechCyan.withValues(alpha: 0.5);
                             }
 
                             return Column(
@@ -459,250 +443,250 @@ class _AchievementsScreenState extends State<AchievementsScreen> {
                     ),
                   ),
 
-                const SizedBox(height: 20),
+                  const SizedBox(height: 20),
 
-                // 2. TU CÓDIGO DE INVITACIÓN
-                Container(
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF1E293B).withValues(alpha: 0.6),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          const Icon(Icons.share_rounded, color: Color(0xFF00E5FF), size: 20),
-                          const SizedBox(width: 8),
-                          Text(
-                            lang.tr('ach_share_title'),
-                            style: GoogleFonts.outfit(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        lang.tr('ach_share_sub'),
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.white.withValues(alpha: 0.6),
-                          height: 1.4,
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF0F172A),
-                          borderRadius: BorderRadius.circular(14),
-                          border: Border.all(color: const Color(0xFF00E5FF).withValues(alpha: 0.3)),
-                        ),
-                        child: Row(
+                  // 2. TU CÓDIGO DE INVITACIÓN
+                  Container(
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      color: AppTheme.surface.withValues(alpha: 0.6),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
                           children: [
-                            Expanded(
-                              child: Text(
-                                widget.referralCode.isNotEmpty ? widget.referralCode : lang.tr('ach_generating'),
-                                style: GoogleFonts.outfit(
-                                  fontSize: 22,
-                                  fontWeight: FontWeight.w800,
-                                  letterSpacing: 2.5,
-                                  color: const Color(0xFF00E5FF),
-                                ),
+                            const Icon(Icons.share_rounded, color: AppTheme.hextechCyan, size: 20),
+                            const SizedBox(width: 8),
+                            Text(
+                              tr('ach_share_title'),
+                              style: GoogleFonts.outfit(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
                               ),
-                            ),
-                            ElevatedButton.icon(
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: const Color(0xFF00E5FF),
-                                foregroundColor: Colors.black,
-                                elevation: 0,
-                                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                              ),
-                              onPressed: widget.referralCode.isNotEmpty
-                                  ? () => _copyToClipboard(widget.referralCode)
-                                  : null,
-                              icon: const Icon(Icons.copy_rounded, size: 16),
-                              label: Text(lang.tr('ach_copy_btn'), style: const TextStyle(fontWeight: FontWeight.bold)),
                             ),
                           ],
                         ),
-                      ),
-                      const SizedBox(height: 10),
-                      SizedBox(
-                        width: double.infinity,
-                        child: OutlinedButton.icon(
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: const Color(0xFF00E5FF),
-                            side: BorderSide(color: const Color(0xFF00E5FF).withValues(alpha: 0.4)),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                            padding: const EdgeInsets.symmetric(vertical: 10),
-                          ),
-                          onPressed: widget.referralCode.isNotEmpty
-                              ? () => _copyToClipboard(widget.referralCode, isFullMessage: true)
-                              : null,
-                          icon: const Icon(Icons.share_rounded, size: 16),
-                          label: Text(
-                            lang.tr('ach_share_msg_btn'),
-                            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                        const SizedBox(height: 6),
+                        Text(
+                          tr('ach_share_sub'),
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.white.withValues(alpha: 0.6),
+                            height: 1.4,
                           ),
                         ),
-                      ),
-                    ],
-                  ),
-                ),
-
-                const SizedBox(height: 20),
-
-                // 3. CANJEAR CÓDIGO DE UN AMIGO
-                Container(
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF1E293B).withValues(alpha: 0.6),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          const Icon(Icons.card_giftcard_rounded, color: Color(0xFFF59E0B), size: 20),
-                          const SizedBox(width: 8),
-                          Text(
-                            lang.tr('ach_redeem_title'),
-                            style: GoogleFonts.outfit(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        lang.tr('ach_redeem_sub'),
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.white.withValues(alpha: 0.6),
-                        ),
-                      ),
-                      const SizedBox(height: 14),
-
-                      if (_hasRedeemed)
+                        const SizedBox(height: 16),
                         Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.all(14),
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                           decoration: BoxDecoration(
-                            color: const Color(0xFF10B981).withValues(alpha: 0.15),
+                            color: AppTheme.background,
                             borderRadius: BorderRadius.circular(14),
-                            border: Border.all(color: const Color(0xFF10B981).withValues(alpha: 0.3)),
+                            border: Border.all(color: AppTheme.hextechCyan.withValues(alpha: 0.3)),
                           ),
                           child: Row(
                             children: [
-                              const Icon(Icons.check_circle_rounded, color: Color(0xFF10B981), size: 22),
-                              const SizedBox(width: 10),
                               Expanded(
                                 child: Text(
-                                  lang.tr('ach_already_redeemed'),
-                                  style: const TextStyle(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w600,
-                                    color: Colors.white,
+                                  widget.referralCode.isNotEmpty ? widget.referralCode : tr('ach_generating'),
+                                  style: GoogleFonts.outfit(
+                                    fontSize: 22,
+                                    fontWeight: FontWeight.w800,
+                                    letterSpacing: 2.5,
+                                    color: AppTheme.hextechCyan,
                                   ),
                                 ),
+                              ),
+                              ElevatedButton.icon(
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: AppTheme.hextechCyan,
+                                  foregroundColor: Colors.black,
+                                  elevation: 0,
+                                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                ),
+                                onPressed: widget.referralCode.isNotEmpty
+                                    ? () => _copyToClipboard(widget.referralCode)
+                                    : null,
+                                icon: const Icon(Icons.copy_rounded, size: 16),
+                                label: Text(tr('ach_copy_btn'), style: const TextStyle(fontWeight: FontWeight.bold)),
                               ),
                             ],
                           ),
-                        )
-                      else ...[
+                        ),
+                        const SizedBox(height: 10),
+                        SizedBox(
+                          width: double.infinity,
+                          child: OutlinedButton.icon(
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: AppTheme.hextechCyan,
+                              side: BorderSide(color: AppTheme.hextechCyan.withValues(alpha: 0.4)),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                              padding: const EdgeInsets.symmetric(vertical: 10),
+                            ),
+                            onPressed: widget.referralCode.isNotEmpty
+                                ? () => _copyToClipboard(widget.referralCode, isFullMessage: true)
+                                : null,
+                            icon: const Icon(Icons.share_rounded, size: 16),
+                            label: Text(
+                              tr('ach_share_msg_btn'),
+                              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 20),
+
+                  // 3. CANJEAR CÓDIGO DE UN AMIGO
+                  Container(
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      color: AppTheme.surface.withValues(alpha: 0.6),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
                         Row(
                           children: [
-                            Expanded(
-                              child: TextField(
-                                controller: _codeController,
-                                textCapitalization: TextCapitalization.characters,
-                                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-                                decoration: InputDecoration(
-                                  hintText: lang.tr('ach_code_hint'),
-                                  hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.3)),
-                                  filled: true,
-                                  fillColor: const Color(0xFF0F172A),
-                                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                                  border: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                    borderSide: BorderSide.none,
-                                  ),
-                                ),
+                            const Icon(Icons.card_giftcard_rounded, color: AppTheme.hextechAmber, size: 20),
+                            const SizedBox(width: 8),
+                            Text(
+                              tr('ach_redeem_title'),
+                              style: GoogleFonts.outfit(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
                               ),
-                            ),
-                            const SizedBox(width: 10),
-                            ElevatedButton(
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: const Color(0xFF10B981),
-                                foregroundColor: Colors.white,
-                                elevation: 0,
-                                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                              ),
-                              onPressed: _isRedeeming ? null : _redeemCode,
-                              child: _isRedeeming
-                                  ? const SizedBox(
-                                      width: 18,
-                                      height: 18,
-                                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                                    )
-                                  : Text(lang.tr('ach_redeem_btn'), style: const TextStyle(fontWeight: FontWeight.bold)),
                             ),
                           ],
                         ),
-                        if (_errorMessage != null) ...[
-                          const SizedBox(height: 8),
-                          Text(
-                            _errorMessage!,
-                            style: const TextStyle(color: Colors.redAccent, fontSize: 12),
+                        const SizedBox(height: 6),
+                        Text(
+                          tr('ach_redeem_sub'),
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.white.withValues(alpha: 0.6),
                           ),
-                        ],
-                        if (_successMessage != null) ...[
-                          const SizedBox(height: 8),
-                          Text(
-                            _successMessage!,
-                            style: const TextStyle(color: Color(0xFF10B981), fontSize: 13, fontWeight: FontWeight.bold),
+                        ),
+                        const SizedBox(height: 14),
+
+                        if (_hasRedeemed)
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.all(14),
+                            decoration: BoxDecoration(
+                              color: AppTheme.hextechEmerald.withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(color: AppTheme.hextechEmerald.withValues(alpha: 0.3)),
+                            ),
+                            child: Row(
+                              children: [
+                                const Icon(Icons.check_circle_rounded, color: AppTheme.hextechEmerald, size: 22),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Text(
+                                    tr('ach_already_redeemed'),
+                                    style: const TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w600,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          )
+                        else ...[
+                          Row(
+                            children: [
+                              Expanded(
+                                child: TextField(
+                                  controller: _codeController,
+                                  textCapitalization: TextCapitalization.characters,
+                                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                                  decoration: InputDecoration(
+                                    hintText: tr('ach_code_hint'),
+                                    hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.3)),
+                                    filled: true,
+                                    fillColor: AppTheme.background,
+                                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                      borderSide: BorderSide.none,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              ElevatedButton(
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: AppTheme.hextechEmerald,
+                                  foregroundColor: Colors.white,
+                                  elevation: 0,
+                                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                ),
+                                onPressed: _isRedeeming ? null : _redeemCode,
+                                child: _isRedeeming
+                                    ? const SizedBox(
+                                        width: 18,
+                                        height: 18,
+                                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                                      )
+                                    : Text(tr('ach_redeem_btn'), style: const TextStyle(fontWeight: FontWeight.bold)),
+                              ),
+                            ],
                           ),
+                          if (_errorMessage != null) ...[
+                            const SizedBox(height: 8),
+                            Text(
+                              _errorMessage!,
+                              style: const TextStyle(color: Colors.redAccent, fontSize: 12),
+                            ),
+                          ],
+                          if (_successMessage != null) ...[
+                            const SizedBox(height: 8),
+                            Text(
+                              _successMessage!,
+                              style: const TextStyle(color: AppTheme.hextechEmerald, fontSize: 13, fontWeight: FontWeight.bold),
+                            ),
+                          ],
                         ],
                       ],
-                    ],
-                  ),
-                ),
-
-                const SizedBox(height: 24),
-
-                // 4. PRÓXIMOS LOGROS (ROADMAP / GAMIFICACIÓN FUTURA)
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 4),
-                  child: Text(
-                    lang.tr('ach_upcoming_header'),
-                    style: GoogleFonts.inter(
-                      fontSize: 11,
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: 1.2,
-                      color: Colors.white.withValues(alpha: 0.4),
                     ),
                   ),
-                ),
-                const SizedBox(height: 10),
-                _buildUpcomingAchievement(lang.tr('ach_up1_title'), lang.tr('ach_up1_sub'), Icons.local_fire_department_rounded),
-                const SizedBox(height: 10),
-                _buildUpcomingAchievement(lang.tr('ach_up2_title'), lang.tr('ach_up2_sub'), Icons.shield_rounded),
-                const SizedBox(height: 100),
-              ],
+
+                  const SizedBox(height: 24),
+
+                  // 4. PRÓXIMOS LOGROS (ROADMAP / GAMIFICACIÓN FUTURA)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                    child: Text(
+                      tr('ach_upcoming_header'),
+                      style: GoogleFonts.inter(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 1.2,
+                        color: Colors.white.withValues(alpha: 0.4),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  _buildUpcomingAchievement(tr('ach_up1_title'), tr('ach_up1_sub'), Icons.local_fire_department_rounded),
+                  const SizedBox(height: 10),
+                  _buildUpcomingAchievement(tr('ach_up2_title'), tr('ach_up2_sub'), Icons.shield_rounded),
+                  const SizedBox(height: 100),
+                ],
+              ),
             ),
-          ),
           ),
         ),
       ),
@@ -751,7 +735,7 @@ class _AchievementsScreenState extends State<AchievementsScreen> {
               borderRadius: BorderRadius.circular(8),
             ),
             child: Text(
-              LanguageService.instance.tr('ach_soon'),
+              tr('ach_soon'),
               style: const TextStyle(color: Colors.white38, fontSize: 10, fontWeight: FontWeight.bold),
             ),
           ),

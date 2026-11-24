@@ -1,11 +1,11 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-import '../core/constants/app_constants.dart';
-import '../core/services/api_client.dart';
-import '../core/services/language_service.dart';
+import '../core/services/native_service.dart';
+import '../shared/mixins/draft_analyzer_state_mixin.dart';
+import '../shared/mixins/localized_state_mixin.dart';
+import '../shared/widgets/champion_picker_sheet.dart';
 import '../theme/app_theme.dart';
 
 class ManualDraftScreen extends StatefulWidget {
@@ -14,6 +14,7 @@ class ManualDraftScreen extends StatefulWidget {
   final VoidCallback onNoQueries;
   final String initialRole;
   final String? initialMyChampion;
+  final String modelTier;
 
   const ManualDraftScreen({
     super.key,
@@ -22,24 +23,20 @@ class ManualDraftScreen extends StatefulWidget {
     required this.onNoQueries,
     this.initialRole = 'Mid',
     this.initialMyChampion,
+    this.modelTier = 'local',
   });
 
   @override
   State<ManualDraftScreen> createState() => _ManualDraftScreenState();
 }
 
-class _ManualDraftScreenState extends State<ManualDraftScreen> {
+class _ManualDraftScreenState extends State<ManualDraftScreen>
+    with LocalizedStateMixin<ManualDraftScreen>, DraftAnalyzerStateMixin<ManualDraftScreen> {
   late String _selectedRole;
   bool _isOtpMode = false;
   String? _myChampion;
   String? _enemyChampion;
-  String _gameMode = 'wild_rift'; // 'wild_rift' o 'lol_pc'
-
-  bool _isAnalyzing = false;
-  bool _isRefreshing = false;
-  String? _recommendationText;
-  String? _errorMessage;
-  final List<String> _seenChampions = [];
+  final String _gameMode = 'wild_rift'; // 'wild_rift' o 'lol_pc'
 
   final List<Map<String, dynamic>> _roles = [
     {'id': 'Top', 'name': 'Solo / Top', 'icon': Icons.shield_outlined},
@@ -59,36 +56,12 @@ class _ManualDraftScreenState extends State<ManualDraftScreen> {
     }
   }
 
-  void _extractSeenChampions(String text) {
-    final regA = RegExp(r'(?:PLAN|PLANO)\s*A\s*:\s*([^•\n\r]+)', caseSensitive: false);
-    final matchA = regA.firstMatch(text);
-    if (matchA != null) {
-      final name = matchA.group(1)?.trim();
-      if (name != null && name.isNotEmpty && !_seenChampions.contains(name)) {
-        _seenChampions.add(name);
-      }
-    }
-    final regSim = RegExp(r'•\s*([^:\n\r]+):', caseSensitive: false);
-    for (final m in regSim.allMatches(text)) {
-      final name = m.group(1)?.trim();
-      if (name != null && name.isNotEmpty && !_seenChampions.contains(name)) {
-        final lower = name.toLowerCase();
-        if (!lower.contains('hechizo') &&
-            !lower.contains('runa') &&
-            !lower.contains('plan') &&
-            !lower.contains('spell') &&
-            !lower.contains('build') &&
-            !lower.contains('sort')) {
-          _seenChampions.add(name);
-        }
-      }
-    }
-  }
-
   Future<void> _consultStrategy({bool isRefresh = false}) async {
-    if (_isAnalyzing) return;
+    if (isAnalyzing) return;
 
-    if (widget.availableQueries <= 0) {
+    final bool isLocalMode = widget.modelTier == 'local';
+
+    if (!isLocalMode && widget.availableQueries <= 0) {
       widget.onNoQueries();
       return;
     }
@@ -96,7 +69,7 @@ class _ManualDraftScreenState extends State<ManualDraftScreen> {
     if (_enemyChampion == null || _enemyChampion!.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          backgroundColor: Color(0xFFEF4444),
+          backgroundColor: AppTheme.hextechCrimson,
           behavior: SnackBarBehavior.floating,
           content: Text('Por favor selecciona el campeón rival de tu línea.'),
         ),
@@ -107,7 +80,7 @@ class _ManualDraftScreenState extends State<ManualDraftScreen> {
     if (_isOtpMode && (_myChampion == null || _myChampion!.trim().isEmpty)) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          backgroundColor: Color(0xFFEF4444),
+          backgroundColor: AppTheme.hextechCrimson,
           behavior: SnackBarBehavior.floating,
           content: Text('Selecciona tu campeón para recibir la build y runas anti-matchup.'),
         ),
@@ -115,73 +88,63 @@ class _ManualDraftScreenState extends State<ManualDraftScreen> {
       return;
     }
 
-    setState(() {
-      _isAnalyzing = true;
-      _isRefreshing = isRefresh;
-      _errorMessage = null;
-    });
-
     HapticFeedback.mediumImpact();
 
-    try {
-      final lang = LanguageService.instance.currentLanguage;
-      final bodyData = <String, dynamic>{
-        'main_role': _selectedRole,
-        'enemy_champion': _enemyChampion,
-        'my_champion': _isOtpMode ? (_myChampion ?? '') : '',
-        'game_mode': _gameMode,
-        'language': lang,
-      };
-
-      if (isRefresh && _seenChampions.isNotEmpty) {
-        bodyData['exclude_champions'] = _seenChampions.join(', ');
-      }
-
-      final res = await ApiClient.post(
-        '/draft/manual',
-        authenticated: true,
-        body: bodyData,
-      );
-
-      if (res.statusCode == 200) {
-        final data = jsonDecode(res.body);
+    // Modo Local (Tarea 3.3): 100% offline en el procesador del celular, costo $0 e ilimitado
+    if (isLocalMode) {
+      setState(() {
+        isAnalyzing = true;
+        isRefreshing = isRefresh;
+        errorMessage = null;
+      });
+      try {
+        final res = await NativeService.analyzeLocalDraft(
+          role: _selectedRole,
+          enemies: [_enemyChampion!.trim()],
+          otp: _isOtpMode ? (_myChampion ?? '').trim() : '',
+          exclude: isRefresh ? List<String>.from(seenChampions) : const [],
+          language: lang.currentLanguage,
+        );
+        final rec = (res['recommendation'] ?? 'Sin recomendación clara.').toString();
         if (mounted) {
-          final rec = (data['recommendation'] as String?) ?? 'Sin recomendación clara.';
-          _extractSeenChampions(rec);
+          extractSeenChampions(rec);
           setState(() {
-            _recommendationText = rec;
-            _isAnalyzing = false;
-            _isRefreshing = false;
+            recommendationText = rec;
+            isAnalyzing = false;
+            isRefreshing = false;
           });
-          widget.onDataChanged();
           HapticFeedback.lightImpact();
         }
-      } else if (res.statusCode == 402) {
+      } catch (e) {
         if (mounted) {
           setState(() {
-            _isAnalyzing = false;
-            _isRefreshing = false;
-          });
-          widget.onNoQueries();
-        }
-      } else {
-        if (mounted) {
-          setState(() {
-            _isAnalyzing = false;
-            _isRefreshing = false;
-            _errorMessage = 'Error del servidor (${res.statusCode}): ${res.body}';
+            isAnalyzing = false;
+            isRefreshing = false;
+            errorMessage = 'Error en motor local: $e';
           });
         }
       }
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _isAnalyzing = false;
-          _isRefreshing = false;
-          _errorMessage = 'Error de conexión: $e';
-        });
-      }
+      return;
     }
+
+    final bodyData = <String, dynamic>{
+      'main_role': _selectedRole,
+      'enemy_champion': _enemyChampion,
+      'my_champion': _isOtpMode ? (_myChampion ?? '') : '',
+      'game_mode': _gameMode,
+      'language': lang.currentLanguage,
+    };
+
+    await runDraftAnalysisRequest(
+      endpoint: '/draft/manual',
+      bodyData: bodyData,
+      availableQueries: widget.availableQueries,
+      onDataChanged: widget.onDataChanged,
+      onNoQueries: widget.onNoQueries,
+      isRefresh: isRefresh,
+      connectionErrorPrefix: 'Error de conexión',
+      lightHapticOnSuccess: true,
+    );
   }
 
   void _showChampionPickerModal({required bool isMyChampion}) {
@@ -190,7 +153,7 @@ class _ManualDraftScreenState extends State<ManualDraftScreen> {
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (ctx) => _ChampionPickerSheet(
+      builder: (ctx) => ChampionPickerSheet(
         title: isMyChampion ? 'Elige tu Campeón (Tu Pick)' : 'Elige el Rival de tu Línea',
         selectedChampion: isMyChampion ? _myChampion : _enemyChampion,
         onSelected: (champ) {
@@ -200,8 +163,7 @@ class _ManualDraftScreenState extends State<ManualDraftScreen> {
             } else {
               _enemyChampion = champ;
             }
-            _recommendationText = null;
-            _seenChampions.clear();
+            resetAnalysisState();
           });
           Navigator.of(ctx).pop();
         },
@@ -212,14 +174,14 @@ class _ManualDraftScreenState extends State<ManualDraftScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF090D16),
+      backgroundColor: AppTheme.deepDarkBg,
       appBar: AppBar(
-        backgroundColor: const Color(0xFF0F172A),
+        backgroundColor: AppTheme.background,
         elevation: 0,
         title: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.touch_app_rounded, color: Color(0xFF00E5FF), size: 20),
+            const Icon(Icons.touch_app_rounded, color: AppTheme.hextechCyan, size: 20),
             const SizedBox(width: 8),
             Text(
               'Modo Manual Táctico',
@@ -236,14 +198,14 @@ class _ManualDraftScreenState extends State<ManualDraftScreen> {
             margin: const EdgeInsets.only(right: 14),
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
             decoration: BoxDecoration(
-              color: const Color(0xFF00E5FF).withValues(alpha: 0.12),
+              color: AppTheme.hextechCyan.withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: const Color(0xFF00E5FF).withValues(alpha: 0.3)),
+              border: Border.all(color: AppTheme.hextechCyan.withValues(alpha: 0.3)),
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Icons.bolt_rounded, color: Color(0xFF00E5FF), size: 16),
+                const Icon(Icons.bolt_rounded, color: AppTheme.hextechCyan, size: 16),
                 const SizedBox(width: 4),
                 Text(
                   '${widget.availableQueries}',
@@ -267,13 +229,13 @@ class _ManualDraftScreenState extends State<ManualDraftScreen> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
               decoration: BoxDecoration(
-                color: const Color(0xFF10B981).withValues(alpha: 0.1),
+                color: AppTheme.hextechEmerald.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: const Color(0xFF10B981).withValues(alpha: 0.3)),
+                border: Border.all(color: AppTheme.hextechEmerald.withValues(alpha: 0.3)),
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.verified_user_rounded, color: Color(0xFF10B981), size: 20),
+                  const Icon(Icons.verified_user_rounded, color: AppTheme.hextechEmerald, size: 20),
                   const SizedBox(width: 10),
                   Expanded(
                     child: Text(
@@ -297,7 +259,7 @@ class _ManualDraftScreenState extends State<ManualDraftScreen> {
               style: GoogleFonts.outfit(
                 fontSize: 12,
                 fontWeight: FontWeight.w800,
-                color: const Color(0xFF94A3B8),
+                color: AppTheme.textMuted,
                 letterSpacing: 0.8,
               ),
             ),
@@ -315,7 +277,7 @@ class _ManualDraftScreenState extends State<ManualDraftScreen> {
                         HapticFeedback.selectionClick();
                         setState(() {
                           _selectedRole = r['id'];
-                          _recommendationText = null;
+                          recommendationText = null;
                         });
                       },
                       borderRadius: BorderRadius.circular(14),
@@ -324,17 +286,17 @@ class _ManualDraftScreenState extends State<ManualDraftScreen> {
                         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                         decoration: BoxDecoration(
                           color: isSelected
-                              ? const Color(0xFF00E5FF).withValues(alpha: 0.15)
-                              : const Color(0xFF1E293B),
+                              ? AppTheme.hextechCyan.withValues(alpha: 0.15)
+                              : AppTheme.surface,
                           borderRadius: BorderRadius.circular(14),
                           border: Border.all(
-                            color: isSelected ? const Color(0xFF00E5FF) : Colors.white10,
+                            color: isSelected ? AppTheme.hextechCyan : Colors.white10,
                             width: isSelected ? 1.5 : 1,
                           ),
                           boxShadow: isSelected
                               ? [
                                   BoxShadow(
-                                    color: const Color(0xFF00E5FF).withValues(alpha: 0.25),
+                                    color: AppTheme.hextechCyan.withValues(alpha: 0.25),
                                     blurRadius: 8,
                                   ),
                                 ]
@@ -346,7 +308,7 @@ class _ManualDraftScreenState extends State<ManualDraftScreen> {
                             Icon(
                               r['icon'] as IconData,
                               size: 16,
-                              color: isSelected ? const Color(0xFF00E5FF) : Colors.white70,
+                              color: isSelected ? AppTheme.hextechCyan : Colors.white70,
                             ),
                             const SizedBox(width: 6),
                             Text(
@@ -372,7 +334,7 @@ class _ManualDraftScreenState extends State<ManualDraftScreen> {
             Container(
               padding: const EdgeInsets.all(4),
               decoration: BoxDecoration(
-                color: const Color(0xFF131B2E),
+                color: AppTheme.cardDark,
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(color: Colors.white10),
               ),
@@ -388,9 +350,9 @@ class _ManualDraftScreenState extends State<ManualDraftScreen> {
                       child: Container(
                         padding: const EdgeInsets.symmetric(vertical: 10),
                         decoration: BoxDecoration(
-                          color: !_isOtpMode ? const Color(0xFF00E5FF).withValues(alpha: 0.2) : Colors.transparent,
+                          color: !_isOtpMode ? AppTheme.hextechCyan.withValues(alpha: 0.2) : Colors.transparent,
                           borderRadius: BorderRadius.circular(12),
-                          border: !_isOtpMode ? Border.all(color: const Color(0xFF00E5FF)) : null,
+                          border: !_isOtpMode ? Border.all(color: AppTheme.hextechCyan) : null,
                         ),
                         child: Center(
                           child: Text(
@@ -416,9 +378,9 @@ class _ManualDraftScreenState extends State<ManualDraftScreen> {
                       child: Container(
                         padding: const EdgeInsets.symmetric(vertical: 10),
                         decoration: BoxDecoration(
-                          color: _isOtpMode ? const Color(0xFFC89B3C).withValues(alpha: 0.2) : Colors.transparent,
+                          color: _isOtpMode ? AppTheme.hextechGold.withValues(alpha: 0.2) : Colors.transparent,
                           borderRadius: BorderRadius.circular(12),
-                          border: _isOtpMode ? Border.all(color: const Color(0xFFC89B3C)) : null,
+                          border: _isOtpMode ? Border.all(color: AppTheme.hextechGold) : null,
                         ),
                         child: Center(
                           child: Text(
@@ -448,7 +410,7 @@ class _ManualDraftScreenState extends State<ManualDraftScreen> {
                     child: _buildChampionCard(
                       label: 'MI CAMPEÓN (OTP)',
                       championName: _myChampion,
-                      accentColor: const Color(0xFFC89B3C),
+                      accentColor: AppTheme.hextechGold,
                       icon: Icons.person_rounded,
                       onTap: () => _showChampionPickerModal(isMyChampion: true),
                     ),
@@ -460,7 +422,7 @@ class _ManualDraftScreenState extends State<ManualDraftScreen> {
                   child: _buildChampionCard(
                     label: 'RIVAL DE LÍNEA',
                     championName: _enemyChampion,
-                    accentColor: const Color(0xFFEF4444),
+                    accentColor: AppTheme.hextechCrimson,
                     icon: Icons.local_fire_department_rounded,
                     onTap: () => _showChampionPickerModal(isMyChampion: false),
                   ),
@@ -472,16 +434,16 @@ class _ManualDraftScreenState extends State<ManualDraftScreen> {
 
             // Botón de Análisis Principal
             ElevatedButton(
-              onPressed: _isAnalyzing ? null : () => _consultStrategy(),
+              onPressed: isAnalyzing ? null : () => _consultStrategy(),
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF00E5FF),
-                foregroundColor: const Color(0xFF090D16),
+                backgroundColor: AppTheme.hextechCyan,
+                foregroundColor: AppTheme.deepDarkBg,
                 padding: const EdgeInsets.symmetric(vertical: 16),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                 elevation: 4,
-                shadowColor: const Color(0xFF00E5FF).withValues(alpha: 0.4),
+                shadowColor: AppTheme.hextechCyan.withValues(alpha: 0.4),
               ),
-              child: _isAnalyzing
+              child: isAnalyzing
                   ? Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
@@ -490,12 +452,12 @@ class _ManualDraftScreenState extends State<ManualDraftScreen> {
                           height: 20,
                           child: CircularProgressIndicator(
                             strokeWidth: 2.5,
-                            color: Color(0xFF090D16),
+                            color: AppTheme.deepDarkBg,
                           ),
                         ),
                         const SizedBox(width: 12),
                         Text(
-                          _isRefreshing ? 'Buscando alternativas...' : 'Analizando estrategia táctica...',
+                          isRefreshing ? 'Buscando alternativas...' : 'Analizando estrategia táctica...',
                           style: GoogleFonts.outfit(
                             fontSize: 15,
                             fontWeight: FontWeight.bold,
@@ -520,31 +482,31 @@ class _ManualDraftScreenState extends State<ManualDraftScreen> {
                     ),
             ),
 
-            if (_errorMessage != null) ...[
+            if (errorMessage != null) ...[
               const SizedBox(height: 16),
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFEF4444).withValues(alpha: 0.15),
+                  color: AppTheme.hextechCrimson.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: const Color(0xFFEF4444)),
+                  border: Border.all(color: AppTheme.hextechCrimson),
                 ),
                 child: Text(
-                  _errorMessage!,
+                  errorMessage!,
                   style: const TextStyle(color: Color(0xFFFCA5A5), fontSize: 13),
                 ),
               ),
             ],
 
             // 4. Resultado del Análisis
-            if (_recommendationText != null) ...[
+            if (recommendationText != null) ...[
               const SizedBox(height: 24),
               Container(
                 padding: const EdgeInsets.all(18),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF131B2E),
+                  color: AppTheme.cardDark,
                   borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: const Color(0xFF00E5FF).withValues(alpha: 0.35)),
+                  border: Border.all(color: AppTheme.hextechCyan.withValues(alpha: 0.35)),
                   boxShadow: [
                     BoxShadow(
                       color: Colors.black.withValues(alpha: 0.4),
@@ -562,9 +524,9 @@ class _ManualDraftScreenState extends State<ManualDraftScreen> {
                           padding: const EdgeInsets.all(6),
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
-                            color: const Color(0xFF00E5FF).withValues(alpha: 0.2),
+                            color: AppTheme.hextechCyan.withValues(alpha: 0.2),
                           ),
-                          child: const Icon(Icons.auto_awesome_rounded, color: Color(0xFF00E5FF), size: 18),
+                          child: const Icon(Icons.auto_awesome_rounded, color: AppTheme.hextechCyan, size: 18),
                         ),
                         const SizedBox(width: 10),
                         Expanded(
@@ -573,7 +535,7 @@ class _ManualDraftScreenState extends State<ManualDraftScreen> {
                             style: GoogleFonts.outfit(
                               fontSize: 14,
                               fontWeight: FontWeight.w800,
-                              color: const Color(0xFF00E5FF),
+                              color: AppTheme.hextechCyan,
                               letterSpacing: 0.5,
                             ),
                           ),
@@ -582,7 +544,7 @@ class _ManualDraftScreenState extends State<ManualDraftScreen> {
                           icon: const Icon(Icons.copy_rounded, color: Colors.white70, size: 20),
                           tooltip: 'Copiar texto',
                           onPressed: () {
-                            Clipboard.setData(ClipboardData(text: _recommendationText!));
+                            Clipboard.setData(ClipboardData(text: recommendationText!));
                             ScaffoldMessenger.of(context).showSnackBar(
                               const SnackBar(
                                 content: Text('¡Estrategia copiada al portapapeles!'),
@@ -595,7 +557,7 @@ class _ManualDraftScreenState extends State<ManualDraftScreen> {
                     ),
                     const Divider(color: Colors.white10, height: 24),
                     SelectableText(
-                      _recommendationText!,
+                      recommendationText!,
                       style: GoogleFonts.inter(
                         fontSize: 14,
                         color: Colors.white,
@@ -606,10 +568,10 @@ class _ManualDraftScreenState extends State<ManualDraftScreen> {
                     // Botón para refrescar y pedir otro campeón
                     if (!_isOtpMode)
                       OutlinedButton.icon(
-                        onPressed: _isAnalyzing ? null : () => _consultStrategy(isRefresh: true),
+                        onPressed: isAnalyzing ? null : () => _consultStrategy(isRefresh: true),
                         style: OutlinedButton.styleFrom(
-                          foregroundColor: const Color(0xFF00E5FF),
-                          side: const BorderSide(color: Color(0xFF00E5FF)),
+                          foregroundColor: AppTheme.hextechCyan,
+                          side: const BorderSide(color: AppTheme.hextechCyan),
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                         ),
@@ -643,7 +605,7 @@ class _ManualDraftScreenState extends State<ManualDraftScreen> {
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: const Color(0xFF1E293B),
+          color: AppTheme.surface,
           borderRadius: BorderRadius.circular(18),
           border: Border.all(
             color: hasChampion ? accentColor : Colors.white12,
@@ -691,154 +653,6 @@ class _ManualDraftScreenState extends State<ManualDraftScreen> {
             ),
           ],
         ),
-      ),
-    );
-  }
-}
-
-class _ChampionPickerSheet extends StatefulWidget {
-  final String title;
-  final String? selectedChampion;
-  final ValueChanged<String> onSelected;
-
-  const _ChampionPickerSheet({
-    required this.title,
-    required this.selectedChampion,
-    required this.onSelected,
-  });
-
-  @override
-  State<_ChampionPickerSheet> createState() => _ChampionPickerSheetState();
-}
-
-class _ChampionPickerSheetState extends State<_ChampionPickerSheet> {
-  final TextEditingController _searchCtrl = TextEditingController();
-  List<String> _filtered = [];
-
-  @override
-  void initState() {
-    super.initState();
-    _filtered = AppConstants.wildRiftChampions;
-    _searchCtrl.addListener(_onSearchChanged);
-  }
-
-  void _onSearchChanged() {
-    final query = _searchCtrl.text.trim().toLowerCase();
-    setState(() {
-      if (query.isEmpty) {
-        _filtered = AppConstants.wildRiftChampions;
-      } else {
-        _filtered = AppConstants.wildRiftChampions
-            .where((c) => c.toLowerCase().contains(query))
-            .toList();
-      }
-    });
-  }
-
-  @override
-  void dispose() {
-    _searchCtrl.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      height: MediaQuery.of(context).size.height * 0.75,
-      decoration: const BoxDecoration(
-        color: Color(0xFF0F172A),
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      child: Column(
-        children: [
-          const SizedBox(height: 12),
-          Container(
-            width: 40,
-            height: 4,
-            decoration: BoxDecoration(
-              color: Colors.white24,
-              borderRadius: BorderRadius.circular(2),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 16, 20, 10),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    widget.title,
-                    style: GoogleFonts.outfit(
-                      fontSize: 17,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
-                  ),
-                ),
-                IconButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  icon: const Icon(Icons.close_rounded, color: Colors.white60),
-                ),
-              ],
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
-            child: TextField(
-              controller: _searchCtrl,
-              style: const TextStyle(color: Colors.white),
-              decoration: InputDecoration(
-                hintText: 'Buscar campeón (ej. Zed, Yasuo, Ahri)...',
-                hintStyle: const TextStyle(color: Colors.white38),
-                prefixIcon: const Icon(Icons.search_rounded, color: Color(0xFF00E5FF)),
-                filled: true,
-                fillColor: const Color(0xFF1E293B),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(14),
-                  borderSide: BorderSide.none,
-                ),
-              ),
-            ),
-          ),
-          Expanded(
-            child: ListView.builder(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-              itemCount: _filtered.length,
-              itemBuilder: (ctx, idx) {
-                final champ = _filtered[idx];
-                final isSelected = champ == widget.selectedChampion;
-                return ListTile(
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                  tileColor: isSelected ? const Color(0xFF00E5FF).withValues(alpha: 0.12) : null,
-                  leading: CircleAvatar(
-                    backgroundColor: isSelected ? const Color(0xFF00E5FF) : const Color(0xFF1E293B),
-                    radius: 18,
-                    child: Text(
-                      champ.substring(0, 1),
-                      style: TextStyle(
-                        color: isSelected ? const Color(0xFF090D16) : Colors.white,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                  title: Text(
-                    champ,
-                    style: GoogleFonts.outfit(
-                      fontSize: 15,
-                      fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-                      color: isSelected ? const Color(0xFF00E5FF) : Colors.white,
-                    ),
-                  ),
-                  trailing: isSelected
-                      ? const Icon(Icons.check_circle_rounded, color: Color(0xFF00E5FF), size: 20)
-                      : null,
-                  onTap: () => widget.onSelected(champ),
-                );
-              },
-            ),
-          ),
-        ],
       ),
     );
   }

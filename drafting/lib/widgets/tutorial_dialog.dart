@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../core/services/language_service.dart';
+import '../shared/mixins/localized_state_mixin.dart';
+import '../theme/app_theme.dart';
 
 class TutorialDialog extends StatefulWidget {
   const TutorialDialog({super.key});
@@ -28,29 +29,29 @@ class TutorialDialog extends StatefulWidget {
   State<TutorialDialog> createState() => _TutorialDialogState();
 }
 
-class _TutorialDialogState extends State<TutorialDialog> {
+class _TutorialDialogState extends State<TutorialDialog>
+    with LocalizedStateMixin<TutorialDialog> {
   final PageController _pageController = PageController();
   int _currentPage = 0;
 
   List<Map<String, String>> get _steps {
-    final lang = LanguageService.instance;
     return [
       {
-        'badge': lang.tr('tut_s1_badge'),
-        'title': lang.tr('tut_s1_title'),
-        'description': lang.tr('tut_s1_desc'),
+        'badge': tr('tut_s1_badge'),
+        'title': tr('tut_s1_title'),
+        'description': tr('tut_s1_desc'),
         'image': 'assets/images/tutorial_step1.jpg',
       },
       {
-        'badge': lang.tr('tut_s2_badge'),
-        'title': lang.tr('tut_s2_title'),
-        'description': lang.tr('tut_s2_desc'),
+        'badge': tr('tut_s2_badge'),
+        'title': tr('tut_s2_title'),
+        'description': tr('tut_s2_desc'),
         'image': 'assets/images/tutorial_step2.jpg',
       },
       {
-        'badge': lang.tr('tut_s3_badge'),
-        'title': lang.tr('tut_s3_title'),
-        'description': lang.tr('tut_s3_desc'),
+        'badge': tr('tut_s3_badge'),
+        'title': tr('tut_s3_title'),
+        'description': tr('tut_s3_desc'),
         'image': 'assets/images/tutorial_step3.jpg',
       },
     ];
@@ -87,17 +88,17 @@ class _TutorialDialogState extends State<TutorialDialog> {
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
             colors: [
-              Color(0xFF1E293B),
-              Color(0xFF0B0E14),
+              AppTheme.surface,
+              AppTheme.darkScaffold,
             ],
           ),
           border: Border.all(
-            color: const Color(0xFF00E5FF).withValues(alpha: 0.35),
+            color: AppTheme.hextechCyan.withValues(alpha: 0.35),
             width: 1.5,
           ),
           boxShadow: [
             BoxShadow(
-              color: const Color(0xFF00E5FF).withValues(alpha: 0.2),
+              color: AppTheme.hextechCyan.withValues(alpha: 0.2),
               blurRadius: 24,
               offset: const Offset(0, 8),
             ),
@@ -118,13 +119,13 @@ class _TutorialDialogState extends State<TutorialDialog> {
                         padding: const EdgeInsets.all(6),
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
-                          color: const Color(0xFF00E5FF).withValues(alpha: 0.15),
+                          color: AppTheme.hextechCyan.withValues(alpha: 0.15),
                         ),
-                        child: const Icon(Icons.school_rounded, color: Color(0xFF00E5FF), size: 18),
+                        child: const Icon(Icons.school_rounded, color: AppTheme.hextechCyan, size: 18),
                       ),
                       const SizedBox(width: 8),
                       Text(
-                        LanguageService.instance.tr('tut_header'),
+                        tr('tut_header'),
                         style: GoogleFonts.outfit(
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
@@ -169,7 +170,7 @@ class _TutorialDialogState extends State<TutorialDialog> {
                               height: 190,
                               width: double.infinity,
                               decoration: BoxDecoration(
-                                color: const Color(0xFF0F172A),
+                                color: AppTheme.background,
                                 border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
                               ),
                               child: Image.asset(
@@ -184,14 +185,14 @@ class _TutorialDialogState extends State<TutorialDialog> {
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                             decoration: BoxDecoration(
-                              color: const Color(0xFFC89B3C).withValues(alpha: 0.2),
+                              color: AppTheme.hextechGold.withValues(alpha: 0.2),
                               borderRadius: BorderRadius.circular(8),
-                              border: Border.all(color: const Color(0xFFC89B3C).withValues(alpha: 0.5)),
+                              border: Border.all(color: AppTheme.hextechGold.withValues(alpha: 0.5)),
                             ),
                             child: Text(
                               step['badge']!,
                               style: const TextStyle(
-                                color: Color(0xFFC89B3C),
+                                color: AppTheme.hextechGold,
                                 fontWeight: FontWeight.bold,
                                 fontSize: 11,
                                 letterSpacing: 0.8,
@@ -247,7 +248,7 @@ class _TutorialDialogState extends State<TutorialDialog> {
                         height: 8,
                         decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(4),
-                          color: isActive ? const Color(0xFF00E5FF) : Colors.white24,
+                          color: isActive ? AppTheme.hextechCyan : Colors.white24,
                         ),
                       );
                     }),
@@ -259,18 +260,18 @@ class _TutorialDialogState extends State<TutorialDialog> {
                       if (_currentPage < _steps.length - 1)
                         TextButton(
                           onPressed: () => Navigator.of(context).pop(),
-                          child: Text(LanguageService.instance.tr('tut_skip'), style: const TextStyle(color: Colors.white54)),
+                          child: Text(tr('tut_skip'), style: const TextStyle(color: Colors.white54)),
                         ),
                       const SizedBox(width: 8),
                       Container(
                         decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(14),
                           gradient: const LinearGradient(
-                            colors: [Color(0xFF00E5FF), Color(0xFF0052D4)],
+                            colors: [AppTheme.hextechCyan, AppTheme.hextechBlue],
                           ),
                           boxShadow: [
                             BoxShadow(
-                              color: const Color(0xFF00E5FF).withValues(alpha: 0.35),
+                              color: AppTheme.hextechCyan.withValues(alpha: 0.35),
                               blurRadius: 10,
                               offset: const Offset(0, 3),
                             ),
@@ -286,8 +287,8 @@ class _TutorialDialogState extends State<TutorialDialog> {
                           ),
                           child: Text(
                             _currentPage == _steps.length - 1
-                                ? LanguageService.instance.tr('tut_start')
-                                : LanguageService.instance.tr('tut_next'),
+                                ? tr('tut_start')
+                                : tr('tut_next'),
                             style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
                           ),
                         ),

@@ -5,8 +5,9 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
 
-import '../core/services/api_client.dart';
-import '../core/services/language_service.dart';
+import '../shared/mixins/draft_analyzer_state_mixin.dart';
+import '../shared/mixins/localized_state_mixin.dart';
+import '../theme/app_theme.dart';
 
 class LolPcScannerScreen extends StatefulWidget {
   final File initialImage;
@@ -28,14 +29,10 @@ class LolPcScannerScreen extends StatefulWidget {
   State<LolPcScannerScreen> createState() => _LolPcScannerScreenState();
 }
 
-class _LolPcScannerScreenState extends State<LolPcScannerScreen> {
+class _LolPcScannerScreenState extends State<LolPcScannerScreen>
+    with LocalizedStateMixin<LolPcScannerScreen>, DraftAnalyzerStateMixin<LolPcScannerScreen> {
   final ImagePicker _picker = ImagePicker();
   late File _capturedImage;
-  bool _isAnalyzing = false;
-  bool _isRefreshing = false;
-  String? _recommendationText;
-  String? _errorMessage;
-  final List<String> _seenChampions = [];
 
   @override
   void initState() {
@@ -44,32 +41,6 @@ class _LolPcScannerScreenState extends State<LolPcScannerScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _analyzePhoto();
     });
-  }
-
-  void _extractSeenChampions(String text) {
-    final regA = RegExp(r'(?:PLAN|PLANO)\s*A\s*:\s*([^•\n\r]+)', caseSensitive: false);
-    final matchA = regA.firstMatch(text);
-    if (matchA != null) {
-      final name = matchA.group(1)?.trim();
-      if (name != null && name.isNotEmpty && !_seenChampions.contains(name)) {
-        _seenChampions.add(name);
-      }
-    }
-    final regSim = RegExp(r'•\s*([^:\n\r]+):', caseSensitive: false);
-    for (final m in regSim.allMatches(text)) {
-      final name = m.group(1)?.trim();
-      if (name != null && name.isNotEmpty && !_seenChampions.contains(name)) {
-        final lower = name.toLowerCase();
-        if (!lower.contains('hechizo') &&
-            !lower.contains('runa') &&
-            !lower.contains('plan') &&
-            !lower.contains('spell') &&
-            !lower.contains('feitiço') &&
-            !lower.contains('sort')) {
-          _seenChampions.add(name);
-        }
-      }
-    }
   }
 
   Future<void> _takeNewPhotoAndAnalyze() async {
@@ -89,9 +60,7 @@ class _LolPcScannerScreenState extends State<LolPcScannerScreen> {
       if (photo != null) {
         setState(() {
           _capturedImage = File(photo.path);
-          _recommendationText = null;
-          _errorMessage = null;
-          _seenChampions.clear();
+          resetAnalysisState();
         });
         HapticFeedback.lightImpact();
         await _analyzePhoto();
@@ -100,8 +69,8 @@ class _LolPcScannerScreenState extends State<LolPcScannerScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(LanguageService.instance.tr('pc_scanner_camera_error', {'error': '$e'})),
-            backgroundColor: const Color(0xFFEF4444),
+            content: Text(tr('pc_scanner_camera_error', {'error': '$e'})),
+            backgroundColor: AppTheme.hextechCrimson,
           ),
         );
       }
@@ -109,23 +78,16 @@ class _LolPcScannerScreenState extends State<LolPcScannerScreen> {
   }
 
   Future<void> _analyzePhoto({bool isRefresh = false}) async {
-    if (_isAnalyzing) return;
+    if (isAnalyzing) return;
 
     if (widget.availableQueries <= 0) {
       widget.onNoQueries();
       return;
     }
 
-    setState(() {
-      _isAnalyzing = true;
-      _isRefreshing = isRefresh;
-      _errorMessage = null;
-    });
-
     try {
       final bytes = await _capturedImage.readAsBytes();
       final base64Image = base64Encode(bytes);
-      final lang = LanguageService.instance.currentLanguage;
 
       final bodyData = <String, dynamic>{
         'image_base64': base64Image,
@@ -133,55 +95,24 @@ class _LolPcScannerScreenState extends State<LolPcScannerScreen> {
         'secondary_role': 'Auto',
         'autofill_role': 'Auto',
         'game_mode': 'lol_pc',
-        'language': lang,
+        'language': lang.currentLanguage,
       };
 
-      if (isRefresh && _seenChampions.isNotEmpty) {
-        bodyData['exclude_champions'] = _seenChampions.join(', ');
-      }
-
-      final res = await ApiClient.post(
-        '/draft/analyze',
-        authenticated: true,
-        body: bodyData,
+      await runDraftAnalysisRequest(
+        endpoint: '/draft/analyze',
+        bodyData: bodyData,
+        availableQueries: widget.availableQueries,
+        onDataChanged: widget.onDataChanged,
+        onNoQueries: widget.onNoQueries,
+        isRefresh: isRefresh,
+        connectionErrorPrefix: 'Error de conexión al analizar',
       );
-
-      if (res.statusCode == 200) {
-        final data = jsonDecode(res.body);
-        if (mounted) {
-          final rec = (data['recommendation'] as String?) ?? 'Sin recomendación clara.';
-          _extractSeenChampions(rec);
-          setState(() {
-            _recommendationText = rec;
-            _isAnalyzing = false;
-            _isRefreshing = false;
-          });
-          widget.onDataChanged();
-          HapticFeedback.mediumImpact();
-        }
-      } else if (res.statusCode == 402) {
-        if (mounted) {
-          setState(() {
-            _isAnalyzing = false;
-            _isRefreshing = false;
-          });
-          widget.onNoQueries();
-        }
-      } else {
-        if (mounted) {
-          setState(() {
-            _isAnalyzing = false;
-            _isRefreshing = false;
-            _errorMessage = 'Error del servidor (${res.statusCode}): ${res.body}';
-          });
-        }
-      }
     } catch (e) {
       if (mounted) {
         setState(() {
-          _isAnalyzing = false;
-          _isRefreshing = false;
-          _errorMessage = 'Error de conexión al analizar: $e';
+          isAnalyzing = false;
+          isRefreshing = false;
+          errorMessage = 'Error de conexión al analizar: $e';
         });
       }
     }
@@ -189,20 +120,18 @@ class _LolPcScannerScreenState extends State<LolPcScannerScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final lang = LanguageService.instance;
-
     return Scaffold(
-      backgroundColor: const Color(0xFF090D16),
+      backgroundColor: AppTheme.deepDarkBg,
       appBar: AppBar(
         backgroundColor: const Color(0xFF0B111E),
         elevation: 0,
         title: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.computer_rounded, color: Color(0xFF38BDF8), size: 22),
+            const Icon(Icons.computer_rounded, color: AppTheme.accent, size: 22),
             const SizedBox(width: 8),
             Text(
-              lang.tr('pc_scanner_title'),
+              tr('pc_scanner_title'),
               style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 18),
             ),
           ],
@@ -219,15 +148,15 @@ class _LolPcScannerScreenState extends State<LolPcScannerScreen> {
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(16),
                   border: Border.all(
-                    color: _isAnalyzing
-                        ? const Color(0xFF38BDF8)
+                    color: isAnalyzing
+                        ? AppTheme.accent
                         : Colors.white.withValues(alpha: 0.15),
                     width: 1.5,
                   ),
-                  boxShadow: _isAnalyzing
+                  boxShadow: isAnalyzing
                       ? [
                           BoxShadow(
-                            color: const Color(0xFF38BDF8).withValues(alpha: 0.35),
+                            color: AppTheme.accent.withValues(alpha: 0.35),
                             blurRadius: 18,
                             spreadRadius: 1,
                           ),
@@ -258,7 +187,7 @@ class _LolPcScannerScreenState extends State<LolPcScannerScreen> {
                           ),
                         ),
                       ),
-                      if (_isAnalyzing)
+                      if (isAnalyzing)
                         Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
@@ -266,7 +195,7 @@ class _LolPcScannerScreenState extends State<LolPcScannerScreen> {
                               width: 42,
                               height: 42,
                               child: CircularProgressIndicator(
-                                color: Color(0xFF38BDF8),
+                                color: AppTheme.accent,
                                 strokeWidth: 3.5,
                               ),
                             ),
@@ -274,12 +203,12 @@ class _LolPcScannerScreenState extends State<LolPcScannerScreen> {
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
                               decoration: BoxDecoration(
-                                color: const Color(0xFF090D16).withValues(alpha: 0.85),
+                                color: AppTheme.deepDarkBg.withValues(alpha: 0.85),
                                 borderRadius: BorderRadius.circular(12),
-                                border: Border.all(color: const Color(0xFF38BDF8).withValues(alpha: 0.5)),
+                                border: Border.all(color: AppTheme.accent.withValues(alpha: 0.5)),
                               ),
                               child: Text(
-                                lang.tr(_isRefreshing ? 'pc_scanner_refreshing' : 'pc_scanner_analyzing'),
+                                tr(isRefreshing ? 'pc_scanner_refreshing' : 'pc_scanner_analyzing'),
                                 style: GoogleFonts.outfit(
                                   fontSize: 13.5,
                                   fontWeight: FontWeight.bold,
@@ -297,23 +226,23 @@ class _LolPcScannerScreenState extends State<LolPcScannerScreen> {
               const SizedBox(height: 20),
 
               // Contenedor de Error si falla
-              if (_errorMessage != null) ...[
+              if (errorMessage != null) ...[
                 Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFEF4444).withValues(alpha: 0.15),
+                    color: AppTheme.hextechCrimson.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: const Color(0xFFEF4444)),
+                    border: Border.all(color: AppTheme.hextechCrimson),
                   ),
                   child: Column(
                     children: [
                       Row(
                         children: [
-                          const Icon(Icons.error_outline_rounded, color: Color(0xFFEF4444), size: 24),
+                          const Icon(Icons.error_outline_rounded, color: AppTheme.hextechCrimson, size: 24),
                           const SizedBox(width: 10),
                           Expanded(
                             child: Text(
-                              _errorMessage!,
+                              errorMessage!,
                               style: GoogleFonts.inter(fontSize: 13, color: Colors.white),
                             ),
                           ),
@@ -326,8 +255,8 @@ class _LolPcScannerScreenState extends State<LolPcScannerScreen> {
                           TextButton.icon(
                             onPressed: _analyzePhoto,
                             icon: const Icon(Icons.refresh_rounded, size: 16),
-                            label: Text(lang.tr('pc_scanner_retry_btn')),
-                            style: TextButton.styleFrom(foregroundColor: const Color(0xFF38BDF8)),
+                            label: Text(tr('pc_scanner_retry_btn')),
+                            style: TextButton.styleFrom(foregroundColor: AppTheme.accent),
                           ),
                         ],
                       ),
@@ -338,7 +267,7 @@ class _LolPcScannerScreenState extends State<LolPcScannerScreen> {
               ],
 
               // Resultado de la Recomendación Challenger
-              if (_recommendationText != null) ...[
+              if (recommendationText != null) ...[
                 Container(
                   padding: const EdgeInsets.all(20),
                   decoration: BoxDecoration(
@@ -352,12 +281,12 @@ class _LolPcScannerScreenState extends State<LolPcScannerScreen> {
                     ),
                     borderRadius: BorderRadius.circular(20),
                     border: Border.all(
-                      color: const Color(0xFF38BDF8).withValues(alpha: 0.5),
+                      color: AppTheme.accent.withValues(alpha: 0.5),
                       width: 1.5,
                     ),
                     boxShadow: [
                       BoxShadow(
-                        color: const Color(0xFF38BDF8).withValues(alpha: 0.2),
+                        color: AppTheme.accent.withValues(alpha: 0.2),
                         blurRadius: 20,
                         offset: const Offset(0, 4),
                       ),
@@ -379,7 +308,7 @@ class _LolPcScannerScreenState extends State<LolPcScannerScreen> {
                           const SizedBox(width: 10),
                           Expanded(
                             child: Text(
-                              lang.tr('pc_scanner_rec_title'),
+                              tr('pc_scanner_rec_title'),
                               style: GoogleFonts.outfit(
                                 fontSize: 16.5,
                                 fontWeight: FontWeight.bold,
@@ -388,21 +317,21 @@ class _LolPcScannerScreenState extends State<LolPcScannerScreen> {
                             ),
                           ),
                           IconButton(
-                            onPressed: _isAnalyzing ? null : () => _analyzePhoto(isRefresh: true),
-                            icon: _isRefreshing
+                            onPressed: isAnalyzing ? null : () => _analyzePhoto(isRefresh: true),
+                            icon: isRefreshing
                                 ? const SizedBox(
                                     width: 18,
                                     height: 18,
-                                    child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF38BDF8)),
+                                    child: CircularProgressIndicator(strokeWidth: 2, color: AppTheme.accent),
                                   )
-                                : const Icon(Icons.refresh_rounded, color: Color(0xFF38BDF8), size: 24),
-                            tooltip: lang.tr('pc_scanner_refresh_tooltip'),
+                                : const Icon(Icons.refresh_rounded, color: AppTheme.accent, size: 24),
+                            tooltip: tr('pc_scanner_refresh_tooltip'),
                           ),
                         ],
                       ),
                       const Divider(color: Colors.white12, height: 24),
                       SelectableText(
-                        _recommendationText!,
+                        recommendationText!,
                         style: GoogleFonts.inter(
                           fontSize: 14.5,
                           height: 1.58,
@@ -416,10 +345,10 @@ class _LolPcScannerScreenState extends State<LolPcScannerScreen> {
               ],
 
               // Botones de Acción
-              if (_recommendationText != null) ...[
+              if (recommendationText != null) ...[
                 ElevatedButton.icon(
-                  onPressed: _isAnalyzing ? null : () => _analyzePhoto(isRefresh: true),
-                  icon: _isRefreshing
+                  onPressed: isAnalyzing ? null : () => _analyzePhoto(isRefresh: true),
+                  icon: isRefreshing
                       ? const SizedBox(
                           width: 18,
                           height: 18,
@@ -427,7 +356,7 @@ class _LolPcScannerScreenState extends State<LolPcScannerScreen> {
                         )
                       : const Icon(Icons.refresh_rounded, size: 20),
                   label: Text(
-                    lang.tr('pc_scanner_refresh_btn'),
+                    tr('pc_scanner_refresh_btn'),
                     style: GoogleFonts.outfit(fontSize: 15.5, fontWeight: FontWeight.bold),
                   ),
                   style: ElevatedButton.styleFrom(
@@ -440,25 +369,25 @@ class _LolPcScannerScreenState extends State<LolPcScannerScreen> {
                 ),
                 const SizedBox(height: 10),
                 OutlinedButton.icon(
-                  onPressed: _isAnalyzing ? null : _takeNewPhotoAndAnalyze,
+                  onPressed: isAnalyzing ? null : _takeNewPhotoAndAnalyze,
                   icon: const Icon(Icons.camera_alt_rounded, size: 19),
                   label: Text(
-                    lang.tr('pc_scanner_rescan_btn'),
+                    tr('pc_scanner_rescan_btn'),
                     style: GoogleFonts.outfit(fontSize: 14.5, fontWeight: FontWeight.w600),
                   ),
                   style: OutlinedButton.styleFrom(
-                    foregroundColor: const Color(0xFF38BDF8),
-                    side: BorderSide(color: const Color(0xFF38BDF8).withValues(alpha: 0.5)),
+                    foregroundColor: AppTheme.accent,
+                    side: BorderSide(color: AppTheme.accent.withValues(alpha: 0.5)),
                     padding: const EdgeInsets.symmetric(vertical: 13),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                   ),
                 ),
               ] else ...[
                 ElevatedButton.icon(
-                  onPressed: _isAnalyzing ? null : _takeNewPhotoAndAnalyze,
+                  onPressed: isAnalyzing ? null : _takeNewPhotoAndAnalyze,
                   icon: const Icon(Icons.camera_alt_rounded, size: 20),
                   label: Text(
-                    lang.tr('pc_scanner_rescan_btn'),
+                    tr('pc_scanner_rescan_btn'),
                     style: GoogleFonts.outfit(fontSize: 15.5, fontWeight: FontWeight.bold),
                   ),
                   style: ElevatedButton.styleFrom(
@@ -482,7 +411,7 @@ class _LolPcScannerScreenState extends State<LolPcScannerScreen> {
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                 ),
                 child: Text(
-                  lang.tr('pc_scanner_finish_btn'),
+                  tr('pc_scanner_finish_btn'),
                   style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600),
                 ),
               ),

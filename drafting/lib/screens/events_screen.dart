@@ -5,10 +5,15 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../core/models/event_models.dart';
+import '../core/models/social_platform.dart';
 import '../core/services/api_client.dart';
-import '../core/services/language_service.dart';
 import '../core/services/native_service.dart';
 import '../core/services/push_notification_service.dart';
+import '../shared/mixins/localized_state_mixin.dart';
+import '../shared/utils/app_snackbar.dart';
+import '../shared/widgets/hextech_ui.dart';
+import '../theme/app_theme.dart';
 
 class EventsScreen extends StatefulWidget {
   final bool isTab;
@@ -26,16 +31,17 @@ class EventsScreen extends StatefulWidget {
   State<EventsScreen> createState() => EventsScreenState();
 }
 
-class EventsScreenState extends State<EventsScreen> {
+class EventsScreenState extends State<EventsScreen>
+    with LocalizedStateMixin<EventsScreen> {
   static const String _authorizedAdminEmail = '0805409802d@gmail.com';
 
   bool get _isAuthorizedAdmin =>
       (widget.userEmail ?? '').trim().toLowerCase() == _authorizedAdminEmail;
   bool _isLoading = true;
   bool _notificationsEnabled = true;
-  Map<String, dynamic>? _liveNow;
-  List<dynamic> _events = [];
-  List<dynamic> _socialLinks = [];
+  EventItem? _liveNow;
+  List<EventItem> _events = [];
+  List<SocialLinkItem> _socialLinks = [];
   Timer? _livePollingTimer;
 
   @override
@@ -43,23 +49,19 @@ class EventsScreenState extends State<EventsScreen> {
     super.initState();
     _checkNotificationsState();
     _fetchEventsData();
-    LanguageService.instance.languageNotifier.addListener(_onLanguageChanged);
     // Sondeo ligero cada 45s para detectar nuevos directos en vivo en tiempo real
     _livePollingTimer = Timer.periodic(const Duration(seconds: 45), (_) {
       _fetchEventsData(silent: true);
     });
   }
 
-  void _onLanguageChanged() {
-    if (mounted) {
-      _fetchEventsData(silent: true);
-      setState(() {});
-    }
+  @override
+  void onLanguageChanged() {
+    _fetchEventsData(silent: true);
   }
 
   @override
   void dispose() {
-    LanguageService.instance.languageNotifier.removeListener(_onLanguageChanged);
     _livePollingTimer?.cancel();
     super.dispose();
   }
@@ -94,16 +96,27 @@ class EventsScreenState extends State<EventsScreen> {
 
     try {
       final prefs = await SharedPreferences.getInstance();
-      final lang = LanguageService.instance.currentLanguage;
-      final response = await ApiClient.get('/api/v1/events?lang=$lang', authenticated: false);
+      final currentLang = lang.currentLanguage;
+      final response = await ApiClient.get('/api/v1/events?lang=$currentLang', authenticated: false);
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        final Map<String, dynamic>? liveEvent =
+        final Map<String, dynamic>? liveEventMap =
             (data['live_now'] is Map<String, dynamic>) ? data['live_now'] as Map<String, dynamic> : null;
-        final List<dynamic> eventsList = (data['events'] is List) ? data['events'] as List<dynamic> : [];
-        final List<dynamic> socialsList =
+        final EventItem? liveEvent = liveEventMap != null ? EventItem.fromJson(liveEventMap) : null;
+
+        final List<dynamic> rawEvents = (data['events'] is List) ? data['events'] as List<dynamic> : [];
+        final List<dynamic> rawSocials =
             (data['social_links'] is List) ? data['social_links'] as List<dynamic> : [];
+
+        final eventsList = rawEvents
+            .whereType<Map<String, dynamic>>()
+            .map(EventItem.fromJson)
+            .toList();
+        final socialsList = rawSocials
+            .whereType<Map<String, dynamic>>()
+            .map(SocialLinkItem.fromJson)
+            .toList();
 
         if (mounted) {
           setState(() {
@@ -114,21 +127,21 @@ class EventsScreenState extends State<EventsScreen> {
           });
         }
 
-        widget.onLiveEventChanged?.call(liveEvent);
+        widget.onLiveEventChanged?.call(liveEventMap);
 
         // Si hay un directo en vivo nuevo que aún no habíamos notificado en el teléfono, lanzar notificación nativa
         if (liveEvent != null) {
-          final String liveId = (liveEvent['id'] ?? '').toString();
-          final String liveUpdated = (liveEvent['updated_at'] ?? '').toString();
-          final String notifKey = '$liveId:$liveUpdated';
+          final String notifKey = liveEvent.notificationDedupeKey;
           final String lastNotifiedKey = prefs.getString('last_notified_live_event') ?? '';
 
-          if (liveId.isNotEmpty && notifKey != lastNotifiedKey) {
+          if (liveEvent.id.isNotEmpty && notifKey != lastNotifiedKey) {
             await prefs.setString('last_notified_live_event', notifKey);
             await NativeService.showEventNotification(
-              title: '🔴 ${liveEvent['title'] ?? "¡Drafting está en Directo!"}',
-              body: (liveEvent['subtitle'] ?? 'Toca para entrar ahora mismo a la transmisión en vivo.').toString(),
-              url: (liveEvent['action_url'] ?? '').toString(),
+              title: '🔴 ${liveEvent.title.isNotEmpty ? liveEvent.title : "¡Drafting está en Directo!"}',
+              body: liveEvent.subtitle.isNotEmpty
+                  ? liveEvent.subtitle
+                  : 'Toca para entrar ahora mismo a la transmisión en vivo.',
+              url: liveEvent.actionUrl,
             );
           }
         }
@@ -149,139 +162,99 @@ class EventsScreenState extends State<EventsScreen> {
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
       builder: (ctx) {
-        return Container(
-          padding: const EdgeInsets.fromLTRB(22, 16, 22, 26),
-          decoration: BoxDecoration(
-            color: const Color(0xFF0F172A),
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
-            border: Border.all(
-              color: const Color(0xFF00E5FF).withValues(alpha: 0.35),
-              width: 1.2,
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: const Color(0xFF00E5FF).withValues(alpha: 0.18),
-                blurRadius: 24,
-                offset: const Offset(0, -4),
+        return HextechBottomSheetContainer(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const HextechSheetHandle(),
+              const SizedBox(height: 20),
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: LinearGradient(
+                    colors: [
+                      AppTheme.hextechCrimson.withValues(alpha: 0.25),
+                      AppTheme.hextechCyan.withValues(alpha: 0.25),
+                    ],
+                  ),
+                  border: Border.all(color: AppTheme.hextechCyan.withValues(alpha: 0.5)),
+                ),
+                child: const Icon(
+                  Icons.notifications_active_rounded,
+                  color: AppTheme.hextechCyan,
+                  size: 36,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                tr('ev_notif_modal_title'),
+                textAlign: TextAlign.center,
+                style: GoogleFonts.outfit(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w800,
+                  color: Colors.white,
+                ),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                tr('ev_notif_modal_body'),
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 13.5,
+                  height: 1.45,
+                  color: Colors.white.withValues(alpha: 0.72),
+                ),
+              ),
+              const SizedBox(height: 22),
+              SizedBox(
+                width: double.infinity,
+                height: 50,
+                child: ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppTheme.hextechCyan,
+                    foregroundColor: AppTheme.deepDarkBg,
+                    elevation: 4,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                  ),
+                  onPressed: () async {
+                    HapticFeedback.mediumImpact();
+                    Navigator.of(ctx).pop();
+                    await PushNotificationService.instance.enableLiveNotifications();
+                    await Future.delayed(const Duration(milliseconds: 400));
+                    await _checkNotificationsState();
+                    if (mounted) {
+                      AppSnackBar.showSuccess(
+                        context,
+                        tr('ev_notif_enabled_snack'),
+                        icon: Icons.notifications_active_rounded,
+                      );
+                    }
+                  },
+                  icon: const Icon(Icons.bolt_rounded, size: 22),
+                  label: Text(
+                    tr('ev_notif_modal_btn'),
+                    style: GoogleFonts.outfit(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(),
+                child: Text(
+                  tr('not_now'),
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.5),
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
               ),
             ],
-          ),
-          child: SafeArea(
-            top: false,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: Colors.white24,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-                const SizedBox(height: 20),
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    gradient: LinearGradient(
-                      colors: [
-                        const Color(0xFFEF4444).withValues(alpha: 0.25),
-                        const Color(0xFF00E5FF).withValues(alpha: 0.25),
-                      ],
-                    ),
-                    border: Border.all(color: const Color(0xFF00E5FF).withValues(alpha: 0.5)),
-                  ),
-                  child: const Icon(
-                    Icons.notifications_active_rounded,
-                    color: Color(0xFF00E5FF),
-                    size: 36,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  LanguageService.instance.tr('ev_notif_modal_title'),
-                  textAlign: TextAlign.center,
-                  style: GoogleFonts.outfit(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w800,
-                    color: Colors.white,
-                  ),
-                ),
-                const SizedBox(height: 10),
-                Text(
-                  LanguageService.instance.tr('ev_notif_modal_body'),
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 13.5,
-                    height: 1.45,
-                    color: Colors.white.withValues(alpha: 0.72),
-                  ),
-                ),
-                const SizedBox(height: 22),
-                SizedBox(
-                  width: double.infinity,
-                  height: 50,
-                  child: ElevatedButton.icon(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF00E5FF),
-                      foregroundColor: const Color(0xFF090D16),
-                      elevation: 4,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                    ),
-                    onPressed: () async {
-                      HapticFeedback.mediumImpact();
-                      Navigator.of(ctx).pop();
-                      await PushNotificationService.instance.enableLiveNotifications();
-                      await Future.delayed(const Duration(milliseconds: 400));
-                      await _checkNotificationsState();
-                      if (mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            backgroundColor: const Color(0xFF10B981),
-                            behavior: SnackBarBehavior.floating,
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                            content: Row(
-                              children: [
-                                const Icon(Icons.notifications_active_rounded, color: Colors.white),
-                                const SizedBox(width: 10),
-                                Expanded(
-                                  child: Text(
-                                    LanguageService.instance.tr('ev_notif_enabled_snack'),
-                                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        );
-                      }
-                    },
-                    icon: const Icon(Icons.bolt_rounded, size: 22),
-                    label: Text(
-                      LanguageService.instance.tr('ev_notif_modal_btn'),
-                      style: GoogleFonts.outfit(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                TextButton(
-                  onPressed: () => Navigator.of(ctx).pop(),
-                  child: Text(
-                    LanguageService.instance.tr('not_now'),
-                    style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.5),
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-              ],
-            ),
           ),
         );
       },
@@ -289,13 +262,8 @@ class EventsScreenState extends State<EventsScreen> {
   }
 
   Future<void> _openUrlWithOneClick(String url) async {
-    String clean = url.trim();
+    final clean = SocialPlatform.normalizeExternalUrl(url);
     if (clean.isEmpty) return;
-    if (!clean.toLowerCase().startsWith('http://') &&
-        !clean.toLowerCase().startsWith('https://') &&
-        !clean.toLowerCase().startsWith('market://')) {
-      clean = 'https://${clean.replaceFirst(RegExp(r'^/+'), '')}';
-    }
     HapticFeedback.selectionClick();
     await NativeService.openExternalUrl(clean);
   }
@@ -317,79 +285,13 @@ class EventsScreenState extends State<EventsScreen> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              backgroundColor: Color(0xFF10B981),
+              backgroundColor: AppTheme.hextechEmerald,
               content: Text('Publicación eliminada correctamente.'),
             ),
           );
         }
       }
     } catch (_) {}
-  }
-
-  Color _platformColor(String platform) {
-    switch (platform.toLowerCase()) {
-      case 'tiktok':
-        return const Color(0xFFFF0050);
-      case 'facebook':
-        return const Color(0xFF1877F2);
-      case 'discord':
-        return const Color(0xFF5865F2);
-      case 'x':
-      case 'twitter':
-        return const Color(0xFF00E5FF);
-      case 'twitch':
-        return const Color(0xFF9146FF);
-      case 'kick':
-        return const Color(0xFF53FC18);
-      case 'youtube':
-        return const Color(0xFFFF0000);
-      default:
-        return const Color(0xFFC89B3C);
-    }
-  }
-
-  IconData _platformIcon(String platform) {
-    switch (platform.toLowerCase()) {
-      case 'tiktok':
-        return Icons.music_note_rounded;
-      case 'facebook':
-        return Icons.facebook_rounded;
-      case 'discord':
-        return Icons.forum_rounded;
-      case 'x':
-      case 'twitter':
-        return Icons.alternate_email_rounded;
-      case 'twitch':
-        return Icons.live_tv_rounded;
-      case 'kick':
-        return Icons.videocam_rounded;
-      case 'youtube':
-        return Icons.play_circle_fill_rounded;
-      default:
-        return Icons.public_rounded;
-    }
-  }
-
-  String _platformLabel(String platform) {
-    switch (platform.toLowerCase()) {
-      case 'tiktok':
-        return 'TikTok';
-      case 'facebook':
-        return 'Facebook';
-      case 'discord':
-        return 'Discord';
-      case 'x':
-      case 'twitter':
-        return 'X (Twitter)';
-      case 'twitch':
-        return 'Twitch';
-      case 'kick':
-        return 'Kick';
-      case 'youtube':
-        return 'YouTube';
-      default:
-        return platform.toUpperCase();
-    }
   }
 
   /// Panel de Administración Exclusivo para 0805409802d@gmail.com
@@ -407,7 +309,7 @@ class EventsScreenState extends State<EventsScreen> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: const Color(0xFF0F172A),
+      backgroundColor: AppTheme.background,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
@@ -431,7 +333,7 @@ class EventsScreenState extends State<EventsScreen> {
                       children: [
                         Row(
                           children: [
-                            const Icon(Icons.admin_panel_settings_rounded, color: Color(0xFFC89B3C)),
+                            const Icon(Icons.admin_panel_settings_rounded, color: AppTheme.hextechGold),
                             const SizedBox(width: 8),
                             Text(
                               'Panel Admin • Directos y Redes',
@@ -453,7 +355,7 @@ class EventsScreenState extends State<EventsScreen> {
                     // Selector de Acción
                     Row(
                       children: [
-                        _buildAdminModeChip(
+                        HextechSelectableChip(
                           label: '🔴 Iniciar Directo',
                           selected: mode == 'live',
                           onTap: () => setModalState(() {
@@ -462,7 +364,7 @@ class EventsScreenState extends State<EventsScreen> {
                           }),
                         ),
                         const SizedBox(width: 8),
-                        _buildAdminModeChip(
+                        HextechSelectableChip(
                           label: '📅 Crear Evento',
                           selected: mode == 'event',
                           onTap: () => setModalState(() {
@@ -471,7 +373,7 @@ class EventsScreenState extends State<EventsScreen> {
                           }),
                         ),
                         const SizedBox(width: 8),
-                        _buildAdminModeChip(
+                        HextechSelectableChip(
                           label: '🔗 Link de Red',
                           selected: mode == 'social',
                           onTap: () => setModalState(() {
@@ -483,9 +385,9 @@ class EventsScreenState extends State<EventsScreen> {
                     const SizedBox(height: 14),
                     DropdownButtonFormField<String>(
                       initialValue: selectedPlatform,
-                      dropdownColor: const Color(0xFF1E293B),
+                      dropdownColor: AppTheme.surface,
                       style: const TextStyle(color: Colors.white),
-                      decoration: _adminInputDecoration('Red Social / Plataforma'),
+                      decoration: AppTheme.hextechInputDecoration(hintText: 'Red Social / Plataforma'),
                       items: const [
                         DropdownMenuItem(value: 'tiktok', child: Text('TikTok (@scxxiii_company)')),
                         DropdownMenuItem(value: 'facebook', child: Text('Facebook Oficial')),
@@ -503,8 +405,8 @@ class EventsScreenState extends State<EventsScreen> {
                     TextField(
                       controller: titleCtrl,
                       style: const TextStyle(color: Colors.white),
-                      decoration: _adminInputDecoration(
-                        mode == 'social'
+                      decoration: AppTheme.hextechInputDecoration(
+                        hintText: mode == 'social'
                             ? 'Nombre o Usuario (ej. @scxxiii_company)'
                             : 'Título del Directo o Evento',
                       ),
@@ -513,13 +415,17 @@ class EventsScreenState extends State<EventsScreen> {
                     TextField(
                       controller: subtitleCtrl,
                       style: const TextStyle(color: Colors.white),
-                      decoration: _adminInputDecoration('Descripción corta para los jugadores'),
+                      decoration: AppTheme.hextechInputDecoration(
+                        hintText: 'Descripción corta para los jugadores',
+                      ),
                     ),
                     const SizedBox(height: 10),
                     TextField(
                       controller: urlCtrl,
                       style: const TextStyle(color: Colors.white),
-                      decoration: _adminInputDecoration('Enlace directo (https://...)'),
+                      decoration: AppTheme.hextechInputDecoration(
+                        hintText: 'Enlace directo (https://...)',
+                      ),
                     ),
                     const SizedBox(height: 16),
                     Row(
@@ -561,8 +467,8 @@ class EventsScreenState extends State<EventsScreen> {
                           flex: 2,
                           child: ElevatedButton.icon(
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFF00E5FF),
-                              foregroundColor: const Color(0xFF090D16),
+                              backgroundColor: AppTheme.hextechCyan,
+                              foregroundColor: AppTheme.deepDarkBg,
                               padding: const EdgeInsets.symmetric(vertical: 13),
                               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                             ),
@@ -592,7 +498,7 @@ class EventsScreenState extends State<EventsScreen> {
                                         if (mounted) {
                                           ScaffoldMessenger.of(context).showSnackBar(
                                             const SnackBar(
-                                              backgroundColor: Color(0xFF10B981),
+                                              backgroundColor: AppTheme.hextechEmerald,
                                               content: Text('¡Publicado y sincronizado en vivo!'),
                                             ),
                                           );
@@ -633,74 +539,21 @@ class EventsScreenState extends State<EventsScreen> {
     );
   }
 
-  Widget _buildAdminModeChip({
-    required String label,
-    required bool selected,
-    required VoidCallback onTap,
-  }) {
-    return Expanded(
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(10),
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 8),
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            color: selected
-                ? const Color(0xFF00E5FF).withValues(alpha: 0.2)
-                : Colors.white.withValues(alpha: 0.05),
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(
-              color: selected ? const Color(0xFF00E5FF) : Colors.white12,
-            ),
-          ),
-          child: Text(
-            label,
-            style: TextStyle(
-              fontSize: 11.5,
-              fontWeight: FontWeight.bold,
-              color: selected ? const Color(0xFF00E5FF) : Colors.white70,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  InputDecoration _adminInputDecoration(String hint) {
-    return InputDecoration(
-      hintText: hint,
-      hintStyle: const TextStyle(color: Colors.white38, fontSize: 13),
-      filled: true,
-      fillColor: Colors.white.withValues(alpha: 0.05),
-      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
-      ),
-      enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
-    final lang = LanguageService.instance;
     return Scaffold(
-      backgroundColor: const Color(0xFF0B0E14),
+      backgroundColor: AppTheme.darkScaffold,
       appBar: AppBar(
-        backgroundColor: const Color(0xFF0F172A),
+        backgroundColor: AppTheme.background,
         elevation: 0,
         automaticallyImplyLeading: !widget.isTab,
         title: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.podcasts_rounded, color: Color(0xFF00E5FF), size: 22),
+            const Icon(Icons.podcasts_rounded, color: AppTheme.hextechCyan, size: 22),
             const SizedBox(width: 8),
             Text(
-              lang.tr('ev_appbar'),
+              tr('ev_appbar'),
               style: GoogleFonts.outfit(
                 fontSize: 20,
                 fontWeight: FontWeight.bold,
@@ -716,7 +569,7 @@ class EventsScreenState extends State<EventsScreen> {
               _notificationsEnabled
                   ? Icons.notifications_active_rounded
                   : Icons.notifications_off_outlined,
-              color: _notificationsEnabled ? const Color(0xFF10B981) : const Color(0xFFF59E0B),
+              color: _notificationsEnabled ? AppTheme.hextechEmerald : AppTheme.hextechAmber,
               size: 21,
             ),
             tooltip: 'Notificaciones de Directos',
@@ -724,7 +577,7 @@ class EventsScreenState extends State<EventsScreen> {
           ),
           if (_isAuthorizedAdmin)
             IconButton(
-              icon: const Icon(Icons.tune_rounded, color: Color(0xFFC89B3C), size: 21),
+              icon: const Icon(Icons.tune_rounded, color: AppTheme.hextechGold, size: 21),
               tooltip: 'Panel Admin Exclusivo',
               onPressed: _showAdminPublisherModal,
             ),
@@ -734,22 +587,15 @@ class EventsScreenState extends State<EventsScreen> {
         width: double.infinity,
         height: double.infinity,
         decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              Color(0xFF0F172A),
-              Color(0xFF080B11),
-            ],
-          ),
+          gradient: AppTheme.screenBackgroundGradient,
         ),
         child: RefreshIndicator(
-          color: const Color(0xFF00E5FF),
-          backgroundColor: const Color(0xFF0F172A),
+          color: AppTheme.hextechCyan,
+          backgroundColor: AppTheme.background,
           onRefresh: () => _fetchEventsData(),
           child: _isLoading
               ? const Center(
-                  child: CircularProgressIndicator(color: Color(0xFF00E5FF)),
+                  child: CircularProgressIndicator(color: AppTheme.hextechCyan),
                 )
               : ListView(
                   physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
@@ -767,22 +613,22 @@ class EventsScreenState extends State<EventsScreen> {
                     // 3. Sección: Síguenos en Redes Sociales Oficiales (1 Clic a la App Nativa)
                     Row(
                       children: [
-                        const Icon(Icons.share_rounded, color: Color(0xFFC89B3C), size: 18),
+                        const Icon(Icons.share_rounded, color: AppTheme.hextechGold, size: 18),
                         const SizedBox(width: 8),
                         Text(
-                          lang.tr('ev_socials_header'),
+                          tr('ev_socials_header'),
                           style: GoogleFonts.outfit(
                             fontSize: 13,
                             fontWeight: FontWeight.w800,
                             letterSpacing: 1.0,
-                            color: const Color(0xFFC89B3C),
+                            color: AppTheme.hextechGold,
                           ),
                         ),
                       ],
                     ),
                     const SizedBox(height: 6),
                     Text(
-                      lang.tr('ev_socials_sub'),
+                      tr('ev_socials_sub'),
                       style: TextStyle(
                         fontSize: 12,
                         color: Colors.white.withValues(alpha: 0.55),
@@ -796,21 +642,21 @@ class EventsScreenState extends State<EventsScreen> {
                     // 4. Sección: Eventos, Directos y Noticias Oficiales
                     Row(
                       children: [
-                        const Icon(Icons.bolt_rounded, color: Color(0xFF00E5FF), size: 20),
+                        const Icon(Icons.bolt_rounded, color: AppTheme.hextechCyan, size: 20),
                         const SizedBox(width: 6),
                         Text(
-                          lang.tr('ev_feed_header'),
+                          tr('ev_feed_header'),
                           style: GoogleFonts.outfit(
                             fontSize: 13,
                             fontWeight: FontWeight.w800,
                             letterSpacing: 1.0,
-                            color: const Color(0xFF00E5FF),
+                            color: AppTheme.hextechCyan,
                           ),
                         ),
                       ],
                     ),
                     const SizedBox(height: 12),
-                    ..._events.map((ev) => _buildEventCard(ev as Map<String, dynamic>)),
+                    ..._events.map(_buildEventCard),
                     const SizedBox(height: 24),
                   ],
                 ),
@@ -827,22 +673,22 @@ class EventsScreenState extends State<EventsScreen> {
         borderRadius: BorderRadius.circular(16),
         gradient: LinearGradient(
           colors: [
-            const Color(0xFFF59E0B).withValues(alpha: 0.2),
-            const Color(0xFF0F172A),
+            AppTheme.hextechAmber.withValues(alpha: 0.2),
+            AppTheme.background,
           ],
         ),
-        border: Border.all(color: const Color(0xFFF59E0B).withValues(alpha: 0.5)),
+        border: Border.all(color: AppTheme.hextechAmber.withValues(alpha: 0.5)),
       ),
       child: Row(
         children: [
-          const Icon(Icons.notifications_active_rounded, color: Color(0xFFF59E0B), size: 26),
+          const Icon(Icons.notifications_active_rounded, color: AppTheme.hextechAmber, size: 26),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  LanguageService.instance.tr('ev_notif_banner_title'),
+                  tr('ev_notif_banner_title'),
                   style: GoogleFonts.outfit(
                     fontSize: 14,
                     fontWeight: FontWeight.bold,
@@ -850,7 +696,7 @@ class EventsScreenState extends State<EventsScreen> {
                   ),
                 ),
                 Text(
-                  LanguageService.instance.tr('ev_notif_banner_sub'),
+                  tr('ev_notif_banner_sub'),
                   style: TextStyle(fontSize: 11.5, color: Colors.white.withValues(alpha: 0.7)),
                 ),
               ],
@@ -859,7 +705,7 @@ class EventsScreenState extends State<EventsScreen> {
           const SizedBox(width: 8),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFF59E0B),
+              backgroundColor: AppTheme.hextechAmber,
               foregroundColor: Colors.black,
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
@@ -870,7 +716,7 @@ class EventsScreenState extends State<EventsScreen> {
               await _checkNotificationsState();
             },
             child: Text(
-              LanguageService.instance.tr('ev_notif_banner_btn'),
+              tr('ev_notif_banner_btn'),
               style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12),
             ),
           ),
@@ -879,14 +725,14 @@ class EventsScreenState extends State<EventsScreen> {
     );
   }
 
-  Widget _buildLiveNowHeroCard(Map<String, dynamic> live) {
-    final String platform = (live['platform'] ?? 'tiktok').toString();
-    final String title = (live['title'] ?? '¡Estamos en Directo!').toString();
-    final String subtitle = (live['subtitle'] ?? 'Toca para entrar ahora a la transmisión.').toString();
-    final String url = (live['action_url'] ?? '').toString();
+  Widget _buildLiveNowHeroCard(EventItem live) {
+    final social = live.socialPlatform;
+    final String title = live.title.isNotEmpty ? live.title : '¡Estamos en Directo!';
+    final String subtitle =
+        live.subtitle.isNotEmpty ? live.subtitle : 'Toca para entrar ahora a la transmisión.';
 
     return InkWell(
-      onTap: () => _openUrlWithOneClick(url),
+      onTap: () => _openUrlWithOneClick(live.actionUrl),
       borderRadius: BorderRadius.circular(20),
       child: Container(
         padding: const EdgeInsets.all(18),
@@ -896,14 +742,14 @@ class EventsScreenState extends State<EventsScreen> {
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
             colors: [
-              const Color(0xFFEF4444).withValues(alpha: 0.28),
-              const Color(0xFF1E293B),
+              AppTheme.hextechCrimson.withValues(alpha: 0.28),
+              AppTheme.surface,
             ],
           ),
-          border: Border.all(color: const Color(0xFFEF4444), width: 1.5),
+          border: Border.all(color: AppTheme.hextechCrimson, width: 1.5),
           boxShadow: [
             BoxShadow(
-              color: const Color(0xFFEF4444).withValues(alpha: 0.28),
+              color: AppTheme.hextechCrimson.withValues(alpha: 0.28),
               blurRadius: 18,
               offset: const Offset(0, 6),
             ),
@@ -917,7 +763,7 @@ class EventsScreenState extends State<EventsScreen> {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFEF4444),
+                    color: AppTheme.hextechCrimson,
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: Row(
@@ -926,7 +772,7 @@ class EventsScreenState extends State<EventsScreen> {
                       const Icon(Icons.fiber_manual_record, color: Colors.white, size: 10),
                       const SizedBox(width: 5),
                       Text(
-                        '${LanguageService.instance.tr("ev_live_now_tag")} • ${_platformLabel(platform).toUpperCase()}',
+                        '${tr("ev_live_now_tag")} • ${social.label.toUpperCase()}',
                         style: GoogleFonts.outfit(
                           fontSize: 11,
                           fontWeight: FontWeight.w800,
@@ -964,16 +810,16 @@ class EventsScreenState extends State<EventsScreen> {
               width: double.infinity,
               padding: const EdgeInsets.symmetric(vertical: 11),
               decoration: BoxDecoration(
-                color: const Color(0xFFEF4444),
+                color: AppTheme.hextechCrimson,
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(_platformIcon(platform), color: Colors.white, size: 18),
+                  Icon(social.icon, color: Colors.white, size: 18),
                   const SizedBox(width: 8),
                   Text(
-                    LanguageService.instance.tr('ev_live_join_btn'),
+                    tr('ev_live_join_btn'),
                     style: GoogleFonts.outfit(
                       fontSize: 14,
                       fontWeight: FontWeight.w800,
@@ -1001,15 +847,12 @@ class EventsScreenState extends State<EventsScreen> {
         childAspectRatio: 2.35,
       ),
       itemBuilder: (context, index) {
-        final item = _socialLinks[index] as Map<String, dynamic>;
-        final String platform = (item['platform'] ?? '').toString();
-        final String name = (item['name'] ?? _platformLabel(platform)).toString();
-        final String handle = (item['handle'] ?? '').toString();
-        final String url = (item['url'] ?? '').toString();
-        final Color color = _platformColor(platform);
+        final item = _socialLinks[index];
+        final social = item.socialPlatform;
+        final Color color = social.color;
 
         return InkWell(
-          onTap: () => _openUrlWithOneClick(url),
+          onTap: () => _openUrlWithOneClick(item.url),
           borderRadius: BorderRadius.circular(14),
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -1026,7 +869,7 @@ class EventsScreenState extends State<EventsScreen> {
                     shape: BoxShape.circle,
                     color: color.withValues(alpha: 0.16),
                   ),
-                  child: Icon(_platformIcon(platform), color: color, size: 19),
+                  child: Icon(social.icon, color: color, size: 19),
                 ),
                 const SizedBox(width: 10),
                 Expanded(
@@ -1035,7 +878,7 @@ class EventsScreenState extends State<EventsScreen> {
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Text(
-                        name,
+                        item.name,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: GoogleFonts.outfit(
@@ -1044,9 +887,9 @@ class EventsScreenState extends State<EventsScreen> {
                           color: Colors.white,
                         ),
                       ),
-                      if (handle.isNotEmpty)
+                      if (item.handle.isNotEmpty)
                         Text(
-                          handle,
+                          item.handle,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
@@ -1066,30 +909,23 @@ class EventsScreenState extends State<EventsScreen> {
     );
   }
 
-  Widget _buildEventCard(Map<String, dynamic> ev) {
-    final String eventId = (ev['id'] ?? '').toString();
-    final String platform = (ev['platform'] ?? 'tiktok').toString();
-    final String title = (ev['title'] ?? '').toString();
-    final String subtitle = (ev['subtitle'] ?? '').toString();
-    final String url = (ev['action_url'] ?? '').toString();
-    final String badge = (ev['badge_text'] ?? 'EVENTO').toString();
-    final String dateText = (ev['event_date_text'] ?? '').toString();
-    final bool isLive = ev['is_live'] == true;
-    final Color accent = isLive ? const Color(0xFFEF4444) : _platformColor(platform);
+  Widget _buildEventCard(EventItem ev) {
+    final social = ev.socialPlatform;
+    final Color accent = ev.accentColor;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       child: InkWell(
-        onTap: () => _openUrlWithOneClick(url),
+        onTap: () => _openUrlWithOneClick(ev.actionUrl),
         borderRadius: BorderRadius.circular(16),
         child: Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: const Color(0xFF131B2E),
+            color: AppTheme.cardDark,
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
-              color: accent.withValues(alpha: isLive ? 0.8 : 0.3),
-              width: isLive ? 1.4 : 1.0,
+              color: accent.withValues(alpha: ev.isLive ? 0.8 : 0.3),
+              width: ev.isLive ? 1.4 : 1.0,
             ),
           ),
           child: Column(
@@ -1105,7 +941,7 @@ class EventsScreenState extends State<EventsScreen> {
                       border: Border.all(color: accent.withValues(alpha: 0.45)),
                     ),
                     child: Text(
-                      badge,
+                      ev.badgeText,
                       style: GoogleFonts.outfit(
                         fontSize: 10.5,
                         fontWeight: FontWeight.w800,
@@ -1114,18 +950,18 @@ class EventsScreenState extends State<EventsScreen> {
                     ),
                   ),
                   const SizedBox(width: 8),
-                  if (dateText.isNotEmpty)
+                  if (ev.eventDateText.isNotEmpty)
                     Text(
-                      dateText,
+                      ev.eventDateText,
                       style: TextStyle(
                         fontSize: 11.5,
                         color: Colors.white.withValues(alpha: 0.5),
                       ),
                     ),
                   const Spacer(),
-                  if (_isAuthorizedAdmin && eventId.isNotEmpty) ...[
+                  if (_isAuthorizedAdmin && ev.id.isNotEmpty) ...[
                     InkWell(
-                      onTap: () => _deleteEventAsAdmin(eventId),
+                      onTap: () => _deleteEventAsAdmin(ev.id),
                       borderRadius: BorderRadius.circular(8),
                       child: const Padding(
                         padding: EdgeInsets.all(4.0),
@@ -1138,12 +974,12 @@ class EventsScreenState extends State<EventsScreen> {
                     ),
                     const SizedBox(width: 6),
                   ],
-                  Icon(_platformIcon(platform), color: accent, size: 18),
+                  Icon(social.icon, color: accent, size: 18),
                 ],
               ),
               const SizedBox(height: 10),
               Text(
-                title,
+                ev.title,
                 style: GoogleFonts.outfit(
                   fontSize: 16,
                   fontWeight: FontWeight.bold,
@@ -1152,7 +988,7 @@ class EventsScreenState extends State<EventsScreen> {
               ),
               const SizedBox(height: 5),
               Text(
-                subtitle,
+                ev.subtitle,
                 style: TextStyle(
                   fontSize: 12.5,
                   height: 1.4,
@@ -1164,9 +1000,9 @@ class EventsScreenState extends State<EventsScreen> {
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
                   Text(
-                    isLive
-                        ? LanguageService.instance.tr('ev_go_live')
-                        : LanguageService.instance.tr('ev_open_in', {'platform': _platformLabel(platform)}),
+                    ev.isLive
+                        ? tr('ev_go_live')
+                        : tr('ev_open_in', {'platform': social.label}),
                     style: GoogleFonts.outfit(
                       fontSize: 12.5,
                       fontWeight: FontWeight.w700,
@@ -1184,4 +1020,3 @@ class EventsScreenState extends State<EventsScreen> {
     );
   }
 }
-

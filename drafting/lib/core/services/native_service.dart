@@ -23,6 +23,7 @@ class NativeService {
     required String? activeCreatorId,
     String language = 'es',
     String gameMode = 'wild_rift',
+    String modelTier = 'classic',
   }) async {
     try {
       final bool result = await _channel.invokeMethod('startService', {
@@ -37,11 +38,23 @@ class NativeService {
         'activeCreatorId': activeCreatorId ?? '',
         'language': language,
         'gameMode': gameMode,
+        'modelTier': modelTier,
       });
       return result;
     } on PlatformException catch (e) {
       debugPrint("Failed to start service: '${e.message}'.");
       return false;
+    }
+  }
+
+  /// Sincroniza el modelo de IA activo (classic, flake, aureon) con la burbuja flotante
+  static Future<void> setNativeModelTier(String modelTier) async {
+    try {
+      await _channel.invokeMethod('setModelTier', {
+        'modelTier': modelTier,
+      });
+    } catch (e) {
+      debugPrint("Failed to set native model tier: $e");
     }
   }
 
@@ -229,6 +242,67 @@ class NativeService {
       });
     } catch (e) {
       debugPrint("Failed to show native event notification: $e");
+    }
+  }
+
+  /// Ejecuta el análisis de Draft 100% local (Motor Matemático + SLM GGUF si está descargado)
+  static Future<Map<String, dynamic>> analyzeLocalDraft({
+    required String role,
+    List<String> bans = const [],
+    List<String> allies = const [],
+    List<String> enemies = const [],
+    String otp = '',
+    List<String> exclude = const [],
+    String language = 'es',
+  }) async {
+    final Map<dynamic, dynamic>? res = await _channel.invokeMethod('analyzeLocalDraft', {
+      'role': role,
+      'bans': bans,
+      'allies': allies,
+      'enemies': enemies,
+      'otp': otp,
+      'exclude': exclude,
+      'language': language,
+    });
+    if (res == null) {
+      throw Exception('Sin respuesta del motor local.');
+    }
+    return Map<String, dynamic>.from(res);
+  }
+
+  /// Consulta si el archivo GGUF local está descargado en el dispositivo
+  static Future<Map<String, dynamic>> getLocalModelStatus() async {
+    try {
+      final Map<dynamic, dynamic>? res = await _channel.invokeMethod('getLocalModelStatus');
+      if (res != null) return Map<String, dynamic>.from(res);
+    } catch (e) {
+      debugPrint("Failed to get local model status: $e");
+    }
+    return {'isDownloaded': false, 'isDownloading': false, 'sizeMb': 0.0};
+  }
+
+  /// Inicia descarga On-Demand del modelo GGUF cuantizado con verificación SHA-256
+  static Future<bool> downloadLocalModel({String? url, String? sha256}) async {
+    try {
+      final bool? ok = await _channel.invokeMethod<bool>('downloadLocalModel', {
+        'url': url,
+        'sha256': sha256,
+      });
+      return ok ?? false;
+    } catch (e) {
+      debugPrint("Failed to download local model: $e");
+      return false;
+    }
+  }
+
+  /// Elimina el modelo GGUF descargado para liberar espacio y RAM
+  static Future<bool> deleteLocalModel() async {
+    try {
+      final bool? ok = await _channel.invokeMethod<bool>('deleteLocalModel');
+      return ok ?? false;
+    } catch (e) {
+      debugPrint("Failed to delete local model: $e");
+      return false;
     }
   }
 }

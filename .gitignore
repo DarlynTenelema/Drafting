@@ -90,3 +90,11 @@ comentarios/
 # --- 9. Documentation (per repository configuration) ---
 *.md
 !README.md
+
+# --- 10. Reference Screenshots, Python Cache & Local AI Weights ---
+Items/
+campeones/
+runas/
+__pycache__/
+*.pyc
+*.gguf

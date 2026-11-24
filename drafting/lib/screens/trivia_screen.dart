@@ -3,9 +3,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import '../core/models/trivia_models.dart';
 import '../core/services/ad_service.dart';
 import '../core/services/api_client.dart';
-import '../core/services/language_service.dart';
+import '../shared/mixins/localized_state_mixin.dart';
+import '../shared/widgets/hextech_ui.dart';
 import '../theme/app_theme.dart';
 import 'store_screen.dart';
 
@@ -23,7 +25,8 @@ class TriviaScreen extends StatefulWidget {
   State<TriviaScreen> createState() => _TriviaScreenState();
 }
 
-class _TriviaScreenState extends State<TriviaScreen> with SingleTickerProviderStateMixin {
+class _TriviaScreenState extends State<TriviaScreen>
+    with SingleTickerProviderStateMixin, LocalizedStateMixin<TriviaScreen> {
   int _triviaLives = 5;
   String _selectedCategory = 'item_cost'; // 'item_cost', 'build_path', 'counter'
   bool _isLoadingQuestion = false;
@@ -32,14 +35,13 @@ class _TriviaScreenState extends State<TriviaScreen> with SingleTickerProviderSt
   bool _completedAll = false;
   String _completionMessage = '';
 
-  Map<String, dynamic>? _currentQuestion;
+  TriviaQuestion? _currentQuestion;
   String? _selectedOption;
   final TextEditingController _costController = TextEditingController();
 
   // Feedback tras responder
   bool? _lastAnswerCorrect;
   String? _correctAnswerFeedback;
-  String? _feedbackMessage;
 
   @override
   void initState() {
@@ -76,7 +78,6 @@ class _TriviaScreenState extends State<TriviaScreen> with SingleTickerProviderSt
       _costController.clear();
       _lastAnswerCorrect = null;
       _correctAnswerFeedback = null;
-      _feedbackMessage = null;
       _completedAll = false;
     });
 
@@ -87,7 +88,7 @@ class _TriviaScreenState extends State<TriviaScreen> with SingleTickerProviderSt
       );
 
       if (res.statusCode == 200) {
-        final data = jsonDecode(res.body);
+        final data = jsonDecode(res.body) as Map<String, dynamic>;
         if (mounted) {
           setState(() {
             _triviaLives = data['trivia_lives'] ?? _triviaLives;
@@ -95,7 +96,7 @@ class _TriviaScreenState extends State<TriviaScreen> with SingleTickerProviderSt
               _completedAll = true;
               _completionMessage = data['message'] ?? '¡Has completado todas las preguntas de esta modalidad!';
             } else {
-              _currentQuestion = data;
+              _currentQuestion = TriviaQuestion.fromJson(data, fallbackCategory: _selectedCategory);
             }
             _isLoadingQuestion = false;
           });
@@ -136,7 +137,7 @@ class _TriviaScreenState extends State<TriviaScreen> with SingleTickerProviderSt
         '/trivia/answer',
         authenticated: true,
         body: {
-          'question_id': _currentQuestion!['id'],
+          'question_id': _currentQuestion!.id,
           'user_answer': trimmedAns,
         },
       );
@@ -150,7 +151,6 @@ class _TriviaScreenState extends State<TriviaScreen> with SingleTickerProviderSt
           setState(() {
             _lastAnswerCorrect = isCorrect;
             _correctAnswerFeedback = data['correct_answer'];
-            _feedbackMessage = data['message'];
             _triviaLives = newLives;
             _isSubmitting = false;
           });
@@ -234,22 +234,21 @@ class _TriviaScreenState extends State<TriviaScreen> with SingleTickerProviderSt
   }
 
   void _showNoLivesDialog() {
-    final lang = LanguageService.instance;
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF1E293B),
+        backgroundColor: AppTheme.surface,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(20),
-          side: const BorderSide(color: Color(0xFFEF4444), width: 1.5),
+          side: const BorderSide(color: AppTheme.hextechCrimson, width: 1.5),
         ),
         title: Row(
           children: [
-            const Icon(Icons.heart_broken_rounded, color: Color(0xFFEF4444), size: 28),
+            const Icon(Icons.heart_broken_rounded, color: AppTheme.hextechCrimson, size: 28),
             const SizedBox(width: 10),
             Text(
-              lang.tr('trivia_no_lives_title'),
+              tr('trivia_no_lives_title'),
               style: GoogleFonts.outfit(
                 color: Colors.white,
                 fontWeight: FontWeight.bold,
@@ -258,7 +257,7 @@ class _TriviaScreenState extends State<TriviaScreen> with SingleTickerProviderSt
           ],
         ),
         content: Text(
-          lang.tr('trivia_no_lives_msg'),
+          tr('trivia_no_lives_msg'),
           style: GoogleFonts.inter(color: Colors.white70, fontSize: 14),
         ),
         actions: [
@@ -271,12 +270,12 @@ class _TriviaScreenState extends State<TriviaScreen> with SingleTickerProviderSt
           ),
           ElevatedButton.icon(
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF8B5CF6),
+              backgroundColor: AppTheme.hextechPurple,
               foregroundColor: Colors.white,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             ),
             icon: const Icon(Icons.storefront_rounded, size: 18),
-            label: Text(lang.tr('trivia_store_btn')),
+            label: Text(tr('trivia_store_btn')),
             onPressed: () {
               Navigator.pop(ctx);
               Navigator.of(context).push(
@@ -286,12 +285,12 @@ class _TriviaScreenState extends State<TriviaScreen> with SingleTickerProviderSt
           ),
           ElevatedButton.icon(
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF10B981),
+              backgroundColor: AppTheme.hextechEmerald,
               foregroundColor: Colors.white,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             ),
             icon: const Icon(Icons.play_circle_fill_rounded, size: 18),
-            label: Text(lang.tr('trivia_watch_ad_btn')),
+            label: Text(tr('trivia_watch_ad_btn')),
             onPressed: () {
               Navigator.pop(ctx);
               _rewardAdLives();
@@ -305,7 +304,7 @@ class _TriviaScreenState extends State<TriviaScreen> with SingleTickerProviderSt
   void _showGetLivesSheet() {
     showModalBottomSheet(
       context: context,
-      backgroundColor: const Color(0xFF0F172A),
+      backgroundColor: AppTheme.background,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
@@ -317,21 +316,12 @@ class _TriviaScreenState extends State<TriviaScreen> with SingleTickerProviderSt
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Center(
-                  child: Container(
-                    width: 40,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: Colors.white24,
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                  ),
-                ),
+                const HextechSheetHandle(),
                 const SizedBox(height: 16),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const Icon(Icons.favorite_rounded, color: Color(0xFFEF4444), size: 24),
+                    const Icon(Icons.favorite_rounded, color: AppTheme.hextechCrimson, size: 24),
                     const SizedBox(width: 8),
                     Text(
                       'Tienes $_triviaLives vidas',
@@ -356,22 +346,22 @@ class _TriviaScreenState extends State<TriviaScreen> with SingleTickerProviderSt
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
                         colors: [
-                          const Color(0xFF10B981).withValues(alpha: 0.2),
+                          AppTheme.hextechEmerald.withValues(alpha: 0.2),
                           const Color(0xFF059669).withValues(alpha: 0.1),
                         ],
                       ),
                       borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: const Color(0xFF10B981).withValues(alpha: 0.5)),
+                      border: Border.all(color: AppTheme.hextechEmerald.withValues(alpha: 0.5)),
                     ),
                     child: Row(
                       children: [
                         Container(
                           padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
-                            color: const Color(0xFF10B981).withValues(alpha: 0.2),
+                            color: AppTheme.hextechEmerald.withValues(alpha: 0.2),
                             shape: BoxShape.circle,
                           ),
-                          child: const Icon(Icons.ondemand_video_rounded, color: Color(0xFF10B981), size: 24),
+                          child: const Icon(Icons.ondemand_video_rounded, color: AppTheme.hextechEmerald, size: 24),
                         ),
                         const SizedBox(width: 14),
                         Expanded(
@@ -397,7 +387,7 @@ class _TriviaScreenState extends State<TriviaScreen> with SingleTickerProviderSt
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                           decoration: BoxDecoration(
-                            color: const Color(0xFF10B981),
+                            color: AppTheme.hextechEmerald,
                             borderRadius: BorderRadius.circular(10),
                           ),
                           child: const Text(
@@ -424,19 +414,19 @@ class _TriviaScreenState extends State<TriviaScreen> with SingleTickerProviderSt
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
                         colors: [
-                          const Color(0xFF8B5CF6).withValues(alpha: 0.2),
+                          AppTheme.hextechPurple.withValues(alpha: 0.2),
                           const Color(0xFF6D28D9).withValues(alpha: 0.1),
                         ],
                       ),
                       borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: const Color(0xFF8B5CF6).withValues(alpha: 0.5)),
+                      border: Border.all(color: AppTheme.hextechPurple.withValues(alpha: 0.5)),
                     ),
                     child: Row(
                       children: [
                         Container(
                           padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
-                            color: const Color(0xFF8B5CF6).withValues(alpha: 0.2),
+                            color: AppTheme.hextechPurple.withValues(alpha: 0.2),
                             shape: BoxShape.circle,
                           ),
                           child: const Icon(Icons.shopping_bag_rounded, color: Color(0xFFA78BFA), size: 24),
@@ -479,7 +469,7 @@ class _TriviaScreenState extends State<TriviaScreen> with SingleTickerProviderSt
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(text),
-        backgroundColor: const Color(0xFF1E293B),
+        backgroundColor: AppTheme.surface,
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       ),
@@ -488,13 +478,12 @@ class _TriviaScreenState extends State<TriviaScreen> with SingleTickerProviderSt
 
   @override
   Widget build(BuildContext context) {
-    final lang = LanguageService.instance;
     return Scaffold(
-      backgroundColor: const Color(0xFF0B0E14),
+      backgroundColor: AppTheme.darkScaffold,
       appBar: AppBar(
         automaticallyImplyLeading: !widget.isTab,
         title: Text(
-          lang.tr('trivia_appbar'),
+          tr('trivia_appbar'),
           style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 18),
         ),
         actions: [
@@ -506,14 +495,14 @@ class _TriviaScreenState extends State<TriviaScreen> with SingleTickerProviderSt
               margin: const EdgeInsets.only(right: 16),
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
               decoration: BoxDecoration(
-                color: const Color(0xFFEF4444).withValues(alpha: 0.15),
+                color: AppTheme.hextechCrimson.withValues(alpha: 0.15),
                 borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: const Color(0xFFEF4444).withValues(alpha: 0.5)),
+                border: Border.all(color: AppTheme.hextechCrimson.withValues(alpha: 0.5)),
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Icon(Icons.favorite_rounded, color: Color(0xFFEF4444), size: 18),
+                  const Icon(Icons.favorite_rounded, color: AppTheme.hextechCrimson, size: 18),
                   const SizedBox(width: 6),
                   Text(
                     '$_triviaLives',
@@ -524,7 +513,7 @@ class _TriviaScreenState extends State<TriviaScreen> with SingleTickerProviderSt
                     ),
                   ),
                   const SizedBox(width: 4),
-                  const Icon(Icons.add_circle_rounded, color: Color(0xFF10B981), size: 16),
+                  const Icon(Icons.add_circle_rounded, color: AppTheme.hextechEmerald, size: 16),
                 ],
               ),
             ),
@@ -541,7 +530,7 @@ class _TriviaScreenState extends State<TriviaScreen> with SingleTickerProviderSt
             Expanded(
               child: _isLoadingQuestion
                   ? const Center(
-                      child: CircularProgressIndicator(color: Color(0xFF00E5FF)),
+                      child: CircularProgressIndicator(color: AppTheme.hextechCyan),
                     )
                   : _completedAll
                       ? _buildCompletedView()
@@ -556,26 +545,25 @@ class _TriviaScreenState extends State<TriviaScreen> with SingleTickerProviderSt
   }
 
   Widget _buildCategoryTabs() {
-    final lang = LanguageService.instance;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       child: Row(
         children: [
           _buildCategoryTabItem(
             id: 'item_cost',
-            title: lang.tr('trivia_tab_cost'),
+            title: tr('trivia_tab_cost'),
             icon: Icons.monetization_on_rounded,
           ),
           const SizedBox(width: 8),
           _buildCategoryTabItem(
             id: 'build_path',
-            title: lang.tr('trivia_tab_build'),
+            title: tr('trivia_tab_build'),
             icon: Icons.alt_route_rounded,
           ),
           const SizedBox(width: 8),
           _buildCategoryTabItem(
             id: 'counter',
-            title: lang.tr('trivia_tab_counter'),
+            title: tr('trivia_tab_counter'),
             icon: Icons.shield_rounded,
           ),
         ],
@@ -604,12 +592,12 @@ class _TriviaScreenState extends State<TriviaScreen> with SingleTickerProviderSt
           padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 6),
           decoration: BoxDecoration(
             color: isSelected
-                ? const Color(0xFF00E5FF).withValues(alpha: 0.15)
-                : const Color(0xFF1E293B),
+                ? AppTheme.hextechCyan.withValues(alpha: 0.15)
+                : AppTheme.surface,
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
               color: isSelected
-                  ? const Color(0xFF00E5FF)
+                  ? AppTheme.hextechCyan
                   : Colors.white.withValues(alpha: 0.08),
               width: 1.2,
             ),
@@ -619,7 +607,7 @@ class _TriviaScreenState extends State<TriviaScreen> with SingleTickerProviderSt
             children: [
               Icon(
                 icon,
-                color: isSelected ? const Color(0xFF00E5FF) : Colors.white60,
+                color: isSelected ? AppTheme.hextechCyan : Colors.white60,
                 size: 20,
               ),
               const SizedBox(height: 4),
@@ -643,11 +631,9 @@ class _TriviaScreenState extends State<TriviaScreen> with SingleTickerProviderSt
 
   Widget _buildQuestionContent() {
     final q = _currentQuestion!;
-    final category = q['category'] ?? _selectedCategory;
-    final questionText = q['question_text'] ?? '';
-    final targetName = q['target_name'] ?? '';
-    final clues = q['clues'] ?? '';
-    final List<dynamic> options = q['options'] ?? [];
+    final targetName = q.targetName;
+    final clues = q.clues;
+    final options = q.options;
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(20),
@@ -656,7 +642,7 @@ class _TriviaScreenState extends State<TriviaScreen> with SingleTickerProviderSt
         children: [
           // Pregunta Superior
           Text(
-            questionText,
+            q.questionText,
             textAlign: TextAlign.center,
             style: GoogleFonts.outfit(
               fontSize: 22,
@@ -670,15 +656,15 @@ class _TriviaScreenState extends State<TriviaScreen> with SingleTickerProviderSt
           Container(
             padding: const EdgeInsets.all(22),
             decoration: BoxDecoration(
-              gradient: LinearGradient(
+              gradient: const LinearGradient(
                 colors: [
-                  const Color(0xFF1E293B),
-                  const Color(0xFF0F172A),
+                  AppTheme.surface,
+                  AppTheme.background,
                 ],
               ),
               borderRadius: BorderRadius.circular(20),
               border: Border.all(
-                color: const Color(0xFF00E5FF).withValues(alpha: 0.3),
+                color: AppTheme.hextechCyan.withValues(alpha: 0.3),
                 width: 1.5,
               ),
               boxShadow: [
@@ -691,7 +677,7 @@ class _TriviaScreenState extends State<TriviaScreen> with SingleTickerProviderSt
             ),
             child: Column(
               children: [
-                if (category == 'item_cost') ...[
+                if (q.isItemCost) ...[
                   const Icon(Icons.inventory_2_rounded, color: Color(0xFFFBBF24), size: 40),
                   const SizedBox(height: 12),
                   Text(
@@ -705,14 +691,14 @@ class _TriviaScreenState extends State<TriviaScreen> with SingleTickerProviderSt
                   ),
                   const SizedBox(height: 6),
                   Text(
-                    LanguageService.instance.tr('trivia_write_gold_hint'),
+                    tr('trivia_write_gold_hint'),
                     style: GoogleFonts.inter(fontSize: 12, color: Colors.white54),
                   ),
-                ] else if (category == 'build_path') ...[
-                  const Icon(Icons.account_tree_rounded, color: Color(0xFF38BDF8), size: 40),
+                ] else if (q.isBuildPath) ...[
+                  const Icon(Icons.account_tree_rounded, color: AppTheme.accent, size: 40),
                   const SizedBox(height: 12),
                   Text(
-                    LanguageService.instance.tr('trivia_components_title'),
+                    tr('trivia_components_title'),
                     style: GoogleFonts.inter(
                       fontSize: 13,
                       fontWeight: FontWeight.w600,
@@ -723,9 +709,9 @@ class _TriviaScreenState extends State<TriviaScreen> with SingleTickerProviderSt
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF00E5FF).withValues(alpha: 0.1),
+                      color: AppTheme.hextechCyan.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: const Color(0xFF00E5FF).withValues(alpha: 0.3)),
+                      border: Border.all(color: AppTheme.hextechCyan.withValues(alpha: 0.3)),
                     ),
                     child: Text(
                       clues.isNotEmpty ? clues : targetName,
@@ -733,7 +719,7 @@ class _TriviaScreenState extends State<TriviaScreen> with SingleTickerProviderSt
                       style: GoogleFonts.outfit(
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
-                        color: const Color(0xFF00E5FF),
+                        color: AppTheme.hextechCyan,
                       ),
                     ),
                   ),
@@ -751,7 +737,7 @@ class _TriviaScreenState extends State<TriviaScreen> with SingleTickerProviderSt
                   ),
                   const SizedBox(height: 6),
                   Text(
-                    LanguageService.instance.tr('trivia_which_counter_sub'),
+                    tr('trivia_which_counter_sub'),
                     style: GoogleFonts.inter(fontSize: 12, color: Colors.white54),
                   ),
                 ],
@@ -766,7 +752,7 @@ class _TriviaScreenState extends State<TriviaScreen> with SingleTickerProviderSt
 
           // Si aún no ha respondido: Formulario según Categoría
           if (_lastAnswerCorrect == null) ...[
-            if (category == 'item_cost') ...[
+            if (q.isItemCost) ...[
               // Input Numérico para el Precio
               TextField(
                 controller: _costController,
@@ -783,7 +769,7 @@ class _TriviaScreenState extends State<TriviaScreen> with SingleTickerProviderSt
                   suffixText: 'Oro',
                   suffixStyle: GoogleFonts.outfit(color: Colors.white70, fontWeight: FontWeight.bold),
                   filled: true,
-                  fillColor: const Color(0xFF1E293B),
+                  fillColor: AppTheme.surface,
                 ),
                 onSubmitted: (val) => _submitAnswer(val),
               ),
@@ -791,7 +777,7 @@ class _TriviaScreenState extends State<TriviaScreen> with SingleTickerProviderSt
               ElevatedButton(
                 onPressed: _isSubmitting ? null : () => _submitAnswer(_costController.text),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF10B981),
+                  backgroundColor: AppTheme.hextechEmerald,
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 16),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -803,7 +789,7 @@ class _TriviaScreenState extends State<TriviaScreen> with SingleTickerProviderSt
                         child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
                       )
                     : Text(
-                        LanguageService.instance.tr('trivia_verify_btn'),
+                        tr('trivia_verify_btn'),
                         style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold),
                       ),
               ),
@@ -811,7 +797,7 @@ class _TriviaScreenState extends State<TriviaScreen> with SingleTickerProviderSt
               // Opciones Múltiples (A, B, C, D)
               ...options.asMap().entries.map((entry) {
                 final int idx = entry.key;
-                final String opt = entry.value.toString();
+                final String opt = entry.value;
                 final String letter = String.fromCharCode(65 + idx); // A, B, C, D
                 final bool isSelected = _selectedOption == opt;
 
@@ -829,12 +815,12 @@ class _TriviaScreenState extends State<TriviaScreen> with SingleTickerProviderSt
                       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                       decoration: BoxDecoration(
                         color: isSelected
-                            ? const Color(0xFF00E5FF).withValues(alpha: 0.15)
-                            : const Color(0xFF1E293B),
+                            ? AppTheme.hextechCyan.withValues(alpha: 0.15)
+                            : AppTheme.surface,
                         borderRadius: BorderRadius.circular(14),
                         border: Border.all(
                           color: isSelected
-                              ? const Color(0xFF00E5FF)
+                              ? AppTheme.hextechCyan
                               : Colors.white.withValues(alpha: 0.1),
                           width: 1.2,
                         ),
@@ -846,14 +832,14 @@ class _TriviaScreenState extends State<TriviaScreen> with SingleTickerProviderSt
                             height: 32,
                             alignment: Alignment.center,
                             decoration: BoxDecoration(
-                              color: isSelected ? const Color(0xFF00E5FF) : Colors.white12,
+                              color: isSelected ? AppTheme.hextechCyan : Colors.white12,
                               shape: BoxShape.circle,
                             ),
                             child: Text(
                               letter,
                               style: GoogleFonts.outfit(
                                 fontWeight: FontWeight.bold,
-                                color: isSelected ? const Color(0xFF090D16) : Colors.white,
+                                color: isSelected ? AppTheme.deepDarkBg : Colors.white,
                               ),
                             ),
                           ),
@@ -882,8 +868,8 @@ class _TriviaScreenState extends State<TriviaScreen> with SingleTickerProviderSt
               icon: const Icon(Icons.arrow_forward_rounded),
               label: const Text('Siguiente Pregunta'),
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF00E5FF),
-                foregroundColor: const Color(0xFF090D16),
+                backgroundColor: AppTheme.hextechCyan,
+                foregroundColor: AppTheme.deepDarkBg,
                 padding: const EdgeInsets.symmetric(vertical: 16),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
               ),
@@ -896,7 +882,7 @@ class _TriviaScreenState extends State<TriviaScreen> with SingleTickerProviderSt
 
   Widget _buildFeedbackBanner() {
     final bool isCorrect = _lastAnswerCorrect ?? false;
-    final color = isCorrect ? const Color(0xFF10B981) : const Color(0xFFEF4444);
+    final color = isCorrect ? AppTheme.hextechEmerald : AppTheme.hextechCrimson;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 20),
@@ -957,11 +943,11 @@ class _TriviaScreenState extends State<TriviaScreen> with SingleTickerProviderSt
             Container(
               padding: const EdgeInsets.all(24),
               decoration: BoxDecoration(
-                color: const Color(0xFFF59E0B).withValues(alpha: 0.15),
+                color: AppTheme.hextechAmber.withValues(alpha: 0.15),
                 shape: BoxShape.circle,
-                border: Border.all(color: const Color(0xFFF59E0B), width: 2),
+                border: Border.all(color: AppTheme.hextechAmber, width: 2),
               ),
-              child: const Icon(Icons.emoji_events_rounded, color: Color(0xFFF59E0B), size: 64),
+              child: const Icon(Icons.emoji_events_rounded, color: AppTheme.hextechAmber, size: 64),
             ),
             const SizedBox(height: 20),
             Text(
@@ -984,8 +970,8 @@ class _TriviaScreenState extends State<TriviaScreen> with SingleTickerProviderSt
               icon: const Icon(Icons.restart_alt_rounded),
               label: const Text('Reiniciar modalidad y volver a jugar'),
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF00E5FF),
-                foregroundColor: const Color(0xFF090D16),
+                backgroundColor: AppTheme.hextechCyan,
+                foregroundColor: AppTheme.deepDarkBg,
                 padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
               ),
@@ -1017,4 +1003,3 @@ class _TriviaScreenState extends State<TriviaScreen> with SingleTickerProviderSt
     );
   }
 }
-

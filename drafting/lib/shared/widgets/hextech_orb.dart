@@ -153,7 +153,7 @@ class _HextechOrbState extends State<HextechOrb> with SingleTickerProviderStateM
               ),
               child: ValueListenableBuilder<String>(
                 valueListenable: LanguageService.instance.languageNotifier,
-                builder: (context, _, __) {
+                builder: (context, _, _) {
                   final String displayText = widget.label ??
                       (widget.isActive
                           ? LanguageService.instance.tr('orb_active')

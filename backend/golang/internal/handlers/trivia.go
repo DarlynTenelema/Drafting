@@ -438,6 +438,8 @@ func SubmitTriviaAnswer(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+var lastTriviaAdRewardMap sync.Map // map[uuid.UUID]time.Time
+
 // RewardAdLives otorga +3 vidas al usuario tras visualizar un anuncio de video recompensado
 func RewardAdLives(w http.ResponseWriter, r *http.Request) {
 	user, ok := r.Context().Value(middleware.UserContextKey).(*models.User)
@@ -445,6 +447,15 @@ func RewardAdLives(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
+
+	// Antifraude: Cooldown de 15 segundos entre recargas de vidas por anuncio
+	if lastTime, exists := lastTriviaAdRewardMap.Load(user.ID); exists {
+		if t, ok := lastTime.(time.Time); ok && time.Since(t) < 15*time.Second {
+			http.Error(w, "Por favor espera 15 segundos antes de solicitar otra recarga de vidas.", http.StatusTooManyRequests)
+			return
+		}
+	}
+	lastTriviaAdRewardMap.Store(user.ID, time.Now())
 
 	user.AddTriviaLives(3)
 	if err := database.DB.Model(user).Update("trivia_lives", user.TriviaLives).Error; err != nil {

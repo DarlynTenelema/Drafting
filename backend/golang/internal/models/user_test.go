@@ -3,6 +3,7 @@ package models_test
 import (
 	"backend/internal/models"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 )
@@ -166,6 +167,135 @@ func TestZeroQueriesExhaustionAndNoInfiniteTokens(t *testing.T) {
 
 	if user.ConsumeQuery() {
 		t.Fatalf("ConsumeQuery no debería permitir consumir tras agotar recargas")
+	}
+}
+
+func TestIndependentModelWalletsAndCooldowns(t *testing.T) {
+	now := time.Now().UTC()
+	today := now.Format("2006-01-02")
+
+	user := models.User{
+		ID:                    uuid.New(),
+		ClassicDaily:          3,
+		ClassicAd:             0,
+		ClassicPurchased:      0,
+		ClassicLastRechargeAt: &now,
+		FlakeAd:               0,
+		FlakePurchased:        0,
+		AureonAd:              0,
+		AureonPurchased:       0,
+	}
+	user.SyncModelWalletsToTotals()
+
+	// 1. Classic queries CANNOT be used for Flake or Aureon
+	if user.ConsumeModelQuery(models.ModelFlake, now) {
+		t.Fatalf("Flake no debe poder consumir consultas de Classic")
+	}
+	if user.ConsumeModelQuery(models.ModelAureon, now) {
+		t.Fatalf("Aureon no debe poder consumir consultas de Classic")
+	}
+
+	// 2. Classic: gastar 2 consultas -> queda 1 -> tras 24h rellena +2 (tope 3, nunca 4)
+	if !user.ConsumeModelQuery(models.ModelClassic, now) || !user.ConsumeModelQuery(models.ModelClassic, now) {
+		t.Fatalf("Classic debió permitir consumir 2 consultas")
+	}
+	if user.ClassicDaily != 1 {
+		t.Fatalf("Esperaba ClassicDaily=1, obtenido=%d", user.ClassicDaily)
+	}
+	if user.RefreshClassicDaily(now.Add(12 * time.Hour)) {
+		t.Fatalf("No debe recargar antes de 24h")
+	}
+	if !user.RefreshClassicDaily(now.Add(24*time.Hour + time.Minute)) {
+		t.Fatalf("Debió recargar tras 24h")
+	}
+	if user.ClassicDaily != 3 {
+		t.Fatalf("Esperaba ClassicDaily=3 tras recarga, obtenido=%d", user.ClassicDaily)
+	}
+
+	// 3. AdMob Classic: +2 por anuncio
+	added, ok := user.GrantAdRewardForModel(models.ModelClassic, today)
+	if !ok || added != 2 || user.ClassicAd != 2 {
+		t.Fatalf("Esperaba +2 en ClassicAd, obtenido added=%d ok=%v classicAd=%d", added, ok, user.ClassicAd)
+	}
+
+	// 4. AdMob Flake: +1 por anuncio, máximo 2 veces al día -> 3ra vez entra en enfriamiento
+	if a1, ok1 := user.GrantAdRewardForModel(models.ModelFlake, today); !ok1 || a1 != 1 {
+		t.Fatalf("Flake ad #1 falló: added=%d ok=%v", a1, ok1)
+	}
+	if a2, ok2 := user.GrantAdRewardForModel(models.ModelFlake, today); !ok2 || a2 != 1 {
+		t.Fatalf("Flake ad #2 falló: added=%d ok=%v", a2, ok2)
+	}
+	if _, ok3 := user.GrantAdRewardForModel(models.ModelFlake, today); ok3 {
+		t.Fatalf("Flake ad #3 debió bloquearse en enfriamiento")
+	}
+	if user.FlakeQueries() != 2 || user.RemainingAdsForModel(models.ModelFlake, today) != 0 {
+		t.Fatalf("Esperaba FlakeQueries=2 y remaining=0, obtenido=%d / %d", user.FlakeQueries(), user.RemainingAdsForModel(models.ModelFlake, today))
+	}
+
+	// 5. AdMob Aureon: +1 por anuncio, máximo 1 vez al día -> 2da vez entra en enfriamiento
+	if a1, ok1 := user.GrantAdRewardForModel(models.ModelAureon, today); !ok1 || a1 != 1 {
+		t.Fatalf("Aureon ad #1 falló: added=%d ok=%v", a1, ok1)
+	}
+	if _, ok2 := user.GrantAdRewardForModel(models.ModelAureon, today); ok2 {
+		t.Fatalf("Aureon ad #2 debió bloquearse en enfriamiento")
+	}
+	if user.AureonQueries() != 1 || user.RemainingAdsForModel(models.ModelAureon, today) != 0 {
+		t.Fatalf("Esperaba AureonQueries=1 y remaining=0")
+	}
+
+	// 6. Al día siguiente, los límites de anuncios se reinician
+	tomorrow := now.Add(24 * time.Hour).Format("2006-01-02")
+	if user.RemainingAdsForModel(models.ModelFlake, tomorrow) != 2 {
+		t.Fatalf("Esperaba 2 anuncios disponibles para Flake al día siguiente")
+	}
+	if user.RemainingAdsForModel(models.ModelAureon, tomorrow) != 1 {
+		t.Fatalf("Esperaba 1 anuncio disponible para Aureon al día siguiente")
+	}
+}
+
+func TestWalletV2ConsistencyAndRefund(t *testing.T) {
+	now := time.Now().UTC()
+	user := models.User{
+		ID:                    uuid.New(),
+		ClassicDaily:          1,
+		ClassicAd:             0,
+		ClassicPurchased:      0,
+		ClassicLastRechargeAt: &now,
+		GiftQueries:           2,
+	}
+
+	// Acreditar donación / referido en billeteras V2 y verificar que SyncModelWalletsToTotals no las borra
+	user.AddPurchasedModelQueries(models.ModelClassic, 10)
+	user.AddAdModelQueries(models.ModelClassic, 5)
+	user.SyncModelWalletsToTotals()
+
+	if user.ClassicPurchased != 10 || user.PurchasedQueries != 10 {
+		t.Fatalf("Esperaba 10 compradas sincronizadas, got classic=%d legacy=%d", user.ClassicPurchased, user.PurchasedQueries)
+	}
+	if user.ClassicAd != 5 || user.AdQueries != 5 {
+		t.Fatalf("Esperaba 5 ad sincronizadas, got classic=%d legacy=%d", user.ClassicAd, user.AdQueries)
+	}
+	if user.AvailableQueries != 16 {
+		t.Fatalf("Esperaba 16 disponibles (1+10+5), got %d", user.AvailableQueries)
+	}
+
+	// Reservar 1 consulta y reembolsarla si falla la IA
+	src, ok := user.ConsumeModelQueryWithSource(models.ModelClassic, now)
+	if !ok || src != models.QuerySourceClassicDaily || user.ClassicDaily != 0 {
+		t.Fatalf("Esperaba consumo de ClassicDaily, got src=%s ok=%v daily=%d", src, ok, user.ClassicDaily)
+	}
+	user.RefundModelQuery(src)
+	if user.ClassicDaily != 1 || user.AvailableQueries != 16 {
+		t.Fatalf("Esperaba reembolso exacto a ClassicDaily=1 y AvailableQueries=16, got daily=%d avail=%d", user.ClassicDaily, user.AvailableQueries)
+	}
+
+	// Transferencia V2: consume primero GiftQueries (2), luego ClassicPurchased (3)
+	if !user.DeductTransferModelQueries(5) {
+		t.Fatalf("Esperaba transferencia exitosa de 5 consultas")
+	}
+	if user.GiftQueries != 0 || user.ClassicPurchased != 7 || user.PurchasedQueries != 7 {
+		t.Fatalf("Saldo post-transferencia inesperado: gift=%d classicPurchased=%d legacyPurchased=%d",
+			user.GiftQueries, user.ClassicPurchased, user.PurchasedQueries)
 	}
 }
 

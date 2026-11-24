@@ -2,6 +2,8 @@ package database
 
 import (
 	"log"
+	"strconv"
+	"strings"
 	"time"
 
 	"backend/internal/config"
@@ -33,9 +35,18 @@ func Connect() {
 		log.Fatalf("Failed to get sql.DB: %v", err)
 	}
 	
-	// Configuración para Producción (Connection Pooling)
-	sqlDB.SetMaxIdleConns(10)
-	sqlDB.SetMaxOpenConns(100)
+	// Configuración para Producción (Connection Pooling configurable para Supabase Free/Pro y VPS)
+	maxIdle := 10
+	if v, err := strconv.Atoi(strings.TrimSpace(config.GetEnv("DB_MAX_IDLE_CONNS", ""))); err == nil && v >= 2 && v <= 50 {
+		maxIdle = v
+	}
+	maxOpen := 40
+	if v, err := strconv.Atoi(strings.TrimSpace(config.GetEnv("DB_MAX_OPEN_CONNS", ""))); err == nil && v >= maxIdle && v <= 200 {
+		maxOpen = v
+	}
+	sqlDB.SetMaxIdleConns(maxIdle)
+	sqlDB.SetMaxOpenConns(maxOpen)
+	sqlDB.SetConnMaxIdleTime(5 * time.Minute)
 	sqlDB.SetConnMaxLifetime(time.Hour)
 
 	log.Println("Connected to the database successfully.")
@@ -70,6 +81,45 @@ func Connect() {
 	// Sincronizar available_queries con la suma real de bolsas para reparar cuentas de versiones anteriores
 	db.Exec(`UPDATE users SET available_queries = GREATEST(0, COALESCE(daily_queries, 0) + COALESCE(bonus_queries, 0) + COALESCE(ad_queries, 0) + COALESCE(purchased_queries, 0) + COALESCE(subscription_queries, 0)) WHERE available_queries != GREATEST(0, COALESCE(daily_queries, 0) + COALESCE(bonus_queries, 0) + COALESCE(ad_queries, 0) + COALESCE(purchased_queries, 0) + COALESCE(subscription_queries, 0))`)
 
+	// Billeteras independientes por modelo (Classic, Flake 1.0, Aureon 1.0)
+	db.Exec(`ALTER TABLE users ADD COLUMN IF NOT EXISTS classic_daily integer DEFAULT 3`)
+	db.Exec(`ALTER TABLE users ADD COLUMN IF NOT EXISTS classic_ad integer DEFAULT 0`)
+	db.Exec(`ALTER TABLE users ADD COLUMN IF NOT EXISTS classic_purchased integer DEFAULT 0`)
+	db.Exec(`ALTER TABLE users ADD COLUMN IF NOT EXISTS classic_last_recharge_at timestamp with time zone`)
+	db.Exec(`ALTER TABLE users ADD COLUMN IF NOT EXISTS flake_ad integer DEFAULT 0`)
+	db.Exec(`ALTER TABLE users ADD COLUMN IF NOT EXISTS flake_purchased integer DEFAULT 0`)
+	db.Exec(`ALTER TABLE users ADD COLUMN IF NOT EXISTS flake_ads_today integer DEFAULT 0`)
+	db.Exec(`ALTER TABLE users ADD COLUMN IF NOT EXISTS flake_last_ad_date varchar(10) DEFAULT ''`)
+	db.Exec(`ALTER TABLE users ADD COLUMN IF NOT EXISTS aureon_ad integer DEFAULT 0`)
+	db.Exec(`ALTER TABLE users ADD COLUMN IF NOT EXISTS aureon_purchased integer DEFAULT 0`)
+	db.Exec(`ALTER TABLE users ADD COLUMN IF NOT EXISTS aureon_ads_today integer DEFAULT 0`)
+	db.Exec(`ALTER TABLE users ADD COLUMN IF NOT EXISTS aureon_last_ad_date varchar(10) DEFAULT ''`)
+	db.Exec(`ALTER TABLE users ADD COLUMN IF NOT EXISTS models_v2_migrated boolean DEFAULT false`)
+
+	// Migración quirúrgica única para cuentas existentes:
+	// - Resetea consultas gratuitas acumuladas (daily_queries y bonus_queries -> 0) y programa recarga de 3 Classic en 24h.
+	// - Preserva 100% intactas las consultas compradas (purchased_queries + subscription_queries -> classic_purchased)
+	//   y las consultas obtenidas por AdMob/referidos (ad_queries -> classic_ad).
+	db.Exec(`UPDATE users
+		SET
+			classic_purchased = GREATEST(0, COALESCE(purchased_queries, 0) + COALESCE(subscription_queries, 0)),
+			classic_ad = GREATEST(0, COALESCE(ad_queries, 0)),
+			classic_daily = 0,
+			classic_last_recharge_at = NOW(),
+			daily_queries = 0,
+			bonus_queries = 0,
+			flake_ad = 0,
+			flake_purchased = 0,
+			flake_ads_today = 0,
+			flake_last_ad_date = '',
+			aureon_ad = 0,
+			aureon_purchased = 0,
+			aureon_ads_today = 0,
+			aureon_last_ad_date = '',
+			available_queries = GREATEST(0, COALESCE(purchased_queries, 0) + COALESCE(subscription_queries, 0) + COALESCE(ad_queries, 0)),
+			models_v2_migrated = true
+		WHERE COALESCE(models_v2_migrated, false) = false`)
+
 	// Tablas de Tienda, Transacciones y Transferencias (Garantizadas en Producción)
 	db.Exec(`CREATE TABLE IF NOT EXISTS transactions (
 		id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -97,8 +147,10 @@ func Connect() {
 	db.Exec(`ALTER TABLE transactions ADD COLUMN IF NOT EXISTS deleted_at timestamp with time zone`)
 
 	db.Exec(`CREATE INDEX IF NOT EXISTS idx_transactions_user_id ON transactions(user_id)`)
+	db.Exec(`CREATE INDEX IF NOT EXISTS idx_transactions_user_created ON transactions(user_id, created_at DESC)`)
 	db.Exec(`CREATE INDEX IF NOT EXISTS idx_transactions_provider_tx_id ON transactions(provider_transaction_id)`)
 	db.Exec(`CREATE INDEX IF NOT EXISTS idx_transactions_purchase_token ON transactions(purchase_token)`)
+	db.Exec(`CREATE INDEX IF NOT EXISTS idx_users_device_banned ON users(device_id) WHERE banned = true AND device_id <> ''`)
 
 	db.Exec(`CREATE TABLE IF NOT EXISTS query_transfers (
 		id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -124,26 +176,6 @@ func Connect() {
 
 	db.Exec(`CREATE INDEX IF NOT EXISTS idx_query_transfers_sender ON query_transfers(from_user_id)`)
 	db.Exec(`CREATE INDEX IF NOT EXISTS idx_query_transfers_receiver ON query_transfers(to_user_id)`)
-
-	// Acreditación y reparación para la compra del Pack Starter (Orden GPA.3372-9089-9136-22405)
-	db.Exec(`UPDATE users 
-		SET available_queries = available_queries + 50, 
-		    purchased_queries = purchased_queries + 50, 
-		    gift_queries = COALESCE(gift_queries, 0) + 25,
-		    has_purchased_starter = true 
-		WHERE id = '527e0507-28ea-4548-b51e-a3458871cd1b' 
-		  AND has_purchased_starter = false`)
-
-	db.Exec(`UPDATE users 
-		SET gift_queries = 25 
-		WHERE id = '527e0507-28ea-4548-b51e-a3458871cd1b' 
-		  AND has_purchased_starter = true 
-		  AND COALESCE(gift_queries, 0) = 0 
-		  AND COALESCE(daily_transferred_today, 0) = 0`)
-
-	db.Exec(`INSERT INTO transactions (id, user_id, type, item_key, amount_usd, queries_added, provider, provider_transaction_id, status, created_at)
-		VALUES (gen_random_uuid(), '527e0507-28ea-4548-b51e-a3458871cd1b', 'pack', 'pack_starter', 0.19, 50, 'google_play', 'GPA.3372-9089-9136-22405', 'completed', NOW())
-		ON CONFLICT DO NOTHING`)
 
 	// Columna para vincular usuarios con códigos de streamers afiliados
 	db.Exec(`ALTER TABLE users ADD COLUMN IF NOT EXISTS referred_by_streamer_code varchar(32) DEFAULT ''`)
@@ -186,7 +218,180 @@ func Connect() {
 	db.Exec(`CREATE INDEX IF NOT EXISTS idx_trivia_user_progress_user ON trivia_user_progress(user_id, category)`)
 	db.Exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_trivia_user_question ON trivia_user_progress(user_id, question_id)`)
 
-	// Auto Migrate seguro para sincronizar modelos (incluyendo Fase 2: Streamers, Patrocinadores, Torneo C.L.A y Comunidad)
+	// Sistema de Reels Tácticos: Tablas, Contadores y Rendimiento
+	db.Exec(`CREATE TABLE IF NOT EXISTS reels (
+		id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+		creator_id uuid NOT NULL,
+		title varchar(180) NOT NULL,
+		description text DEFAULT '',
+		video_url text NOT NULL,
+		thumbnail_url text DEFAULT '',
+		duration_seconds integer DEFAULT 30,
+		game_mode varchar(32) DEFAULT 'wild_rift',
+		category varchar(32) DEFAULT 'jugadas',
+		language varchar(10) DEFAULT 'universal',
+		champion_name varchar(64) DEFAULT '',
+		likes_count integer DEFAULT 0,
+		comments_count integer DEFAULT 0,
+		saves_count integer DEFAULT 0,
+		views_count integer DEFAULT 0,
+		trend_score numeric DEFAULT 0.0,
+		active boolean DEFAULT true,
+		created_at timestamp with time zone DEFAULT NOW(),
+		updated_at timestamp with time zone DEFAULT NOW(),
+		deleted_at timestamp with time zone
+	)`)
+	db.Exec(`CREATE INDEX IF NOT EXISTS idx_reels_feed ON reels(active, language, trend_score DESC)`)
+	db.Exec(`CREATE INDEX IF NOT EXISTS idx_reels_creator ON reels(creator_id, created_at DESC)`)
+	db.Exec(`CREATE INDEX IF NOT EXISTS idx_reels_cat_mode ON reels(category, game_mode)`)
+
+	db.Exec(`CREATE TABLE IF NOT EXISTS reel_likes (
+		id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+		reel_id uuid NOT NULL,
+		user_id uuid NOT NULL,
+		created_at timestamp with time zone DEFAULT NOW()
+	)`)
+	db.Exec(`CREATE UNIQUE INDEX IF NOT EXISTS uq_reel_user_like ON reel_likes(reel_id, user_id)`)
+	db.Exec(`CREATE INDEX IF NOT EXISTS idx_reel_likes_user ON reel_likes(user_id)`)
+
+	db.Exec(`CREATE TABLE IF NOT EXISTS reel_saves (
+		id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+		reel_id uuid NOT NULL,
+		user_id uuid NOT NULL,
+		created_at timestamp with time zone DEFAULT NOW()
+	)`)
+	db.Exec(`CREATE UNIQUE INDEX IF NOT EXISTS uq_reel_user_save ON reel_saves(reel_id, user_id)`)
+	db.Exec(`CREATE INDEX IF NOT EXISTS idx_reel_saves_user ON reel_saves(user_id)`)
+
+	db.Exec(`CREATE TABLE IF NOT EXISTS reel_comments (
+		id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+		reel_id uuid NOT NULL,
+		user_id uuid NOT NULL,
+		content varchar(400) NOT NULL,
+		created_at timestamp with time zone DEFAULT NOW(),
+		updated_at timestamp with time zone DEFAULT NOW(),
+		deleted_at timestamp with time zone
+	)`)
+	db.Exec(`CREATE INDEX IF NOT EXISTS idx_reel_comments_reel ON reel_comments(reel_id, created_at ASC)`)
+	db.Exec(`CREATE INDEX IF NOT EXISTS idx_reel_comments_user ON reel_comments(user_id)`)
+
+	db.Exec(`CREATE TABLE IF NOT EXISTS reel_views (
+		id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+		reel_id uuid NOT NULL,
+		user_id uuid,
+		ip_hash varchar(64) DEFAULT '',
+		watched_seconds integer DEFAULT 0,
+		watched_percent integer DEFAULT 0,
+		verified boolean DEFAULT false,
+		created_at timestamp with time zone DEFAULT NOW()
+	)`)
+	db.Exec(`CREATE INDEX IF NOT EXISTS idx_reel_views_reel ON reel_views(reel_id, created_at DESC)`)
+	db.Exec(`ALTER TABLE reels ADD COLUMN IF NOT EXISTS video_key text DEFAULT ''`)
+	db.Exec(`ALTER TABLE reels ADD COLUMN IF NOT EXISTS file_size_bytes bigint DEFAULT 0`)
+	db.Exec(`ALTER TABLE reels ADD COLUMN IF NOT EXISTS width integer DEFAULT 0`)
+	db.Exec(`ALTER TABLE reels ADD COLUMN IF NOT EXISTS height integer DEFAULT 0`)
+	db.Exec(`ALTER TABLE reels ADD COLUMN IF NOT EXISTS orientation varchar(16) DEFAULT 'portrait'`)
+	db.Exec(`ALTER TABLE reels ADD COLUMN IF NOT EXISTS verified_views_count integer DEFAULT 0`)
+	db.Exec(`ALTER TABLE reels ADD COLUMN IF NOT EXISTS reports_count integer DEFAULT 0`)
+	db.Exec(`ALTER TABLE reels ADD COLUMN IF NOT EXISTS silenced_by_reports boolean DEFAULT false`)
+	db.Exec(`ALTER TABLE reels ADD COLUMN IF NOT EXISTS moderation_status varchar(32) DEFAULT 'approved'`)
+	db.Exec(`ALTER TABLE reels ADD COLUMN IF NOT EXISTS moderation_reason varchar(160) DEFAULT ''`)
+	db.Exec(`ALTER TABLE reels ADD COLUMN IF NOT EXISTS moderation_score numeric(5,4) DEFAULT 0.0`)
+	db.Exec(`ALTER TABLE reels ADD COLUMN IF NOT EXISTS moderation_checked_at timestamp with time zone`)
+	db.Exec(`ALTER TABLE reels ADD COLUMN IF NOT EXISTS content_hash varchar(128) DEFAULT ''`)
+	db.Exec(`ALTER TABLE reels ADD COLUMN IF NOT EXISTS weighted_reports_score numeric(8,2) DEFAULT 0.0`)
+	db.Exec(`CREATE INDEX IF NOT EXISTS idx_reels_moderation_status ON reels(moderation_status, updated_at DESC)`)
+	db.Exec(`CREATE INDEX IF NOT EXISTS idx_reels_content_hash ON reels(content_hash) WHERE content_hash <> ''`)
+	db.Exec(`ALTER TABLE users ADD COLUMN IF NOT EXISTS moderation_strikes integer DEFAULT 0`)
+	db.Exec(`ALTER TABLE users ADD COLUMN IF NOT EXISTS report_trust_score numeric(4,2) DEFAULT 1.0`)
+	db.Exec(`ALTER TABLE reel_views ADD COLUMN IF NOT EXISTS watched_percent integer DEFAULT 0`)
+	db.Exec(`ALTER TABLE reel_views ADD COLUMN IF NOT EXISTS verified boolean DEFAULT false`)
+	db.Exec(`ALTER TABLE reel_views ADD COLUMN IF NOT EXISTS device_id varchar(255) DEFAULT ''`)
+	db.Exec(`CREATE INDEX IF NOT EXISTS idx_reel_views_reel_ip ON reel_views(reel_id, ip_hash) WHERE ip_hash <> ''`)
+	db.Exec(`CREATE INDEX IF NOT EXISTS idx_reel_views_reel_device ON reel_views(reel_id, device_id) WHERE device_id <> ''`)
+	// Deduplicar vistas previas del mismo usuario antes de crear el índice único parcial
+	db.Exec(`DELETE FROM reel_views a USING reel_views b WHERE a.user_id IS NOT NULL AND a.reel_id = b.reel_id AND a.user_id = b.user_id AND a.ctid < b.ctid`)
+	db.Exec(`CREATE UNIQUE INDEX IF NOT EXISTS uq_reel_views_reel_user ON reel_views(reel_id, user_id) WHERE user_id IS NOT NULL`)
+
+	// Perfil social de creadores (Bio + Twitch/TikTok/YouTube/Instagram/Kick) y vistas verificadas históricas
+	db.Exec(`ALTER TABLE users ADD COLUMN IF NOT EXISTS bio varchar(220) DEFAULT ''`)
+	db.Exec(`ALTER TABLE users ADD COLUMN IF NOT EXISTS twitch_url varchar(255) DEFAULT ''`)
+	db.Exec(`ALTER TABLE users ADD COLUMN IF NOT EXISTS tiktok_url varchar(255) DEFAULT ''`)
+	db.Exec(`ALTER TABLE users ADD COLUMN IF NOT EXISTS youtube_url varchar(255) DEFAULT ''`)
+	db.Exec(`ALTER TABLE users ADD COLUMN IF NOT EXISTS instagram_url varchar(255) DEFAULT ''`)
+	db.Exec(`ALTER TABLE users ADD COLUMN IF NOT EXISTS kick_url varchar(255) DEFAULT ''`)
+	db.Exec(`ALTER TABLE users ADD COLUMN IF NOT EXISTS lifetime_verified_views bigint DEFAULT 0`)
+	// Backfill seguro: garantiza que creadores con vistas verificadas previas las conserven aunque borren un reel
+	db.Exec(`UPDATE users u
+		SET lifetime_verified_views = sub.total_v
+		FROM (
+			SELECT creator_id, COALESCE(SUM(verified_views_count), 0) AS total_v
+			FROM reels
+			GROUP BY creator_id
+		) sub
+		WHERE u.id = sub.creator_id
+		  AND COALESCE(u.lifetime_verified_views, 0) < sub.total_v`)
+
+	// Sistema de seguidores reales
+	db.Exec(`CREATE TABLE IF NOT EXISTS user_follows (
+		id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+		follower_id uuid NOT NULL,
+		following_id uuid NOT NULL,
+		created_at timestamp with time zone DEFAULT NOW()
+	)`)
+	db.Exec(`CREATE UNIQUE INDEX IF NOT EXISTS uq_user_follow_pair ON user_follows(follower_id, following_id)`)
+	db.Exec(`CREATE INDEX IF NOT EXISTS idx_user_follows_following ON user_follows(following_id)`)
+	db.Exec(`CREATE INDEX IF NOT EXISTS idx_user_follows_follower ON user_follows(follower_id)`)
+
+	// Sistema de retiros de creadores (mínimo $100 USD)
+	db.Exec(`CREATE TABLE IF NOT EXISTS creator_payout_requests (
+		id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+		user_id uuid NOT NULL,
+		amount_usd numeric(12,4) NOT NULL,
+		verified_views_snapshot bigint DEFAULT 0,
+		payout_method varchar(32) NOT NULL DEFAULT 'paypal',
+		payout_destination varchar(255) NOT NULL,
+		status varchar(32) NOT NULL DEFAULT 'pending',
+		admin_notes varchar(300) DEFAULT '',
+		created_at timestamp with time zone DEFAULT NOW(),
+		updated_at timestamp with time zone DEFAULT NOW()
+	)`)
+	db.Exec(`CREATE INDEX IF NOT EXISTS idx_creator_payouts_user ON creator_payout_requests(user_id, created_at DESC)`)
+	db.Exec(`CREATE INDEX IF NOT EXISTS idx_creator_payouts_status ON creator_payout_requests(status, created_at DESC)`)
+
+	db.Exec(`CREATE TABLE IF NOT EXISTS reel_reports (
+		id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+		reel_id uuid NOT NULL,
+		user_id uuid NOT NULL,
+		reason varchar(64) NOT NULL DEFAULT 'other',
+		details varchar(300) DEFAULT '',
+		weight numeric(4,2) NOT NULL DEFAULT 1.0,
+		created_at timestamp with time zone DEFAULT NOW()
+	)`)
+	db.Exec(`ALTER TABLE reel_reports ADD COLUMN IF NOT EXISTS weight numeric(4,2) NOT NULL DEFAULT 1.0`)
+	db.Exec(`CREATE UNIQUE INDEX IF NOT EXISTS uq_reel_user_report ON reel_reports(reel_id, user_id)`)
+	db.Exec(`CREATE INDEX IF NOT EXISTS idx_reel_reports_reel ON reel_reports(reel_id, created_at DESC)`)
+
+	db.Exec(`CREATE TABLE IF NOT EXISTS banned_content_hashes (
+		id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+		frame_hash varchar(64) NOT NULL,
+		reason varchar(64) NOT NULL DEFAULT 'nsfw_gore',
+		source_reel_id uuid,
+		created_at timestamp with time zone DEFAULT NOW()
+	)`)
+	db.Exec(`CREATE UNIQUE INDEX IF NOT EXISTS uq_banned_content_frame_hash ON banned_content_hashes(frame_hash)`)
+
+	db.Exec(`CREATE TABLE IF NOT EXISTS user_blocks (
+		id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+		blocker_id uuid NOT NULL,
+		blocked_id uuid NOT NULL,
+		created_at timestamp with time zone DEFAULT NOW()
+	)`)
+	db.Exec(`CREATE UNIQUE INDEX IF NOT EXISTS uq_user_block_pair ON user_blocks(blocker_id, blocked_id)`)
+	db.Exec(`CREATE INDEX IF NOT EXISTS idx_user_blocks_blocker ON user_blocks(blocker_id)`)
+	db.Exec(`CREATE INDEX IF NOT EXISTS idx_user_blocks_blocked ON user_blocks(blocked_id)`)
+
+	// Auto Migrate seguro para sincronizar modelos (incluyendo Fase 2: Streamers, Patrocinadores, Torneo C.L.A, Comunidad y Reels)
 	err = db.AutoMigrate(
 		&models.User{},
 		&models.ApiUsage{},
@@ -205,6 +410,16 @@ func Connect() {
 		&models.DonorProfile{},
 		&models.TriviaQuestion{},
 		&models.TriviaUserProgress{},
+		&models.Reel{},
+		&models.ReelLike{},
+		&models.ReelSave{},
+		&models.ReelComment{},
+		&models.ReelView{},
+		&models.ReelReport{},
+		&models.BannedContentHash{},
+		&models.UserBlock{},
+		&models.UserFollow{},
+		&models.CreatorPayoutRequest{},
 	)
 	if err != nil {
 		log.Printf("Warning: Non-fatal AutoMigrate notice: %v", err)

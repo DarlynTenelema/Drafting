@@ -4,10 +4,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import '../core/models/store_models.dart';
 import '../core/services/ad_service.dart';
 import '../core/services/api_client.dart';
 import '../core/services/iap_service.dart';
-import '../core/services/language_service.dart';
+import '../shared/mixins/localized_state_mixin.dart';
+import '../shared/utils/app_snackbar.dart';
+import '../theme/app_theme.dart';
 
 class StoreScreen extends StatefulWidget {
   final VoidCallback onDataChanged;
@@ -23,25 +26,13 @@ class StoreScreen extends StatefulWidget {
   State<StoreScreen> createState() => _StoreScreenState();
 }
 
-class _StoreScreenState extends State<StoreScreen> {
+class _StoreScreenState extends State<StoreScreen>
+    with LocalizedStateMixin<StoreScreen> {
   bool _isLoading = true;
   String? _errorMessage;
 
-  // Datos del catálogo y usuario
-  bool _hasPurchasedStarter = false;
-  bool _isSubscribed = false;
-  String _subscriptionPlan = 'none';
-  int _availableQueries = 0;
-  int _subscriptionQueries = 0;
-  int _purchasedQueries = 0;
-  int _dailyTransferredToday = 0;
-  int _remainingTransferQuota = 10;
-  bool _canTransfer = false;
-  int _giftQueries = 0;
-  String? _myReferralCode;
-
-  List<dynamic> _packs = [];
-  List<dynamic> _subscriptions = [];
+  // Modelo POO del catálogo y estado del usuario en la tienda
+  StoreCatalog _catalog = const StoreCatalog();
 
   // Controladores para compartir consultas
   final TextEditingController _friendIdController = TextEditingController();
@@ -51,34 +42,64 @@ class _StoreScreenState extends State<StoreScreen> {
   bool _isWatchingAd = false;
   bool _isShowingCelebrationDialog = false;
 
-  Future<void> _watchRewardedAdForQueries() async {
+  String? _watchingAdModel;
+
+  Future<void> _watchRewardedAdForModel(String modelTier) async {
     if (_isWatchingAd) return;
-    setState(() => _isWatchingAd = true);
+    if (modelTier == 'flake' && _catalog.flakeAdsRemaining <= 0) return;
+    if (modelTier == 'aureon' && _catalog.aureonAdsRemaining <= 0) return;
+
+    setState(() {
+      _isWatchingAd = true;
+      _watchingAdModel = modelTier;
+    });
     HapticFeedback.mediumImpact();
 
     await AdService.showRewardedAd(
       onUserEarnedReward: () async {
         try {
-          final res = await ApiClient.post('/api/v1/user/obtain-queries', authenticated: true);
+          final res = await ApiClient.post(
+            '/api/v1/user/obtain-queries',
+            authenticated: true,
+            body: {'model_tier': modelTier},
+          );
           if (res.statusCode == 200) {
+            final data = jsonDecode(res.body) as Map<String, dynamic>;
+            final msg = (data['message'] ?? '¡Consultas añadidas con éxito!').toString();
             widget.onDataChanged();
             await _fetchCatalog(silent: true);
             if (mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  backgroundColor: Color(0xFF10B981),
+                SnackBar(
+                  backgroundColor: AppTheme.hextechEmerald,
                   behavior: SnackBarBehavior.floating,
-                  content: Text('¡+5 Consultas añadidas con éxito! ⚡'),
+                  content: Text(msg),
                 ),
               );
             }
+          } else if (res.statusCode == 429) {
+            String msg = 'Este modelo está en enfriamiento. Vuelve mañana.';
+            try {
+              final data = jsonDecode(res.body) as Map<String, dynamic>;
+              if (data['message'] != null) msg = data['message'].toString();
+            } catch (_) {}
+            await _fetchCatalog(silent: true);
+            if (mounted) _showErrorSnackBar(msg);
           }
         } catch (_) {}
-        if (mounted) setState(() => _isWatchingAd = false);
+        if (mounted) {
+          setState(() {
+            _isWatchingAd = false;
+            _watchingAdModel = null;
+          });
+        }
       },
       onAdFailed: (error) {
         if (mounted) {
-          setState(() => _isWatchingAd = false);
+          setState(() {
+            _isWatchingAd = false;
+            _watchingAdModel = null;
+          });
           _showErrorSnackBar(error);
         }
       },
@@ -90,16 +111,13 @@ class _StoreScreenState extends State<StoreScreen> {
   @override
   void initState() {
     super.initState();
-    LanguageService.instance.languageNotifier.addListener(_onLanguageChanged);
     _fetchCatalog();
     _initIap();
   }
 
-  void _onLanguageChanged() {
-    if (mounted) {
-      setState(() {});
-      _fetchCatalog(silent: true);
-    }
+  @override
+  void onLanguageChanged() {
+    _fetchCatalog(silent: true);
   }
 
   void _initIap() {
@@ -110,7 +128,6 @@ class _StoreScreenState extends State<StoreScreen> {
       if (result.productId != null && InAppPurchaseService.donationIds.contains(result.productId)) {
         return;
       }
-      final lang = LanguageService.instance;
       setState(() => _isPurchasing = false);
 
       if (result.success) {
@@ -121,9 +138,9 @@ class _StoreScreenState extends State<StoreScreen> {
           HapticFeedback.heavyImpact();
           _showCelebrationDialog(
             title: result.triviaLivesAdded > 0
-                ? lang.tr('st_trivia_bought_title')
-                : (result.isSubscription ? lang.tr('st_sub_active_title') : lang.tr('st_pack_bought_title')),
-            message: result.message ?? lang.tr('st_queries_credited'),
+                ? tr('st_trivia_bought_title')
+                : (result.isSubscription ? tr('st_sub_active_title') : tr('st_pack_bought_title')),
+            message: result.message ?? tr('st_queries_credited'),
             queries: result.queriesAdded,
             triviaLives: result.triviaLivesAdded,
           );
@@ -143,14 +160,13 @@ class _StoreScreenState extends State<StoreScreen> {
 
   @override
   void dispose() {
-    LanguageService.instance.languageNotifier.removeListener(_onLanguageChanged);
     _iapSubscription?.cancel();
     _friendIdController.dispose();
     super.dispose();
   }
 
   Future<void> _fetchCatalog({bool silent = false}) async {
-    if (!silent || (_packs.isEmpty && _subscriptions.isEmpty)) {
+    if (!silent || (_catalog.packs.isEmpty && _catalog.subscriptions.isEmpty)) {
       setState(() {
         _isLoading = true;
         _errorMessage = null;
@@ -160,22 +176,10 @@ class _StoreScreenState extends State<StoreScreen> {
     try {
       final response = await ApiClient.get('/api/v1/store/catalog', authenticated: true);
       if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
+        final data = jsonDecode(response.body) as Map<String, dynamic>;
         if (mounted) {
           setState(() {
-            _hasPurchasedStarter = data['has_purchased_starter'] ?? false;
-            _isSubscribed = data['is_subscribed'] ?? false;
-            _subscriptionPlan = data['subscription_plan'] ?? 'none';
-            _availableQueries = data['available_queries'] ?? 0;
-            _subscriptionQueries = data['subscription_queries'] ?? 0;
-            _purchasedQueries = data['purchased_queries'] ?? 0;
-            _dailyTransferredToday = data['daily_transferred_today'] ?? 0;
-            _remainingTransferQuota = data['remaining_transfer_quota'] ?? 10;
-            _canTransfer = data['can_transfer'] ?? false;
-            _giftQueries = data['gift_queries'] ?? 0;
-            _myReferralCode = data['referral_code'];
-            _packs = data['packs'] ?? [];
-            _subscriptions = data['subscriptions'] ?? [];
+            _catalog = StoreCatalog.fromJson(data);
             _isLoading = false;
           });
         }
@@ -197,62 +201,59 @@ class _StoreScreenState extends State<StoreScreen> {
     }
   }
 
-  Future<void> _buyPack(Map<String, dynamic> pack) async {
+  Future<void> _buyPack(StorePack pack) async {
     if (_isPurchasing) return;
 
     setState(() => _isPurchasing = true);
     HapticFeedback.mediumImpact();
 
-    final packId = pack['id'] ?? '';
-    final launched = await InAppPurchaseService.instance.buyPack(packId);
+    final launched = await InAppPurchaseService.instance.buyPack(pack.id);
     if (!launched && mounted) {
       setState(() => _isPurchasing = false);
     }
   }
 
-  Future<void> _subscribe(Map<String, dynamic> sub) async {
+  Future<void> _subscribe(SubscriptionPlan sub) async {
     if (_isPurchasing) return;
 
-    final planId = sub['id'] ?? '';
-    if (_isSubscribed && _subscriptionPlan == planId) {
-      _showInfoSnackBar(LanguageService.instance.tr('st_already_sub_snack'));
+    if (_catalog.isSubscribed && _catalog.subscriptionPlan == sub.id) {
+      _showInfoSnackBar(tr('st_already_sub_snack'));
       return;
     }
 
     setState(() => _isPurchasing = true);
     HapticFeedback.mediumImpact();
 
-    final launched = await InAppPurchaseService.instance.buySubscription(planId);
+    final launched = await InAppPurchaseService.instance.buySubscription(sub.id);
     if (!launched && mounted) {
       setState(() => _isPurchasing = false);
     }
   }
 
   Future<void> _transferQueries() async {
-    final lang = LanguageService.instance;
     final rawTarget = _friendIdController.text.trim();
     if (rawTarget.isEmpty) {
-      _showErrorSnackBar(lang.tr('st_enter_friend_err'));
+      _showErrorSnackBar(tr('st_enter_friend_err'));
       return;
     }
 
-    if (!_canTransfer) {
+    if (!_catalog.canTransfer) {
       _showSubscriptionRequiredDialog();
       return;
     }
 
-    if (_remainingTransferQuota <= 0) {
-      _showErrorSnackBar(lang.tr('st_limit_reached_err'));
+    if (_catalog.remainingTransferQuota <= 0) {
+      _showErrorSnackBar(tr('st_limit_reached_err'));
       return;
     }
 
-    if (_selectedTransferAmount > _remainingTransferQuota) {
-      _showErrorSnackBar(lang.tr('st_quota_left_err', {'left': '$_remainingTransferQuota'}));
+    if (_selectedTransferAmount > _catalog.remainingTransferQuota) {
+      _showErrorSnackBar(tr('st_quota_left_err', {'left': '${_catalog.remainingTransferQuota}'}));
       return;
     }
 
-    if (_selectedTransferAmount > (_availableQueries + _giftQueries)) {
-      _showErrorSnackBar(lang.tr('st_not_enough_err', {'amount': '$_selectedTransferAmount'}));
+    if (_selectedTransferAmount > (_catalog.availableQueries + _catalog.giftQueries)) {
+      _showErrorSnackBar(tr('st_not_enough_err', {'amount': '$_selectedTransferAmount'}));
       return;
     }
 
@@ -277,77 +278,30 @@ class _StoreScreenState extends State<StoreScreen> {
         await _fetchCatalog();
 
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              backgroundColor: const Color(0xFF10B981),
-              behavior: SnackBarBehavior.floating,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              content: Row(
-                children: [
-                  const Icon(Icons.check_circle_rounded, color: Colors.white),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      data['message'] ?? lang.tr('st_transfer_ok'),
-                      style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.w600),
-                    ),
-                  ),
-                ],
-              ),
-            ),
+          AppSnackBar.showSuccess(
+            context,
+            data['message'] ?? tr('st_transfer_ok'),
+            icon: Icons.check_circle_rounded,
+            useOutfitFont: true,
           );
         }
       } else {
-        final errorMsg = response.body.isNotEmpty ? response.body : lang.tr('net_error');
+        final errorMsg = response.body.isNotEmpty ? response.body : tr('net_error');
         _showErrorSnackBar(errorMsg);
       }
     } catch (e) {
-      _showErrorSnackBar(lang.tr('net_error'));
+      _showErrorSnackBar(tr('net_error'));
     } finally {
       if (mounted) setState(() => _isTransferring = false);
     }
   }
 
   void _showErrorSnackBar(String message) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          backgroundColor: const Color(0xFFEF4444),
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          content: Text(
-            message,
-            style: GoogleFonts.outfit(color: Colors.white),
-          ),
-        ),
-      );
+    AppSnackBar.showError(context, message);
   }
 
   void _showInfoSnackBar(String message) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          backgroundColor: const Color(0xFF1E293B),
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          content: Row(
-            children: [
-              const Icon(Icons.info_outline_rounded, color: Color(0xFF00E5FF), size: 20),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  message,
-                  style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.w500),
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
+    AppSnackBar.showInfo(context, message);
   }
 
   void _showCelebrationDialog({
@@ -362,11 +316,11 @@ class _StoreScreenState extends State<StoreScreen> {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF0F172A),
+        backgroundColor: AppTheme.background,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(24),
           side: BorderSide(
-            color: isLives ? const Color(0xFFEF4444) : const Color(0xFFC89B3C),
+            color: isLives ? AppTheme.hextechCrimson : AppTheme.hextechGold,
             width: 1.5,
           ),
         ),
@@ -377,12 +331,12 @@ class _StoreScreenState extends State<StoreScreen> {
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: (isLives ? const Color(0xFFEF4444) : const Color(0xFFC89B3C)).withValues(alpha: 0.15),
+                color: (isLives ? AppTheme.hextechCrimson : AppTheme.hextechGold).withValues(alpha: 0.15),
               ),
               child: Icon(
                 isLives ? Icons.favorite_rounded : Icons.bolt_rounded,
                 size: 48,
-                color: isLives ? const Color(0xFFEF4444) : const Color(0xFF00E5FF),
+                color: isLives ? AppTheme.hextechCrimson : AppTheme.hextechCyan,
               ),
             ),
             const SizedBox(height: 16),
@@ -398,17 +352,17 @@ class _StoreScreenState extends State<StoreScreen> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
               decoration: BoxDecoration(
-                color: (isLives ? const Color(0xFFEF4444) : const Color(0xFF10B981)).withValues(alpha: 0.2),
+                color: (isLives ? AppTheme.hextechCrimson : AppTheme.hextechEmerald).withValues(alpha: 0.2),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Text(
                 isLives
-                    ? LanguageService.instance.tr('st_trivia_lives_badge', {'count': '$triviaLives'})
-                    : LanguageService.instance.tr('st_queries_ready_badge', {'count': '$queries'}),
+                    ? tr('st_trivia_lives_badge', {'count': '$triviaLives'})
+                    : tr('st_queries_ready_badge', {'count': '$queries'}),
                 style: GoogleFonts.outfit(
                   fontSize: 15,
                   fontWeight: FontWeight.bold,
-                  color: isLives ? const Color(0xFFEF4444) : const Color(0xFF10B981),
+                  color: isLives ? AppTheme.hextechCrimson : AppTheme.hextechEmerald,
                 ),
               ),
             ),
@@ -428,12 +382,12 @@ class _StoreScreenState extends State<StoreScreen> {
               child: ElevatedButton(
                 onPressed: () => Navigator.pop(ctx),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: isLives ? const Color(0xFFEF4444) : const Color(0xFFC89B3C),
+                  backgroundColor: isLives ? AppTheme.hextechCrimson : AppTheme.hextechGold,
                   foregroundColor: Colors.white,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                 ),
                 child: Text(
-                  LanguageService.instance.tr('st_to_ranked_btn'),
+                  tr('st_to_ranked_btn'),
                   style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 16),
                 ),
               ),
@@ -447,22 +401,21 @@ class _StoreScreenState extends State<StoreScreen> {
   }
 
   void _showSubscriptionRequiredDialog() {
-    final lang = LanguageService.instance;
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF0F172A),
+        backgroundColor: AppTheme.background,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(24),
-          side: const BorderSide(color: Color(0xFF00E5FF), width: 1.5),
+          side: const BorderSide(color: AppTheme.hextechCyan, width: 1.5),
         ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.lock_person_rounded, size: 44, color: Color(0xFF00E5FF)),
+            const Icon(Icons.lock_person_rounded, size: 44, color: AppTheme.hextechCyan),
             const SizedBox(height: 14),
             Text(
-              lang.tr('st_share_modal_title'),
+              tr('st_share_modal_title'),
               style: GoogleFonts.outfit(
                 fontSize: 20,
                 fontWeight: FontWeight.bold,
@@ -471,7 +424,7 @@ class _StoreScreenState extends State<StoreScreen> {
             ),
             const SizedBox(height: 8),
             Text(
-              lang.tr('st_share_modal_body'),
+              tr('st_share_modal_body'),
               textAlign: TextAlign.center,
               style: TextStyle(fontSize: 13, color: Colors.white.withValues(alpha: 0.75)),
             ),
@@ -479,11 +432,11 @@ class _StoreScreenState extends State<StoreScreen> {
             ElevatedButton(
               onPressed: () => Navigator.pop(ctx),
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF00E5FF),
+                backgroundColor: AppTheme.hextechCyan,
                 foregroundColor: Colors.black,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               ),
-              child: Text(lang.tr('st_share_modal_btn')),
+              child: Text(tr('st_share_modal_btn')),
             ),
           ],
         ),
@@ -493,21 +446,23 @@ class _StoreScreenState extends State<StoreScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final lang = LanguageService.instance;
+    final queryPacks = _catalog.queryPacks;
+    final triviaPacks = _catalog.triviaPacks;
+
     return Scaffold(
-      backgroundColor: const Color(0xFF090D16),
+      backgroundColor: AppTheme.deepDarkBg,
       appBar: AppBar(
-        backgroundColor: const Color(0xFF0F172A),
+        backgroundColor: AppTheme.background,
         elevation: 0,
         automaticallyImplyLeading: !widget.isTab,
         centerTitle: true,
         title: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.storefront_rounded, color: Color(0xFFC89B3C), size: 22),
+            const Icon(Icons.storefront_rounded, color: AppTheme.hextechGold, size: 22),
             const SizedBox(width: 8),
             Text(
-              lang.tr('st_appbar'),
+              tr('st_appbar'),
               style: GoogleFonts.outfit(
                 fontSize: 20,
                 fontWeight: FontWeight.bold,
@@ -519,18 +474,13 @@ class _StoreScreenState extends State<StoreScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.restore_rounded, color: Colors.white70),
-            tooltip: lang.tr('st_restore_tooltip'),
+            tooltip: tr('st_restore_tooltip'),
             onPressed: () async {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  backgroundColor: const Color(0xFF1E293B),
-                  behavior: SnackBarBehavior.floating,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  content: Text(
-                    lang.tr('st_restoring_snack'),
-                    style: GoogleFonts.outfit(color: Colors.white),
-                  ),
-                ),
+              AppSnackBar.showInfo(
+                context,
+                tr('st_restoring_snack'),
+                hideCurrent: false,
+                icon: null,
               );
               await InAppPurchaseService.instance.restorePurchases();
             },
@@ -543,7 +493,7 @@ class _StoreScreenState extends State<StoreScreen> {
       ),
       body: _isLoading
           ? const Center(
-              child: CircularProgressIndicator(color: Color(0xFF00E5FF)),
+              child: CircularProgressIndicator(color: AppTheme.hextechCyan),
             )
           : _errorMessage != null
               ? Center(
@@ -552,14 +502,14 @@ class _StoreScreenState extends State<StoreScreen> {
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        const Icon(Icons.error_outline_rounded, color: Color(0xFFEF4444), size: 48),
+                        const Icon(Icons.error_outline_rounded, color: AppTheme.hextechCrimson, size: 48),
                         const SizedBox(height: 12),
                         Text(_errorMessage!, textAlign: TextAlign.center, style: const TextStyle(color: Colors.white70)),
                         const SizedBox(height: 16),
                         ElevatedButton(
                           onPressed: _fetchCatalog,
-                          style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF00E5FF)),
-                          child: Text(lang.tr('st_retry'), style: const TextStyle(color: Colors.black)),
+                          style: ElevatedButton.styleFrom(backgroundColor: AppTheme.hextechCyan),
+                          child: Text(tr('st_retry'), style: const TextStyle(color: Colors.black)),
                         ),
                       ],
                     ),
@@ -567,8 +517,8 @@ class _StoreScreenState extends State<StoreScreen> {
                 )
               : RefreshIndicator(
                   onRefresh: _fetchCatalog,
-                  color: const Color(0xFF00E5FF),
-                  backgroundColor: const Color(0xFF0F172A),
+                  color: AppTheme.hextechCyan,
+                  backgroundColor: AppTheme.background,
                   child: ListView(
                     padding: const EdgeInsets.only(left: 18, right: 18, top: 16, bottom: 100),
                     children: [
@@ -577,118 +527,50 @@ class _StoreScreenState extends State<StoreScreen> {
 
                       const SizedBox(height: 18),
 
-                      // --- TARJETA DE RECARGA GRATIS CON VIDEO ---
-                      Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(18),
-                          gradient: LinearGradient(
-                            colors: [
-                              const Color(0xFF10B981).withValues(alpha: 0.15),
-                              const Color(0xFF0F172A),
-                            ],
-                          ),
-                          border: Border.all(color: const Color(0xFF10B981).withValues(alpha: 0.4)),
-                        ),
-                        child: Row(
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.all(10),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFF10B981).withValues(alpha: 0.2),
-                                shape: BoxShape.circle,
-                              ),
-                              child: const Icon(Icons.play_circle_fill_rounded, color: Color(0xFF10B981), size: 24),
-                            ),
-                            const SizedBox(width: 14),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    '¿Necesitas consultas gratis?',
-                                    style: GoogleFonts.outfit(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 14,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    'Mira un video corto y recibe +5 consultas al instante.',
-                                    style: GoogleFonts.inter(
-                                      color: const Color(0xFF94A3B8),
-                                      fontSize: 12,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            ElevatedButton(
-                              onPressed: _isWatchingAd ? null : _watchRewardedAdForQueries,
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: const Color(0xFF10B981),
-                                foregroundColor: Colors.white,
-                                elevation: 0,
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                              ),
-                              child: _isWatchingAd
-                                  ? const SizedBox(
-                                      width: 16,
-                                      height: 16,
-                                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                                    )
-                                  : const Text(
-                                      'Ver Video',
-                                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-                                    ),
-                            ),
-                          ],
-                        ),
-                      ),
+                      // --- TARJETA DE RECARGA GRATIS CON VIDEO POR MODELO ---
+                      _buildModelAdsRechargeCard(),
 
                       const SizedBox(height: 20),
 
                       // --- 1. PAQUETES DE CONSULTAS (COMPRAS ÚNICAS) ---
                       _buildSectionHeader(
-                        title: lang.tr('st_packs_header'),
-                        subtitle: lang.tr('st_packs_sub'),
+                        title: tr('st_packs_header'),
+                        subtitle: tr('st_packs_sub'),
                         icon: Icons.all_inclusive_rounded,
-                        color: const Color(0xFF00E5FF),
+                        color: AppTheme.hextechCyan,
                       ),
                       const SizedBox(height: 14),
 
                       // Tarjetas de Paquetes de Consultas
-                      ..._packs.where((p) => (p['trivia_lives'] ?? 0) == 0).map((pack) => _buildPackCard(pack)),
+                      ...queryPacks.map(_buildPackCard),
 
                       // --- 1.5 PAQUETES DE VIDAS PARA TRIVIA ---
-                      if (_packs.any((p) => (p['trivia_lives'] ?? 0) > 0)) ...[
+                      if (triviaPacks.isNotEmpty) ...[
                         const SizedBox(height: 28),
                         _buildSectionHeader(
-                          title: lang.tr('st_trivia_packs_header'),
-                          subtitle: lang.tr('st_trivia_packs_sub'),
+                          title: tr('st_trivia_packs_header'),
+                          subtitle: tr('st_trivia_packs_sub'),
                           icon: Icons.favorite_rounded,
-                          color: const Color(0xFFEF4444),
+                          color: AppTheme.hextechCrimson,
                         ),
                         const SizedBox(height: 14),
-                        ..._packs.where((p) => (p['trivia_lives'] ?? 0) > 0).map((pack) => _buildPackCard(pack)),
+                        ...triviaPacks.map(_buildPackCard),
                       ],
 
-                      const SizedBox(height: 28),
+                      // --- 2. SUSCRIPCIONES MENSUALES (Ocultas cuando el catálogo no envía suscripciones) ---
+                      if (_catalog.subscriptions.isNotEmpty) ...[
+                        const SizedBox(height: 28),
+                        _buildSectionHeader(
+                          title: tr('st_subs_header'),
+                          subtitle: tr('st_subs_sub'),
+                          icon: Icons.workspace_premium_rounded,
+                          color: AppTheme.hextechGold,
+                        ),
+                        const SizedBox(height: 14),
 
-                      // --- 2. SUSCRIPCIONES MENSUALES ---
-                      _buildSectionHeader(
-                        title: lang.tr('st_subs_header'),
-                        subtitle: lang.tr('st_subs_sub'),
-                        icon: Icons.workspace_premium_rounded,
-                        color: const Color(0xFFC89B3C),
-                      ),
-                      const SizedBox(height: 14),
-
-                      // Tarjetas de Suscripciones
-                      ..._subscriptions.map((sub) => _buildSubscriptionCard(sub)),
+                        // Tarjetas de Suscripciones
+                        ..._catalog.subscriptions.map(_buildSubscriptionCard),
+                      ],
 
                       const SizedBox(height: 28),
 
@@ -702,19 +584,189 @@ class _StoreScreenState extends State<StoreScreen> {
     );
   }
 
+  Widget _buildModelAdsRechargeCard() {
+    Widget buildAdRow({
+      required String modelTier,
+      required String title,
+      required String subtitle,
+      required Color accent,
+      required bool onCooldown,
+    }) {
+      final bool isBusy = _isWatchingAd && _watchingAdModel == modelTier;
+      return Container(
+        margin: const EdgeInsets.only(top: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: AppTheme.storeCardDark,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: onCooldown ? Colors.white12 : accent.withValues(alpha: 0.35),
+          ),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              onCooldown ? Icons.hourglass_bottom_rounded : Icons.play_circle_fill_rounded,
+              color: onCooldown ? Colors.white38 : accent,
+              size: 22,
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: GoogleFonts.outfit(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13.5,
+                    ),
+                  ),
+                  Text(
+                    subtitle,
+                    style: GoogleFonts.inter(
+                      color: AppTheme.textMuted,
+                      fontSize: 11.5,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            ElevatedButton(
+              onPressed: (_isWatchingAd || onCooldown)
+                  ? null
+                  : () => _watchRewardedAdForModel(modelTier),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: onCooldown ? Colors.white10 : accent,
+                disabledBackgroundColor: Colors.white10,
+                foregroundColor: onCooldown ? Colors.white54 : Colors.black,
+                disabledForegroundColor: Colors.white54,
+                elevation: 0,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              ),
+              child: isBusy
+                  ? const SizedBox(
+                      width: 14,
+                      height: 14,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                    )
+                  : Text(
+                      onCooldown ? 'Enfriamiento' : 'Ver Video',
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                    ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(18),
+        gradient: LinearGradient(
+          colors: [
+            AppTheme.hextechEmerald.withValues(alpha: 0.14),
+            AppTheme.background,
+          ],
+        ),
+        border: Border.all(color: AppTheme.hextechEmerald.withValues(alpha: 0.35)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.ondemand_video_rounded, color: AppTheme.hextechEmerald, size: 20),
+              const SizedBox(width: 8),
+              Text(
+                'Recargar consultas con anuncios',
+                style: GoogleFonts.outfit(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 15,
+                ),
+              ),
+            ],
+          ),
+          buildAdRow(
+            modelTier: 'classic',
+            title: 'Classic (+2 consultas)',
+            subtitle: 'Disponible por video • Sin límite diario',
+            accent: AppTheme.hextechCyan,
+            onCooldown: false,
+          ),
+          buildAdRow(
+            modelTier: 'flake',
+            title: 'Flake 1.0 (+1 consulta)',
+            subtitle: _catalog.flakeAdsRemaining > 0
+                ? 'Te quedan ${_catalog.flakeAdsRemaining}/2 videos hoy'
+                : 'Límite diario alcanzado (2/2) • Vuelve mañana',
+            accent: AppTheme.hextechGold,
+            onCooldown: _catalog.flakeAdsRemaining <= 0,
+          ),
+          buildAdRow(
+            modelTier: 'aureon',
+            title: 'Aureon 1.0 (+1 consulta)',
+            subtitle: _catalog.aureonAdsRemaining > 0
+                ? 'Te queda ${_catalog.aureonAdsRemaining}/1 video hoy'
+                : 'Límite diario alcanzado (1/1) • Vuelve mañana',
+            accent: const Color(0xFFC4B5FD),
+            onCooldown: _catalog.aureonAdsRemaining <= 0,
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildUserStatusCard() {
+    Widget buildWalletPill(String label, int count, Color color) {
+      return Expanded(
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.10),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: color.withValues(alpha: 0.35)),
+          ),
+          child: Column(
+            children: [
+              Text(
+                label,
+                style: GoogleFonts.outfit(
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                  color: color,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                '$count',
+                style: GoogleFonts.outfit(
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(20),
         gradient: const LinearGradient(
-          colors: [Color(0xFF1E293B), Color(0xFF0F172A)],
+          colors: [AppTheme.surface, AppTheme.background],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
-        border: Border.all(
-          color: _isSubscribed ? const Color(0xFFC89B3C).withValues(alpha: 0.4) : const Color(0xFF00E5FF).withValues(alpha: 0.25),
-        ),
+        border: Border.all(color: AppTheme.hextechCyan.withValues(alpha: 0.25)),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.35),
@@ -727,106 +779,36 @@ class _StoreScreenState extends State<StoreScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: (_isSubscribed ? const Color(0xFFC89B3C) : const Color(0xFF00E5FF)).withValues(alpha: 0.15),
-                    ),
-                    child: Icon(
-                      _isSubscribed ? Icons.military_tech_rounded : Icons.bolt_rounded,
-                      color: _isSubscribed ? const Color(0xFFC89B3C) : const Color(0xFF00E5FF),
-                      size: 22,
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Text(
-                    LanguageService.instance.tr('st_balance_title'),
-                    style: GoogleFonts.outfit(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.white70,
-                    ),
-                  ),
-                ],
-              ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: _isSubscribed ? const Color(0xFFC89B3C).withValues(alpha: 0.2) : Colors.white.withValues(alpha: 0.08),
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(
-                    color: _isSubscribed ? const Color(0xFFC89B3C).withValues(alpha: 0.5) : Colors.white12,
-                  ),
+                  shape: BoxShape.circle,
+                  color: AppTheme.hextechCyan.withValues(alpha: 0.15),
                 ),
-                child: Text(
-                  _isSubscribed
-                      ? 'PASSE ${_subscriptionPlan.toUpperCase()}'
-                      : LanguageService.instance.tr('st_free_plan'),
-                  style: GoogleFonts.outfit(
-                    fontSize: 11,
-                    fontWeight: FontWeight.bold,
-                    color: _isSubscribed ? const Color(0xFFC89B3C) : Colors.white60,
-                  ),
+                child: const Icon(Icons.bolt_rounded, color: AppTheme.hextechCyan, size: 22),
+              ),
+              const SizedBox(width: 10),
+              Text(
+                'Tus consultas por modelo',
+                style: GoogleFonts.outfit(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.white,
                 ),
               ),
             ],
           ),
           const SizedBox(height: 14),
           Row(
-            crossAxisAlignment: CrossAxisAlignment.baseline,
-            textBaseline: TextBaseline.alphabetic,
             children: [
-              Text(
-                '$_availableQueries',
-                style: GoogleFonts.outfit(
-                  fontSize: 38,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
-                ),
-              ),
+              buildWalletPill('CLASSIC', _catalog.classicQueries, AppTheme.hextechCyan),
               const SizedBox(width: 8),
-              Text(
-                LanguageService.instance.tr('home_query_plural'),
-                style: GoogleFonts.outfit(
-                  fontSize: 16,
-                  color: const Color(0xFF00E5FF),
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
+              buildWalletPill('FLAKE 1.0', _catalog.flakeQueries, AppTheme.hextechGold),
+              const SizedBox(width: 8),
+              buildWalletPill('AUREON 1.0', _catalog.aureonQueries, const Color(0xFFC4B5FD)),
             ],
           ),
-          if (_isSubscribed) ...[
-            const SizedBox(height: 6),
-            Text(
-              LanguageService.instance.tr('st_sub_queries_current', {'count': '$_subscriptionQueries'}),
-              style: TextStyle(fontSize: 12, color: Colors.white.withValues(alpha: 0.6)),
-            ),
-          ],
-          if (_purchasedQueries > 0) ...[
-            const SizedBox(height: 4),
-            Text(
-              LanguageService.instance.tr('st_purchased_queries_current', {'count': '$_purchasedQueries'}),
-              style: TextStyle(fontSize: 12, color: const Color(0xFF00E5FF).withValues(alpha: 0.8)),
-            ),
-          ],
-          if (_hasPurchasedStarter) ...[
-            const SizedBox(height: 4),
-            Row(
-              children: [
-                const Icon(Icons.check_circle_outline_rounded, color: Color(0xFF10B981), size: 14),
-                const SizedBox(width: 4),
-                Text(
-                  LanguageService.instance.tr('st_starter_redeemed'),
-                  style: TextStyle(fontSize: 11, color: const Color(0xFF10B981).withValues(alpha: 0.8)),
-                ),
-              ],
-            ),
-          ],
         ],
       ),
     );
@@ -874,43 +856,15 @@ class _StoreScreenState extends State<StoreScreen> {
     );
   }
 
-  Widget _buildPackCard(dynamic pack) {
-    final bool isStarter = pack['is_starter'] ?? false;
-    final String tag = pack['tag'] ?? '';
-    final int queries = pack['queries'] ?? 0;
-    final int bonus = pack['bonus_queries'] ?? 0;
-    final int triviaLives = pack['trivia_lives'] ?? 0;
-    final bool isTrivia = triviaLives > 0;
-    final double price = (pack['price_usd'] as num).toDouble();
-
-    Color borderColor = Colors.white.withValues(alpha: 0.08);
-    Color tagBgColor = const Color(0xFF00E5FF).withValues(alpha: 0.15);
-    Color tagTextColor = const Color(0xFF00E5FF);
-
-    if (isTrivia) {
-      borderColor = const Color(0xFFEF4444).withValues(alpha: 0.45);
-      tagBgColor = const Color(0xFFEF4444).withValues(alpha: 0.2);
-      tagTextColor = const Color(0xFFEF4444);
-    } else if (isStarter) {
-      borderColor = const Color(0xFF10B981).withValues(alpha: 0.4);
-      tagBgColor = const Color(0xFF10B981).withValues(alpha: 0.2);
-      tagTextColor = const Color(0xFF10B981);
-    } else if (pack['id'] == 'pack_pro' || pack['id'] == 'pro') {
-      borderColor = const Color(0xFFC89B3C).withValues(alpha: 0.5);
-      tagBgColor = const Color(0xFFC89B3C).withValues(alpha: 0.2);
-      tagTextColor = const Color(0xFFC89B3C);
-    } else if (pack['id'] == 'pack_ultra' || pack['id'] == 'ultra') {
-      borderColor = const Color(0xFF8B5CF6).withValues(alpha: 0.5);
-      tagBgColor = const Color(0xFF8B5CF6).withValues(alpha: 0.2);
-      tagTextColor = const Color(0xFFC4B5FD);
-    }
+  Widget _buildPackCard(StorePack pack) {
+    final Color tagTextColor = pack.tagTextColor;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
-        color: const Color(0xFF111827),
+        color: AppTheme.storeCardDark,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: borderColor),
+        border: Border.all(color: pack.borderColor),
       ),
       child: Material(
         color: Colors.transparent,
@@ -931,15 +885,7 @@ class _StoreScreenState extends State<StoreScreen> {
                     border: Border.all(color: tagTextColor.withValues(alpha: 0.3)),
                   ),
                   child: Icon(
-                    isTrivia
-                        ? Icons.favorite_rounded
-                        : isStarter
-                            ? Icons.card_giftcard_rounded
-                            : (pack['id'] == 'pack_pro' || pack['id'] == 'pro')
-                                ? Icons.auto_awesome_rounded
-                                : (pack['id'] == 'pack_ultra' || pack['id'] == 'ultra')
-                                    ? Icons.diamond_rounded
-                                    : Icons.bolt_rounded,
+                    pack.icon,
                     color: tagTextColor,
                     size: 22,
                   ),
@@ -952,7 +898,7 @@ class _StoreScreenState extends State<StoreScreen> {
                         children: [
                           Flexible(
                             child: Text(
-                              pack['name'] ?? '',
+                              pack.name,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: GoogleFonts.outfit(
@@ -962,16 +908,16 @@ class _StoreScreenState extends State<StoreScreen> {
                               ),
                             ),
                           ),
-                          if (tag.isNotEmpty) ...[
+                          if (pack.tag.isNotEmpty) ...[
                             const SizedBox(width: 6),
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                               decoration: BoxDecoration(
-                                color: tagBgColor,
+                                color: pack.tagBgColor,
                                 borderRadius: BorderRadius.circular(6),
                               ),
                               child: Text(
-                                tag.toUpperCase(),
+                                pack.tag.toUpperCase(),
                                 style: GoogleFonts.outfit(
                                   fontSize: 9,
                                   fontWeight: FontWeight.bold,
@@ -986,22 +932,22 @@ class _StoreScreenState extends State<StoreScreen> {
                       Row(
                         children: [
                           Text(
-                            isTrivia
-                                ? '$triviaLives Vidas ❤️'
-                                : LanguageService.instance.tr('st_pack_queries', {'count': '$queries'}),
+                            pack.isTrivia
+                                ? '${pack.triviaLives} Vidas ❤️'
+                                : tr('st_pack_queries', {'count': '${pack.queries}'}),
                             style: GoogleFonts.outfit(
                               fontSize: 18,
                               fontWeight: FontWeight.bold,
-                              color: isTrivia ? const Color(0xFFEF4444) : const Color(0xFF00E5FF),
+                              color: pack.isTrivia ? AppTheme.hextechCrimson : AppTheme.hextechCyan,
                             ),
                           ),
-                          if (bonus > 0) ...[
+                          if (pack.bonusQueries > 0) ...[
                             const SizedBox(width: 6),
                             Text(
-                              LanguageService.instance.tr('st_pack_bonus', {'bonus': '$bonus'}),
+                              tr('st_pack_bonus', {'bonus': '${pack.bonusQueries}'}),
                               style: const TextStyle(
                                 fontSize: 12,
-                                color: Color(0xFF10B981),
+                                color: AppTheme.hextechEmerald,
                                 fontWeight: FontWeight.w600,
                               ),
                             ),
@@ -1010,7 +956,7 @@ class _StoreScreenState extends State<StoreScreen> {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        pack['description'] ?? '',
+                        pack.description,
                         style: TextStyle(fontSize: 11, color: Colors.white.withValues(alpha: 0.5)),
                       ),
                     ],
@@ -1019,17 +965,15 @@ class _StoreScreenState extends State<StoreScreen> {
                 ElevatedButton(
                   onPressed: _isPurchasing ? null : () => _buyPack(pack),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: isTrivia
-                        ? const Color(0xFFEF4444)
-                        : (isStarter ? const Color(0xFF10B981) : const Color(0xFF00E5FF)),
-                    foregroundColor: isTrivia ? Colors.white : Colors.black,
+                    backgroundColor: pack.buttonBgColor,
+                    foregroundColor: pack.buttonFgColor,
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   ),
                   child: Text(
                     InAppPurchaseService.instance.getDisplayPrice(
-                      pack['id'] ?? '',
-                      '\$${price.toStringAsFixed(2)}',
+                      pack.id,
+                      pack.formattedFallbackPrice,
                     ),
                     style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 15),
                   ),
@@ -1042,18 +986,16 @@ class _StoreScreenState extends State<StoreScreen> {
     );
   }
 
-  Widget _buildSubscriptionCard(dynamic sub) {
-    final double price = (sub['price_usd'] as num).toDouble();
-    final int queries = sub['queries_per_month'] ?? 0;
-    final bool isCurrentPlan = _isSubscribed && _subscriptionPlan == sub['id'];
+  Widget _buildSubscriptionCard(SubscriptionPlan sub) {
+    final bool isCurrentPlan = _catalog.isSubscribed && _catalog.subscriptionPlan == sub.id;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
-        color: const Color(0xFF111827),
+        color: AppTheme.storeCardDark,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: isCurrentPlan ? const Color(0xFFC89B3C) : const Color(0xFFC89B3C).withValues(alpha: 0.25),
+          color: isCurrentPlan ? AppTheme.hextechGold : AppTheme.hextechGold.withValues(alpha: 0.25),
           width: isCurrentPlan ? 1.5 : 1,
         ),
       ),
@@ -1072,16 +1014,12 @@ class _StoreScreenState extends State<StoreScreen> {
                   margin: const EdgeInsets.only(right: 12),
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: const Color(0xFFC89B3C).withValues(alpha: 0.15),
-                    border: Border.all(color: const Color(0xFFC89B3C).withValues(alpha: 0.3)),
+                    color: AppTheme.hextechGold.withValues(alpha: 0.15),
+                    border: Border.all(color: AppTheme.hextechGold.withValues(alpha: 0.3)),
                   ),
                   child: Icon(
-                    (sub['id'] == 'sub_ultra' || sub['id'] == 'ultra')
-                        ? Icons.workspace_premium_rounded
-                        : (sub['id'] == 'sub_pro' || sub['id'] == 'pro')
-                            ? Icons.military_tech_rounded
-                            : Icons.shield_rounded,
-                    color: const Color(0xFFC89B3C),
+                    sub.icon,
+                    color: AppTheme.hextechGold,
                     size: 22,
                   ),
                 ),
@@ -1093,7 +1031,7 @@ class _StoreScreenState extends State<StoreScreen> {
                         children: [
                           Flexible(
                             child: Text(
-                              sub['name'] ?? '',
+                              sub.name,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: GoogleFonts.outfit(
@@ -1107,15 +1045,15 @@ class _StoreScreenState extends State<StoreScreen> {
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                             decoration: BoxDecoration(
-                              color: const Color(0xFFC89B3C).withValues(alpha: 0.15),
+                              color: AppTheme.hextechGold.withValues(alpha: 0.15),
                               borderRadius: BorderRadius.circular(6),
                             ),
                             child: Text(
-                              sub['tag'] ?? '',
+                              sub.tag,
                               style: GoogleFonts.outfit(
                                 fontSize: 9,
                                 fontWeight: FontWeight.bold,
-                                color: const Color(0xFFC89B3C),
+                                color: AppTheme.hextechGold,
                               ),
                             ),
                           ),
@@ -1123,16 +1061,16 @@ class _StoreScreenState extends State<StoreScreen> {
                       ),
                       const SizedBox(height: 6),
                       Text(
-                        LanguageService.instance.tr('st_sub_queries_month', {'count': '$queries'}),
+                        tr('st_sub_queries_month', {'count': '${sub.queriesPerMonth}'}),
                         style: GoogleFonts.outfit(
                           fontSize: 17,
                           fontWeight: FontWeight.bold,
-                          color: const Color(0xFFC89B3C),
+                          color: AppTheme.hextechGold,
                         ),
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        sub['description'] ?? '',
+                        sub.description,
                         style: TextStyle(fontSize: 11, color: Colors.white.withValues(alpha: 0.5)),
                       ),
                     ],
@@ -1141,17 +1079,17 @@ class _StoreScreenState extends State<StoreScreen> {
                 ElevatedButton(
                   onPressed: _isPurchasing ? null : () => _subscribe(sub),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: isCurrentPlan ? const Color(0xFF10B981) : const Color(0xFFC89B3C),
+                    backgroundColor: isCurrentPlan ? AppTheme.hextechEmerald : AppTheme.hextechGold,
                     foregroundColor: Colors.black,
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   ),
                   child: Text(
                     isCurrentPlan
-                        ? LanguageService.instance.tr('st_active')
+                        ? tr('st_active')
                         : InAppPurchaseService.instance.getDisplayPrice(
-                            sub['id'] ?? '',
-                            '\$${price.toStringAsFixed(2)}${LanguageService.instance.tr('st_sub_per_month')}',
+                            sub.id,
+                            sub.fallbackPriceWithSuffix(tr('st_sub_per_month')),
                           ),
                     style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 14),
                   ),
@@ -1165,13 +1103,16 @@ class _StoreScreenState extends State<StoreScreen> {
   }
 
   Widget _buildShareQueriesCard() {
+    final myReferralCode = _catalog.myReferralCode;
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: const Color(0xFF111827),
+        color: AppTheme.storeCardDark,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
-          color: _isSubscribed ? const Color(0xFF10B981).withValues(alpha: 0.3) : Colors.white.withValues(alpha: 0.1),
+          color: _catalog.isSubscribed
+              ? AppTheme.hextechEmerald.withValues(alpha: 0.3)
+              : Colors.white.withValues(alpha: 0.1),
         ),
       ),
       child: Column(
@@ -1183,9 +1124,9 @@ class _StoreScreenState extends State<StoreScreen> {
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: const Color(0xFF10B981).withValues(alpha: 0.15),
+                  color: AppTheme.hextechEmerald.withValues(alpha: 0.15),
                 ),
-                child: const Icon(Icons.share_rounded, color: Color(0xFF10B981), size: 20),
+                child: const Icon(Icons.share_rounded, color: AppTheme.hextechEmerald, size: 20),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -1193,7 +1134,7 @@ class _StoreScreenState extends State<StoreScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      LanguageService.instance.tr('st_share_header'),
+                      tr('st_share_header'),
                       style: GoogleFonts.outfit(
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
@@ -1201,7 +1142,7 @@ class _StoreScreenState extends State<StoreScreen> {
                       ),
                     ),
                     Text(
-                      LanguageService.instance.tr('st_share_sub'),
+                      tr('st_share_sub'),
                       style: TextStyle(fontSize: 11, color: Colors.white.withValues(alpha: 0.5)),
                     ),
                   ],
@@ -1223,18 +1164,21 @@ class _StoreScreenState extends State<StoreScreen> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  LanguageService.instance.tr('st_quota_today_label'),
+                  tr('st_quota_today_label'),
                   style: TextStyle(fontSize: 12, color: Colors.white.withValues(alpha: 0.7)),
                 ),
                 Text(
-                  LanguageService.instance.tr(
+                  tr(
                     'st_quota_today_val',
-                    {'sent': '$_dailyTransferredToday', 'left': '$_remainingTransferQuota'},
+                    {
+                      'sent': '${_catalog.dailyTransferredToday}',
+                      'left': '${_catalog.remainingTransferQuota}',
+                    },
                   ),
                   style: GoogleFonts.outfit(
                     fontSize: 13,
                     fontWeight: FontWeight.bold,
-                    color: _canTransfer ? const Color(0xFF10B981) : Colors.amberAccent,
+                    color: _catalog.canTransfer ? AppTheme.hextechEmerald : Colors.amberAccent,
                   ),
                 ),
               ],
@@ -1243,45 +1187,45 @@ class _StoreScreenState extends State<StoreScreen> {
           const SizedBox(height: 16),
 
           // Tu propio ID para recibir consultas
-          if (_myReferralCode != null && _myReferralCode!.isNotEmpty) ...[
+          if (myReferralCode != null && myReferralCode.isNotEmpty) ...[
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
               decoration: BoxDecoration(
-                color: const Color(0xFF0F172A),
+                color: AppTheme.background,
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: const Color(0xFF00E5FF).withValues(alpha: 0.3)),
+                border: Border.all(color: AppTheme.hextechCyan.withValues(alpha: 0.3)),
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.badge_rounded, color: Color(0xFF00E5FF), size: 20),
+                  const Icon(Icons.badge_rounded, color: AppTheme.hextechCyan, size: 20),
                   const SizedBox(width: 10),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          LanguageService.instance.tr('st_your_id_label'),
+                          tr('st_your_id_label'),
                           style: TextStyle(fontSize: 11, color: Colors.white.withValues(alpha: 0.7)),
                         ),
                         Text(
-                          _myReferralCode!,
-                          style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: const Color(0xFF00E5FF)),
+                          myReferralCode,
+                          style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: AppTheme.hextechCyan),
                         ),
                       ],
                     ),
                   ),
                   IconButton(
                     icon: const Icon(Icons.copy_rounded, color: Colors.white, size: 18),
-                    tooltip: LanguageService.instance.tr('st_copy_id_tooltip'),
+                    tooltip: tr('st_copy_id_tooltip'),
                     onPressed: () {
-                      Clipboard.setData(ClipboardData(text: _myReferralCode!));
+                      Clipboard.setData(ClipboardData(text: myReferralCode));
                       HapticFeedback.lightImpact();
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
-                          backgroundColor: const Color(0xFF10B981),
+                          backgroundColor: AppTheme.hextechEmerald,
                           behavior: SnackBarBehavior.floating,
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                          content: Text(LanguageService.instance.tr('st_id_copied_snack')),
+                          content: Text(tr('st_id_copied_snack')),
                           duration: const Duration(seconds: 2),
                         ),
                       );
@@ -1293,22 +1237,22 @@ class _StoreScreenState extends State<StoreScreen> {
             const SizedBox(height: 14),
           ],
 
-          if (_giftQueries > 0) ...[
+          if (_catalog.giftQueries > 0) ...[
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               decoration: BoxDecoration(
-                color: const Color(0xFF10B981).withValues(alpha: 0.15),
+                color: AppTheme.hextechEmerald.withValues(alpha: 0.15),
                 borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: const Color(0xFF10B981).withValues(alpha: 0.3)),
+                border: Border.all(color: AppTheme.hextechEmerald.withValues(alpha: 0.3)),
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.card_giftcard_rounded, color: Color(0xFF10B981), size: 18),
+                  const Icon(Icons.card_giftcard_rounded, color: AppTheme.hextechEmerald, size: 18),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      LanguageService.instance.tr('st_gift_queries_banner', {'count': '$_giftQueries'}),
-                      style: GoogleFonts.outfit(fontSize: 12, color: const Color(0xFF10B981), fontWeight: FontWeight.w600),
+                      tr('st_gift_queries_banner', {'count': '${_catalog.giftQueries}'}),
+                      style: GoogleFonts.outfit(fontSize: 12, color: AppTheme.hextechEmerald, fontWeight: FontWeight.w600),
                     ),
                   ),
                 ],
@@ -1319,7 +1263,7 @@ class _StoreScreenState extends State<StoreScreen> {
 
           // Campo: ID del Jugador
           Text(
-            LanguageService.instance.tr('st_friend_id_label'),
+            tr('st_friend_id_label'),
             style: GoogleFonts.outfit(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.white70),
           ),
           const SizedBox(height: 6),
@@ -1328,10 +1272,10 @@ class _StoreScreenState extends State<StoreScreen> {
             textCapitalization: TextCapitalization.characters,
             style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold),
             decoration: InputDecoration(
-              hintText: LanguageService.instance.tr('st_friend_id_hint'),
+              hintText: tr('st_friend_id_hint'),
               hintStyle: const TextStyle(color: Colors.white24, fontSize: 13),
               filled: true,
-              fillColor: const Color(0xFF0F172A),
+              fillColor: AppTheme.background,
               contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
@@ -1343,7 +1287,7 @@ class _StoreScreenState extends State<StoreScreen> {
               ),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
-                borderSide: const BorderSide(color: Color(0xFF00E5FF)),
+                borderSide: const BorderSide(color: AppTheme.hextechCyan),
               ),
             ),
           ),
@@ -1351,7 +1295,7 @@ class _StoreScreenState extends State<StoreScreen> {
 
           // Selector de cantidad de consultas (1 a 10)
           Text(
-            LanguageService.instance.tr('st_transfer_amount_label', {'amount': '$_selectedTransferAmount'}),
+            tr('st_transfer_amount_label', {'amount': '$_selectedTransferAmount'}),
             style: GoogleFonts.outfit(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.white70),
           ),
           const SizedBox(height: 8),
@@ -1369,8 +1313,8 @@ class _StoreScreenState extends State<StoreScreen> {
                   ),
                 ),
                 selected: isSelected,
-                selectedColor: const Color(0xFF10B981),
-                backgroundColor: const Color(0xFF0F172A),
+                selectedColor: AppTheme.hextechEmerald,
+                backgroundColor: AppTheme.background,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                 onSelected: (val) {
                   if (val) setState(() => _selectedTransferAmount = amt);
@@ -1392,15 +1336,15 @@ class _StoreScreenState extends State<StoreScreen> {
                       height: 18,
                       child: CircularProgressIndicator(strokeWidth: 2, color: Colors.black),
                     )
-                  : Icon(_canTransfer ? Icons.send_rounded : Icons.lock_outline_rounded, size: 18),
+                  : Icon(_catalog.canTransfer ? Icons.send_rounded : Icons.lock_outline_rounded, size: 18),
               label: Text(
-                _canTransfer
-                    ? LanguageService.instance.tr('st_send_btn_unlocked', {'amount': '$_selectedTransferAmount'})
-                    : LanguageService.instance.tr('st_send_btn_locked'),
+                _catalog.canTransfer
+                    ? tr('st_send_btn_unlocked', {'amount': '$_selectedTransferAmount'})
+                    : tr('st_send_btn_locked'),
                 style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.bold),
               ),
               style: ElevatedButton.styleFrom(
-                backgroundColor: _canTransfer ? const Color(0xFF10B981) : const Color(0xFF00E5FF),
+                backgroundColor: _catalog.canTransfer ? AppTheme.hextechEmerald : AppTheme.hextechCyan,
                 foregroundColor: Colors.black,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               ),

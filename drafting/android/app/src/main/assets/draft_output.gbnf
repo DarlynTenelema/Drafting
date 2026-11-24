@@ -1,0 +1,13 @@
+# Gramática GBNF para llama.cpp (Fase 3 en Android)
+# Enmascara los logits en cada token para garantizar 100% cumplimiento del formato
+# compatible con CaptureService.kt y DraftAnalyzerStateMixin, sin saludos ni asteriscos (**).
+
+root ::= plan-line "\n" why-line "\n" runes-line "\n" alt-line "\n" alt-line
+
+plan-line  ::= "PLAN A: " champ-name
+why-line   ::= "• Por qué: " sentence
+runes-line ::= "• Runas: " sentence
+alt-line   ::= "• " champ-name ": " sentence
+
+champ-name ::= [A-Za-zÁÉÍÓÚáéíóúñÑ' .\-]{2,24}
+sentence   ::= [^\n*#]{10,320}

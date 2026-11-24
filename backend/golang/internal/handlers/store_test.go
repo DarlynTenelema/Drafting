@@ -14,14 +14,17 @@ func TestPackResolutionAndEconomics(t *testing.T) {
 		expectedBonus  int
 		isStarter      bool
 	}{
-		{"pack_starter", "pack_starter", 0.19, 100, 0, true},
-		{"starter", "pack_starter", 0.19, 100, 0, true},
-		{"pack_plus", "pack_plus", 0.19, 30, 0, false},
-		{"plus", "pack_plus", 0.19, 30, 0, false},
-		{"pack_pro", "pack_pro", 0.49, 100, 0, false},
-		{"pro", "pack_pro", 0.49, 100, 0, false},
-		{"pack_ultra", "pack_ultra", 0.99, 250, 0, false},
-		{"ultra", "pack_ultra", 0.99, 250, 0, false},
+		{"pack_classic_100", "pack_classic_100", 0.99, 100, 0, false},
+		{"pack_flake_50", "pack_flake_50", 0.99, 50, 0, false},
+		{"pack_aureon_20", "pack_aureon_20", 0.99, 20, 0, false},
+		{"pack_starter", "pack_starter", 0.19, 20, 0, true},
+		{"starter", "pack_starter", 0.19, 20, 0, true},
+		{"pack_plus", "pack_plus", 0.19, 20, 0, false},
+		{"plus", "pack_plus", 0.19, 20, 0, false},
+		{"pack_pro", "pack_pro", 0.49, 50, 0, false},
+		{"pro", "pack_pro", 0.49, 50, 0, false},
+		{"pack_ultra", "pack_ultra", 0.99, 100, 0, false},
+		{"ultra", "pack_ultra", 0.99, 100, 0, false},
 	}
 
 	for _, tc := range testCases {

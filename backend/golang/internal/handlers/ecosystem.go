@@ -224,10 +224,29 @@ func GetStreamerStats(w http.ResponseWriter, r *http.Request) {
 	var commissions []models.StreamerCommission
 	db.Where("streamer_id = ?", streamer.ID).Order("created_at DESC").Limit(20).Find(&commissions)
 
+	// No exponer payment_details ni email completo en endpoint público
+	publicStreamer := map[string]interface{}{
+		"id":                 streamer.ID,
+		"name":               streamer.Name,
+		"platform":           streamer.Platform,
+		"channel_url":        streamer.ChannelURL,
+		"followers_count":    streamer.FollowersCount,
+		"promo_code":         streamer.PromoCode,
+		"wants_caster":       streamer.WantsCaster,
+		"payment_method":     streamer.PaymentMethod,
+		"status":             streamer.Status,
+		"commission_rate":    streamer.CommissionRate,
+		"total_referrals":    streamer.TotalReferrals,
+		"total_sales_count":  streamer.TotalSalesCount,
+		"total_earnings_usd": streamer.TotalEarningsUSD,
+		"created_at":         streamer.CreatedAt,
+		"updated_at":         streamer.UpdatedAt,
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
 		"success":     true,
-		"streamer":    streamer,
+		"streamer":    publicStreamer,
 		"commissions": commissions,
 	})
 }
@@ -393,14 +412,32 @@ func GetTournamentInfo(w http.ResponseWriter, r *http.Request) {
 		},
 	}
 
+	sanitizeTournamentList := func(items []models.TournamentRegistration) []map[string]interface{} {
+		out := make([]map[string]interface{}, 0, len(items))
+		for _, item := range items {
+			out = append(out, map[string]interface{}{
+				"id":                item.ID,
+				"registration_type": item.RegistrationType,
+				"team_name":         item.TeamName,
+				"team_tag":          item.TeamTag,
+				"captain_name":      item.CaptainName,
+				"average_rank":      item.AverageRank,
+				"server_region":     item.ServerRegion,
+				"status":            item.Status,
+				"created_at":        item.CreatedAt,
+			})
+		}
+		return out
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
 		"tournament_name": "Copa Latino Americana Anónima (C.L.A)",
 		"organizer":       "SC XXIII & Drafting",
 		"facebook_url":    "https://www.facebook.com/profile.php?id=61556052170755",
 		"schedule":        schedule,
-		"teams":           teams,
-		"casters":         casters,
+		"teams":           sanitizeTournamentList(teams),
+		"casters":         sanitizeTournamentList(casters),
 	})
 }
 

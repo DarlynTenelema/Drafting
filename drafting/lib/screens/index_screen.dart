@@ -9,25 +9,28 @@ import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../core/config/app_config.dart';
+import '../core/models/user_profile.dart';
 import '../core/services/ad_service.dart';
 import '../core/services/api_client.dart';
 import '../core/services/language_service.dart';
 import '../core/services/native_service.dart';
 import '../core/services/session_service.dart';
 import '../core/services/update_service.dart';
+import '../shared/widgets/champion_picker_sheet.dart';
 import '../shared/widgets/hextech_orb.dart';
+import '../shared/widgets/home_modals.dart';
 import '../theme/app_theme.dart';
-import '../core/constants/app_constants.dart';
 import '../widgets/tutorial_dialog.dart';
 import 'achievements_screen.dart';
+import 'dodge_simulator_screen.dart';
 import 'donations_screen.dart';
 import 'events_screen.dart';
 import 'login_screen.dart';
+import 'lol_pc_scanner_screen.dart';
 import 'manual_draft_screen.dart';
+import 'reels_screen.dart';
 import 'store_screen.dart';
 import 'trivia_screen.dart';
-import 'lol_pc_scanner_screen.dart';
-import 'dodge_simulator_screen.dart' deferred as dodge_sim;
 
 class IndexScreen extends StatefulWidget {
   final String sessionToken;
@@ -42,30 +45,22 @@ class IndexScreen extends StatefulWidget {
 }
 
 class _IndexScreenState extends State<IndexScreen> with WidgetsBindingObserver {
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   StreamSubscription? _eventSubscription;
   late String _sessionToken;
 
   bool _isActive = false;
-  int _availableQueries = 13;
-  int _dailyQueries = 3;
-  int _bonusQueries = 10;
-  int _adQueries = 0;
-  int _purchasedQueries = 0;
-  int _subscriptionQueries = 0;
-  String _subscriptionPlan = 'none';
-  bool _isSubscribed = false;
+  final UserProfile _user = UserProfile();
   String _selectedGameMode = 'wild_rift'; // 'wild_rift' o 'lol_pc'
+  String _selectedModelTier = 'local'; // Motor unificado: IA Local Híbrida + Voz Local
   String _selectedMainRole = 'Mid';
   String _selectedOtpChampion = '';
 
   bool _isLoadingQueries = false;
-  String? _userName;
-  String? _userEmail;
-  String? _userPhotoUrl;
-  String? _referralCode;
-  int _referralCount = 0;
-  int _referralRewardsClaimed = 0;
-  bool _hasRedeemedReferral = false;
+  bool _localModelDownloaded = false;
+  bool _localModelDownloading = false;
+  int _localModelProgress = 0;
+  double _localModelSizeMb = 0.0;
 
   final GlobalKey<EventsScreenState> _eventsKey = GlobalKey<EventsScreenState>();
   Map<String, dynamic>? _liveEvent;
@@ -73,14 +68,44 @@ class _IndexScreenState extends State<IndexScreen> with WidgetsBindingObserver {
   /// Control de visibilidad de la pestaña de Donaciones (oculto temporalmente para lanzamiento)
   static const bool showDonationsTab = false;
 
-  int _currentTab = 2; // 0: Eventos, 1: Logros, 2: Home, 3: Trivia, 4: Tienda (o 4: Donaciones, 5: Tienda si showDonationsTab=true)
+  int _currentTab = 1; // 0: Reels, 1: Home, 2: Game 2D
 
   /// Sistema de Lazy Load y Priorización estilo SO:
   /// - Solo se montan en RAM las pestañas que el usuario realmente ha visitado.
   /// - Cuando el simulador 2D de alta prioridad está activo, todas las pantallas en segundo plano
   ///   congelan sus Tickers/Animaciones (0% uso de CPU/GPU en background).
-  final Set<int> _visitedTabs = {2};
+  final Set<int> _visitedTabs = {1};
   bool _isHighPriorityGameRunning = false;
+
+  bool get _isLocalModelSelected => _selectedModelTier == 'local';
+
+  int get _availableQueries =>
+      _isLocalModelSelected ? 9999 : _user.queries.queriesForModel(_selectedModelTier);
+
+  bool get _isSelectedModelAdOnCooldown =>
+      _isLocalModelSelected ? false : _user.queries.isAdOnCooldown(_selectedModelTier);
+
+  String get _selectedModelDisplayName {
+    switch (_selectedModelTier) {
+      case 'local':
+        return 'Local ∞';
+      case 'flake':
+        return 'Flake 1.0';
+      case 'aureon':
+        return 'Aureon 1.0';
+      default:
+        return 'Classic';
+    }
+  }
+
+  Future<void> _selectModelTier(String tier) async {
+    if (_selectedModelTier == tier) return;
+    HapticFeedback.selectionClick();
+    setState(() => _selectedModelTier = tier);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('model_tier', tier);
+    await NativeService.setNativeModelTier(tier);
+  }
 
   @override
   void initState() {
@@ -90,6 +115,7 @@ class _IndexScreenState extends State<IndexScreen> with WidgetsBindingObserver {
     _loadCachedState();
     _fetchUserData();
     _listenToNativeEvents();
+    _refreshLocalModelStatus();
     AdService.loadRewardedAd();
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -120,18 +146,11 @@ class _IndexScreenState extends State<IndexScreen> with WidgetsBindingObserver {
     final prefs = await SharedPreferences.getInstance();
     if (mounted) {
       setState(() {
-        _availableQueries = prefs.getInt('available_queries') ?? 13;
-        _dailyQueries = prefs.getInt('daily_queries') ?? 3;
-        _bonusQueries = prefs.getInt('bonus_queries') ?? 10;
-        _adQueries = prefs.getInt('ad_queries') ?? 0;
-        _purchasedQueries = prefs.getInt('purchased_queries') ?? 0;
-        _subscriptionQueries = prefs.getInt('subscription_queries') ?? 0;
-        _subscriptionPlan = prefs.getString('subscription_plan') ?? 'none';
-        _isSubscribed = prefs.getBool('is_subscribed') ?? false;
-        _userEmail = prefs.getString('user_email');
+        _user.loadFromPrefs(prefs);
         _selectedMainRole = prefs.getString('selected_main_role') ?? 'Mid';
         _selectedOtpChampion = prefs.getString('selected_otp_champion') ?? '';
         _selectedGameMode = prefs.getString('game_mode') ?? 'wild_rift';
+        _selectedModelTier = 'local';
       });
     }
   }
@@ -168,7 +187,7 @@ class _IndexScreenState extends State<IndexScreen> with WidgetsBindingObserver {
         NativeService.stopCaptureService();
         setState(() {
           _isActive = false;
-          _availableQueries = 0;
+          _user.queries.available = 0;
         });
         _showNoQueriesDialog();
       } else if (code == 204 || code == 205) {
@@ -178,34 +197,92 @@ class _IndexScreenState extends State<IndexScreen> with WidgetsBindingObserver {
           context,
           langCode: LanguageService.instance.currentLanguage,
         );
+      } else if (code == 210) {
+        final pct = (event['progress'] as num?)?.toInt() ?? 0;
+        setState(() {
+          _localModelDownloading = true;
+          _localModelProgress = pct;
+        });
+      } else if (code == 211) {
+        setState(() {
+          _localModelDownloading = false;
+          _localModelDownloaded = true;
+          _localModelProgress = 100;
+        });
+        _refreshLocalModelStatus();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('IA Local descargada y verificada (SHA-256 OK).'),
+            backgroundColor: AppTheme.hextechEmerald,
+          ),
+        );
+      } else if (code == 212) {
+        final msg = event['message']?.toString() ?? 'Error descargando modelo local.';
+        setState(() {
+          _localModelDownloading = false;
+          _localModelProgress = 0;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(msg), backgroundColor: Colors.redAccent),
+        );
       }
     });
+  }
+
+  Future<void> _refreshLocalModelStatus() async {
+    final status = await NativeService.getLocalModelStatus();
+    if (!mounted) return;
+    setState(() {
+      _localModelDownloaded = status['isDownloaded'] == true;
+      _localModelDownloading = status['isDownloading'] == true;
+      _localModelSizeMb = (status['sizeMb'] as num?)?.toDouble() ?? 0.0;
+    });
+  }
+
+  Future<void> _handleLocalModelTap() async {
+    HapticFeedback.selectionClick();
+    if (_localModelDownloading) return;
+    if (_localModelDownloaded) {
+      final shouldDelete = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: AppTheme.surface,
+          title: const Text('IA Local lista', style: TextStyle(color: Colors.white)),
+          content: Text(
+            'El modelo GGUF (${_localModelSizeMb.toStringAsFixed(1)} MB) está activo en tu dispositivo.\n\n¿Deseas eliminarlo para liberar espacio?',
+            style: const TextStyle(color: Colors.white70),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Mantener'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Eliminar', style: TextStyle(color: Colors.redAccent)),
+            ),
+          ],
+        ),
+      );
+      if (shouldDelete == true) {
+        await NativeService.deleteLocalModel();
+        await _refreshLocalModelStatus();
+      }
+    } else {
+      setState(() {
+        _localModelDownloading = true;
+        _localModelProgress = 0;
+      });
+      await NativeService.downloadLocalModel();
+    }
   }
 
   Future<void> _decrementQuery() async {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
-      if (_availableQueries > 0) {
-        _availableQueries--;
-      }
-      if (_dailyQueries > 0) {
-        _dailyQueries--;
-      } else if (_subscriptionQueries > 0) {
-        _subscriptionQueries--;
-      } else if (_bonusQueries > 0) {
-        _bonusQueries--;
-      } else if (_adQueries > 0) {
-        _adQueries--;
-      } else if (_purchasedQueries > 0) {
-        _purchasedQueries--;
-      }
+      _user.queries.decrementForModel(_selectedModelTier);
     });
-    await prefs.setInt('available_queries', _availableQueries);
-    await prefs.setInt('daily_queries', _dailyQueries);
-    await prefs.setInt('subscription_queries', _subscriptionQueries);
-    await prefs.setInt('bonus_queries', _bonusQueries);
-    await prefs.setInt('ad_queries', _adQueries);
-    await prefs.setInt('purchased_queries', _purchasedQueries);
+    await _user.queries.saveToPrefs(prefs);
 
     // Sincronizar en segundo plano con el backend
     _fetchUserData();
@@ -224,53 +301,14 @@ class _IndexScreenState extends State<IndexScreen> with WidgetsBindingObserver {
     try {
       final response = await ApiClient.get('/api/v1/auth/me', authenticated: true);
       if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
+        final data = jsonDecode(response.body) as Map<String, dynamic>;
         if (mounted) {
-          final serverQueries = data['available_queries'];
           final prefs = await SharedPreferences.getInstance();
           final dailyGranted = data['daily_reward_granted'] == true;
-          setState(() {
-            _userName = data['username'] ?? 'Jugador';
-            _userEmail = data['email']?.toString();
-            _userPhotoUrl = data['profile_pic'];
-            if (_userEmail != null) {
-              prefs.setString('user_email', _userEmail!);
-            }
-            _referralCode = data['referral_code'];
-            _referralCount = (data['referral_count'] is int) ? data['referral_count'] : 0;
-            _referralRewardsClaimed = (data['referral_rewards_claimed'] is int) ? data['referral_rewards_claimed'] : 0;
-            _hasRedeemedReferral = data['has_redeemed_referral'] == true;
-            if (serverQueries != null && serverQueries is int) {
-              _availableQueries = serverQueries;
-              prefs.setInt('available_queries', serverQueries);
-            }
-            if (data['daily_queries'] is int) {
-              _dailyQueries = data['daily_queries'];
-              prefs.setInt('daily_queries', _dailyQueries);
-            }
-            if (data['bonus_queries'] is int) {
-              _bonusQueries = data['bonus_queries'];
-              prefs.setInt('bonus_queries', _bonusQueries);
-            }
-            if (data['ad_queries'] is int) {
-              _adQueries = data['ad_queries'];
-              prefs.setInt('ad_queries', _adQueries);
-            }
-            if (data['purchased_queries'] is int) {
-              _purchasedQueries = data['purchased_queries'];
-              prefs.setInt('purchased_queries', _purchasedQueries);
-            }
-            if (data['subscription_queries'] is int) {
-              _subscriptionQueries = data['subscription_queries'];
-              prefs.setInt('subscription_queries', _subscriptionQueries);
-            }
-            if (data['subscription_plan'] is String) {
-              _subscriptionPlan = data['subscription_plan'];
-              prefs.setString('subscription_plan', _subscriptionPlan);
-            }
-            _isSubscribed = data['is_premium'] == true || data['is_subscribed'] == true;
-            prefs.setBool('is_subscribed', _isSubscribed);
-          });
+          await _user.updateFromMeResponse(data, prefs);
+          if (mounted) {
+            setState(() {});
+          }
 
           if (data['app_version'] is Map<String, dynamic> && mounted) {
             UpdateService.instance.checkAndPromptIfNeeded(
@@ -283,7 +321,7 @@ class _IndexScreenState extends State<IndexScreen> with WidgetsBindingObserver {
           if (dailyGranted && mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                backgroundColor: const Color(0xFF00E5FF),
+                backgroundColor: AppTheme.hextechCyan,
                 behavior: SnackBarBehavior.floating,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 content: Row(
@@ -328,245 +366,746 @@ class _IndexScreenState extends State<IndexScreen> with WidgetsBindingObserver {
 
   void _openStoreScreen() {
     HapticFeedback.selectionClick();
-    setState(() => _currentTab = showDonationsTab ? 5 : 4);
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => StoreScreen(
+          onDataChanged: _fetchUserData,
+          isTab: false,
+        ),
+      ),
+    );
+  }
+
+  void _openEventsScreen() {
+    HapticFeedback.selectionClick();
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => EventsScreen(
+          key: _eventsKey,
+          isTab: false,
+          userEmail: _user.userEmail,
+          onLiveEventChanged: (live) {
+            if (mounted) {
+              setState(() => _liveEvent = live);
+            }
+          },
+        ),
+      ),
+    );
+  }
+
+  void _openAchievementsScreen() {
+    HapticFeedback.selectionClick();
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => AchievementsScreen(
+          referralCode: _user.referralCode ?? '',
+          referralCount: _user.referralCount,
+          referralRewardsClaimed: _user.referralRewardsClaimed,
+          hasRedeemedReferral: _user.hasRedeemedReferral,
+          onDataChanged: _fetchUserData,
+          isTab: false,
+        ),
+      ),
+    );
+  }
+
+  void _openTriviaScreen() {
+    HapticFeedback.selectionClick();
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => TriviaScreen(
+          onLivesChanged: _fetchUserData,
+          isTab: false,
+        ),
+      ),
+    );
   }
 
   void _showQueriesBreakdownDialog() {
+    HomeModals.showQueriesBreakdown(
+      context: context,
+      user: _user,
+      onObtainFreeQueries: _obtainQueries,
+      onOpenStore: _openStoreScreen,
+    );
+  }
+
+  void _showLogoutDialog() {
+    HomeModals.showLogoutDialog(
+      context: context,
+      userName: _user.userName,
+      onConfirmLogout: _handleLogout,
+    );
+  }
+
+  void _showSettingsModal() {
+    HapticFeedback.selectionClick();
     final lang = LanguageService.instance;
+    final langOpt = lang.currentOption;
+    final userPhotoUrl = _user.userPhotoUrl;
+
     showModalBottomSheet(
       context: context,
-      backgroundColor: const Color(0xFF0F172A),
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      builder: (context) {
-        return Padding(
-          padding: const EdgeInsets.all(22.0),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Center(
-                child: Container(
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: Colors.white24,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-              Row(
-                children: [
-                  const Icon(Icons.bolt_rounded, color: Color(0xFF00E5FF), size: 26),
-                  const SizedBox(width: 10),
-                  Text(
-                    lang.tr('bd_title', {'count': '$_availableQueries'}),
-                    style: GoogleFonts.outfit(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 6),
-              Text(
-                lang.tr('bd_subtitle'),
-                style: TextStyle(color: Colors.white.withValues(alpha: 0.6), fontSize: 13),
-              ),
-              const SizedBox(height: 16),
-
-              // Item 1: Consultas Diarias
-              _buildQueryItem(
-                icon: Icons.calendar_today_rounded,
-                iconColor: const Color(0xFF00E5FF),
-                title: lang.tr('bd_daily_title'),
-                value: lang.tr('bd_daily_val', {'count': '$_dailyQueries'}),
-                description: lang.tr('bd_daily_desc'),
-              ),
-              const SizedBox(height: 12),
-
-              // Item 2: Bono de Bienvenida
-              _buildQueryItem(
-                icon: Icons.card_giftcard_rounded,
-                iconColor: const Color(0xFFC89B3C),
-                title: lang.tr('bd_bonus_title'),
-                value: lang.tr('bd_bonus_val', {'count': '$_bonusQueries'}),
-                description: lang.tr('bd_bonus_desc'),
-              ),
-              const SizedBox(height: 12),
-
-              // Item 3: Consultas por Recarga
-              _buildQueryItem(
-                icon: Icons.all_inclusive_rounded,
-                iconColor: const Color(0xFF10B981),
-                title: lang.tr('bd_ad_title'),
-                value: lang.tr('bd_ad_val', {'count': '$_adQueries'}),
-                description: lang.tr('bd_ad_desc'),
-              ),
-              if (_purchasedQueries > 0) ...[
-                const SizedBox(height: 12),
-                _buildQueryItem(
-                  icon: Icons.shopping_bag_rounded,
-                  iconColor: const Color(0xFF00E5FF),
-                  title: lang.tr('bd_purchased_title'),
-                  value: lang.tr('bd_purchased_val', {'count': '$_purchasedQueries'}),
-                  description: lang.tr('bd_purchased_desc'),
-                ),
-              ],
-              if (_isSubscribed) ...[
-                const SizedBox(height: 12),
-                _buildQueryItem(
-                  icon: Icons.workspace_premium_rounded,
-                  iconColor: const Color(0xFFC89B3C),
-                  title: lang.tr('bd_sub_title', {'plan': _subscriptionPlan.toUpperCase()}),
-                  value: lang.tr('bd_sub_val', {'count': '$_subscriptionQueries'}),
-                  description: lang.tr('bd_sub_desc'),
-                ),
-              ],
-              const SizedBox(height: 20),
-
-              Row(
-                children: [
-                  Expanded(
-                    child: SizedBox(
-                      height: 46,
-                      child: ElevatedButton.icon(
-                        onPressed: () {
-                          Navigator.pop(context);
-                          _obtainQueries();
-                        },
-                        icon: const Icon(Icons.play_circle_outline_rounded, size: 18),
-                        label: Text(lang.tr('home_free_plus3')),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF10B981),
-                          foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: SizedBox(
-                      height: 46,
-                      child: ElevatedButton.icon(
-                        onPressed: () {
-                          Navigator.pop(context);
-                          _openStoreScreen();
-                        },
-                        icon: const Icon(Icons.storefront_rounded, size: 18),
-                        label: Text(lang.tr('bd_store_btn')),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF00E5FF),
-                          foregroundColor: Colors.black,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (ctx) {
+        return Container(
+          decoration: BoxDecoration(
+            color: const Color(0xFF0F172A),
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+            border: Border.all(
+              color: AppTheme.hextechCyan.withValues(alpha: 0.3),
+              width: 1.2,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.6),
+                blurRadius: 20,
+                offset: const Offset(0, -4),
               ),
             ],
+          ),
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+          child: SafeArea(
+            top: false,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Sheet handle
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    margin: const EdgeInsets.only(bottom: 16),
+                    decoration: BoxDecoration(
+                      color: Colors.white24,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+
+                // Title
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(7),
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: AppTheme.hextechCyan.withValues(alpha: 0.15),
+                          ),
+                          child: const Icon(Icons.settings_suggest_rounded, color: AppTheme.hextechCyan, size: 20),
+                        ),
+                        const SizedBox(width: 10),
+                        Text(
+                          'Ajustes del Sistema',
+                          style: GoogleFonts.outfit(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ],
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close_rounded, color: Colors.white60),
+                      onPressed: () => Navigator.of(ctx).pop(),
+                    ),
+                  ],
+                ),
+
+                const SizedBox(height: 16),
+
+                // Opción 1: Cambiar Idioma
+                InkWell(
+                  onTap: () {
+                    Navigator.of(ctx).pop();
+                    lang.showLanguagePickerModal(context);
+                  },
+                  borderRadius: BorderRadius.circular(16),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    decoration: BoxDecoration(
+                      color: AppTheme.cardDark.withValues(alpha: 0.7),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: AppTheme.hextechCyan.withValues(alpha: 0.12),
+                          ),
+                          child: const Icon(Icons.translate_rounded, color: AppTheme.hextechCyan, size: 18),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Idioma / Language',
+                                style: GoogleFonts.outfit(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                ),
+                              ),
+                              Text(
+                                'Cambiar el idioma de la aplicación',
+                                style: TextStyle(
+                                  fontSize: 11.5,
+                                  color: Colors.white.withValues(alpha: 0.5),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                          decoration: BoxDecoration(
+                            color: AppTheme.hextechCyan.withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: AppTheme.hextechCyan.withValues(alpha: 0.3)),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(langOpt.flag, style: const TextStyle(fontSize: 14)),
+                              const SizedBox(width: 5),
+                              Text(
+                                langOpt.badge,
+                                style: GoogleFonts.outfit(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 10),
+
+                // Opción 2: Más Información (Tutorial / Guía)
+                InkWell(
+                  onTap: () {
+                    Navigator.of(ctx).pop();
+                    TutorialDialog.show(context);
+                  },
+                  borderRadius: BorderRadius.circular(16),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    decoration: BoxDecoration(
+                      color: AppTheme.cardDark.withValues(alpha: 0.7),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: AppTheme.hextechGold.withValues(alpha: 0.12),
+                          ),
+                          child: const Icon(Icons.help_outline_rounded, color: AppTheme.hextechGold, size: 18),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Más Información / Guía',
+                                style: GoogleFonts.outfit(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                ),
+                              ),
+                              Text(
+                                'Aprende a usar el asistente y sus funciones',
+                                style: TextStyle(
+                                  fontSize: 11.5,
+                                  color: Colors.white.withValues(alpha: 0.5),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const Icon(Icons.chevron_right_rounded, color: Colors.white38, size: 20),
+                      ],
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 16),
+
+                // Un poco más arriba del perfil: Mensaje 100% Seguro Riot Games
+                InkWell(
+                  onTap: () {
+                    Navigator.of(ctx).pop();
+                    HomeModals.showSecurityInfoDialog(context);
+                  },
+                  borderRadius: BorderRadius.circular(16),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: AppTheme.hextechEmerald.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: AppTheme.hextechEmerald.withValues(alpha: 0.35)),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.verified_user_rounded, color: AppTheme.hextechEmerald, size: 18),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            '100% Seguro • Cumple políticas de Riot Games',
+                            style: GoogleFonts.outfit(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: const Color(0xFF6EE7B7),
+                            ),
+                          ),
+                        ),
+                        const Icon(Icons.info_outline_rounded, color: Color(0xFF6EE7B7), size: 15),
+                      ],
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 16),
+
+                // En la parte inferior: (Foto) (Correo) (Log out)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  decoration: BoxDecoration(
+                    color: AppTheme.surface.withValues(alpha: 0.6),
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+                  ),
+                  child: Row(
+                    children: [
+                      // (Foto)
+                      CircleAvatar(
+                        radius: 20,
+                        backgroundColor: AppTheme.primary.withValues(alpha: 0.3),
+                        backgroundImage: userPhotoUrl != null ? NetworkImage(userPhotoUrl) : null,
+                        child: userPhotoUrl == null
+                            ? const Icon(Icons.person, color: Colors.white, size: 22)
+                            : null,
+                      ),
+                      const SizedBox(width: 12),
+                      // (Correo)
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            if (_user.userName != null && _user.userName!.isNotEmpty)
+                              Text(
+                                _user.userName!,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: GoogleFonts.outfit(
+                                  fontSize: 13.5,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            Text(
+                              _user.userEmail ?? 'invocador@riot.com',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.white.withValues(alpha: 0.6),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      // (Log out)
+                      ElevatedButton.icon(
+                        onPressed: () {
+                          Navigator.of(ctx).pop();
+                          _showLogoutDialog();
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppTheme.hextechCrimson.withValues(alpha: 0.15),
+                          foregroundColor: AppTheme.hextechCrimson,
+                          elevation: 0,
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          side: BorderSide(color: AppTheme.hextechCrimson.withValues(alpha: 0.4)),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                        icon: const Icon(Icons.logout_rounded, size: 16),
+                        label: Text(
+                          'Salir',
+                          style: GoogleFonts.outfit(fontSize: 12, fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
         );
       },
     );
   }
 
-  Widget _buildQueryItem({
-    required IconData icon,
-    required Color iconColor,
-    required String title,
-    required String value,
-    required String description,
-  }) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.04),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
-      ),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: iconColor.withValues(alpha: 0.15),
+  Widget _buildDrawer() {
+    final userPhotoUrl = _user.userPhotoUrl;
+
+    return Drawer(
+      backgroundColor: AppTheme.deepDarkBg,
+      child: Container(
+        decoration: BoxDecoration(
+          color: AppTheme.deepDarkBg,
+          border: Border(
+            right: BorderSide(
+              color: AppTheme.hextechCyan.withValues(alpha: 0.25),
+              width: 1.2,
             ),
-            child: Icon(icon, color: iconColor, size: 18),
           ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
+        ),
+        child: SafeArea(
+          child: Column(
+            children: [
+              // Header del Drawer
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 16, 16, 12),
+                child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text(
-                      title,
-                      style: GoogleFonts.outfit(
-                        fontSize: 14,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                      ),
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            gradient: const LinearGradient(
+                              colors: [AppTheme.hextechCyan, AppTheme.hextechBlue],
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: AppTheme.hextechCyan.withValues(alpha: 0.35),
+                                blurRadius: 10,
+                              ),
+                            ],
+                          ),
+                          child: const Icon(Icons.auto_awesome, color: Colors.white, size: 18),
+                        ),
+                        const SizedBox(width: 10),
+                        Text(
+                          'Drafting',
+                          style: GoogleFonts.outfit(
+                            fontSize: 22,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 1.2,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ],
                     ),
-                    Text(
-                      value,
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                        color: iconColor,
-                      ),
+                    IconButton(
+                      icon: const Icon(Icons.close_rounded, color: Colors.white60, size: 22),
+                      onPressed: () => Navigator.of(context).pop(),
                     ),
                   ],
                 ),
-                Text(
-                  description,
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: Colors.white.withValues(alpha: 0.5),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+              ),
 
-  void _showLogoutDialog() {
-    final lang = LanguageService.instance;
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: AppTheme.surface,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Text(lang.tr('logout_title'), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-        content: Text(
-          lang.tr('logout_body', {'user': _userName ?? 'Drafting'}),
-          style: const TextStyle(color: AppTheme.textMuted),
+              Divider(color: Colors.white.withValues(alpha: 0.08), height: 1),
+
+              // Opciones del Menú (Eventos, Logros, Trivia, Tienda, Ajustes)
+              Expanded(
+                child: ListView(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  children: [
+                    // 1. Eventos
+                    _buildDrawerItem(
+                      icon: Icons.podcasts_rounded,
+                      iconColor: AppTheme.hextechCrimson,
+                      title: 'Eventos & En Vivo',
+                      subtitle: 'Torneos y directos de la comunidad',
+                      badge: _liveEvent != null ? 'EN VIVO' : null,
+                      badgeColor: AppTheme.hextechCrimson,
+                      onTap: () {
+                        Navigator.of(context).pop();
+                        _openEventsScreen();
+                      },
+                    ),
+                    const SizedBox(height: 6),
+
+                    // 2. Logros
+                    _buildDrawerItem(
+                      icon: Icons.emoji_events_rounded,
+                      iconColor: AppTheme.hextechEmerald,
+                      title: 'Logros & Referidos',
+                      subtitle: 'Recompensas y metas alcanzadas',
+                      onTap: () {
+                        Navigator.of(context).pop();
+                        _openAchievementsScreen();
+                      },
+                    ),
+                    const SizedBox(height: 6),
+
+                    // 3. Trivia
+                    _buildDrawerItem(
+                      icon: Icons.quiz_rounded,
+                      iconColor: const Color(0xFFA855F7),
+                      title: 'Trivia Invocador',
+                      subtitle: 'Demuestra cuánto sabes de LoL',
+                      onTap: () {
+                        Navigator.of(context).pop();
+                        _openTriviaScreen();
+                      },
+                    ),
+                    const SizedBox(height: 6),
+
+                    // 4. Tienda
+                    _buildDrawerItem(
+                      icon: Icons.storefront_rounded,
+                      iconColor: AppTheme.hextechGold,
+                      title: 'Tienda de Consultas',
+                      subtitle: 'Packs, ofertas y recarga rápida',
+                      onTap: () {
+                        Navigator.of(context).pop();
+                        _openStoreScreen();
+                      },
+                    ),
+                    const SizedBox(height: 12),
+
+                    Divider(color: Colors.white.withValues(alpha: 0.08), height: 1),
+                    const SizedBox(height: 12),
+
+                    // 5. Ajustes
+                    _buildDrawerItem(
+                      icon: Icons.settings_suggest_rounded,
+                      iconColor: AppTheme.hextechCyan,
+                      title: 'Ajustes',
+                      subtitle: 'Idioma, guía y preferencias',
+                      onTap: () {
+                        Navigator.of(context).pop();
+                        _showSettingsModal();
+                      },
+                    ),
+                  ],
+                ),
+              ),
+
+              // Footer del Menú Lateral
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Un poco más arriba: 100% seguro Riot Games
+                    InkWell(
+                      onTap: () {
+                        Navigator.of(context).pop();
+                        HomeModals.showSecurityInfoDialog(context);
+                      },
+                      borderRadius: BorderRadius.circular(14),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: AppTheme.hextechEmerald.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(color: AppTheme.hextechEmerald.withValues(alpha: 0.3)),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(Icons.verified_user_rounded, color: AppTheme.hextechEmerald, size: 14),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                '100% Seguro • Cumple políticas Riot',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: GoogleFonts.outfit(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                  color: const Color(0xFF6EE7B7),
+                                ),
+                              ),
+                            ),
+                            const Icon(Icons.info_outline_rounded, color: Color(0xFF6EE7B7), size: 13),
+                          ],
+                        ),
+                      ),
+                    ),
+
+                    const SizedBox(height: 10),
+
+                    // Parte inferior: (Foto) (Correo) (Log out)
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: AppTheme.cardDark.withValues(alpha: 0.9),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+                      ),
+                      child: Row(
+                        children: [
+                          // Foto de perfil
+                          CircleAvatar(
+                            radius: 17,
+                            backgroundColor: AppTheme.primary.withValues(alpha: 0.3),
+                            backgroundImage: userPhotoUrl != null ? NetworkImage(userPhotoUrl) : null,
+                            child: userPhotoUrl == null
+                                ? const Icon(Icons.person, color: Colors.white, size: 18)
+                                : null,
+                          ),
+                          const SizedBox(width: 10),
+                          // Correo
+                          Expanded(
+                            child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              if (_user.userName != null && _user.userName!.isNotEmpty)
+                                Text(
+                                  _user.userName!,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: GoogleFonts.outfit(
+                                    fontSize: 12.5,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              Text(
+                                _user.userEmail ?? 'invocador@riot.com',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: Colors.white.withValues(alpha: 0.6),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        // Log out
+                        IconButton(
+                          tooltip: 'Cerrar Sesión',
+                          icon: const Icon(Icons.logout_rounded, color: AppTheme.hextechCrimson, size: 20),
+                          onPressed: () {
+                            Navigator.of(context).pop();
+                            _showLogoutDialog();
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: Text(lang.tr('cancel'), style: const TextStyle(color: Colors.grey)),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
-            onPressed: () {
-              Navigator.of(ctx).pop();
-              _handleLogout();
-            },
-            child: Text(lang.tr('logout_confirm'), style: const TextStyle(color: Colors.white)),
-          ),
-        ],
+      ),
+    ),
+  );
+}
+
+  Widget _buildDrawerItem({
+    required IconData icon,
+    required Color iconColor,
+    required String title,
+    required String subtitle,
+    required VoidCallback onTap,
+    String? badge,
+    Color? badgeColor,
+  }) {
+    return InkWell(
+      onTap: () {
+        HapticFeedback.selectionClick();
+        onTap();
+      },
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+        decoration: BoxDecoration(
+          color: AppTheme.cardDark.withValues(alpha: 0.65),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: iconColor.withValues(alpha: 0.15),
+              ),
+              child: Icon(icon, color: iconColor, size: 20),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    children: [
+                      Text(
+                        title,
+                        style: GoogleFonts.outfit(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
+                      if (badge != null) ...[
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: badgeColor ?? AppTheme.hextechCrimson,
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            badge,
+                            style: GoogleFonts.outfit(
+                              fontSize: 9.5,
+                              fontWeight: FontWeight.w800,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    style: TextStyle(
+                      fontSize: 11.5,
+                      color: Colors.white.withValues(alpha: 0.5),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(Icons.chevron_right_rounded, color: Colors.white30, size: 18),
+          ],
+        ),
       ),
     );
   }
@@ -581,39 +1120,49 @@ class _IndexScreenState extends State<IndexScreen> with WidgetsBindingObserver {
       _isLoadingQueries = true;
     });
 
+    if (_isSelectedModelAdOnCooldown) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: AppTheme.hextechCrimson,
+            behavior: SnackBarBehavior.floating,
+            content: Text('$_selectedModelDisplayName está en enfriamiento. Vuelve mañana.'),
+          ),
+        );
+      }
+      return;
+    }
+
     HapticFeedback.mediumImpact();
 
+    final String targetTier = _selectedModelTier;
     AdService.showRewardedAd(
       onUserEarnedReward: () async {
         try {
-          final response = await ApiClient.post('/api/v1/user/obtain-queries', authenticated: true);
-          int added = 2;
+          final response = await ApiClient.post(
+            '/api/v1/user/obtain-queries',
+            authenticated: true,
+            body: {'model_tier': targetTier},
+          );
+          int added = targetTier == 'classic' ? 2 : 1;
 
           if (response.statusCode == 200) {
-            final data = jsonDecode(response.body);
-            if (data['available_queries'] is int) {
-              _availableQueries = data['available_queries'];
-            } else {
-              _availableQueries += added;
-            }
-            if (data['ad_queries'] is int) {
-              _adQueries = data['ad_queries'];
-            } else {
-              _adQueries += added;
-            }
-            if (data['daily_queries'] is int) {
-              _dailyQueries = data['daily_queries'];
-            }
-            if (data['bonus_queries'] is int) {
-              _bonusQueries = data['bonus_queries'];
-            }
+            final data = jsonDecode(response.body) as Map<String, dynamic>;
+            if (data['added'] is int) added = data['added'] as int;
+            _user.queries.updateFromServerMap(data, fallbackAddedAdQueries: added);
           } else if (response.statusCode == 429) {
+            String errMsg = LanguageService.instance.tr('home_wait_15s');
+            try {
+              final data = jsonDecode(response.body) as Map<String, dynamic>;
+              _user.queries.updateFromServerMap(data);
+              if (data['message'] != null) errMsg = data['message'].toString();
+            } catch (_) {}
             if (mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
-                  backgroundColor: const Color(0xFFEF4444),
+                  backgroundColor: AppTheme.hextechCrimson,
                   behavior: SnackBarBehavior.floating,
-                  content: Text(LanguageService.instance.tr('home_wait_15s')),
+                  content: Text(errMsg),
                 ),
               );
             }
@@ -621,15 +1170,12 @@ class _IndexScreenState extends State<IndexScreen> with WidgetsBindingObserver {
           }
 
           final prefs = await SharedPreferences.getInstance();
-          await prefs.setInt('available_queries', _availableQueries);
-          await prefs.setInt('ad_queries', _adQueries);
-          await prefs.setInt('daily_queries', _dailyQueries);
-          await prefs.setInt('bonus_queries', _bonusQueries);
+          await _user.queries.saveToPrefs(prefs);
 
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                backgroundColor: const Color(0xFF10B981),
+                backgroundColor: AppTheme.hextechEmerald,
                 behavior: SnackBarBehavior.floating,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 content: Row(
@@ -680,149 +1226,10 @@ class _IndexScreenState extends State<IndexScreen> with WidgetsBindingObserver {
   }
 
   void _showNoQueriesDialog() {
-    final lang = LanguageService.instance;
-    showDialog(
+    HomeModals.showNoQueriesDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: AppTheme.surface,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Row(
-          children: [
-            const Icon(Icons.bolt_rounded, color: Color(0xFFF59E0B), size: 28),
-            const SizedBox(width: 8),
-            Text(lang.tr('no_queries_title'), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-          ],
-        ),
-        content: Text(
-          lang.tr('no_queries_body'),
-          style: const TextStyle(color: AppTheme.textMuted, fontSize: 14),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: Text(lang.tr('cancel'), style: const TextStyle(color: Colors.grey)),
-          ),
-          ElevatedButton.icon(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF10B981),
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            ),
-            onPressed: () {
-              Navigator.of(ctx).pop();
-              _obtainQueries();
-            },
-            icon: const Icon(Icons.bolt_rounded),
-            label: Text(lang.tr('no_queries_btn')),
-          ),
-        ],
-      ),
+      onObtainQueries: _obtainQueries,
     );
-  }
-
-  Future<bool> _checkAndShowDisclosure() async {
-    final prefs = await SharedPreferences.getInstance();
-    final hasAccepted = prefs.getBool('hasAcceptedDisclosure') ?? false;
-
-    if (hasAccepted) {
-      return true;
-    }
-
-    if (!mounted) return false;
-    final lang = LanguageService.instance;
-
-    final result = await showDialog<bool>(
-      context: context,
-      barrierDismissible: false,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          backgroundColor: AppTheme.surface,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          title: Text(
-            lang.tr('disclosure_title'),
-            style: const TextStyle(color: AppTheme.textLight, fontWeight: FontWeight.bold),
-          ),
-          content: Text(
-            lang.tr('disclosure_body'),
-            style: const TextStyle(color: AppTheme.textMuted, height: 1.4),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(false),
-              child: Text(lang.tr('disclosure_reject'), style: const TextStyle(color: Colors.redAccent)),
-            ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppTheme.primary,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              ),
-              onPressed: () => Navigator.of(context).pop(true),
-              child: Text(lang.tr('disclosure_accept'), style: const TextStyle(color: Colors.white)),
-            ),
-          ],
-        );
-      },
-    );
-
-    if (result == true) {
-      await prefs.setBool('hasAcceptedDisclosure', true);
-      return true;
-    }
-    return false;
-  }
-
-  Future<void> _showBatteryOptimizationDialog() async {
-    final prefs = await SharedPreferences.getInstance();
-    final bool alreadyAsked = prefs.getBool('hasAskedBatteryOptimization') ?? false;
-    if (alreadyAsked) return;
-
-    if (!mounted) return;
-    final lang = LanguageService.instance;
-    final proceed = await showDialog<bool>(
-      context: context,
-      barrierDismissible: true,
-      builder: (BuildContext ctx) {
-        return AlertDialog(
-          backgroundColor: AppTheme.surface,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          title: Row(
-            children: [
-              const Icon(Icons.bolt, color: Colors.amber, size: 28),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  lang.tr('battery_title'),
-                  style: const TextStyle(color: AppTheme.textLight, fontWeight: FontWeight.bold, fontSize: 18),
-                ),
-              ),
-            ],
-          ),
-          content: Text(
-            lang.tr('battery_body'),
-            style: const TextStyle(color: AppTheme.textMuted, height: 1.4, fontSize: 14),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(ctx).pop(false),
-              child: Text(lang.tr('not_now'), style: const TextStyle(color: AppTheme.textMuted)),
-            ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppTheme.primary,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              ),
-              onPressed: () => Navigator.of(ctx).pop(true),
-              child: Text(lang.tr('allow'), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-            ),
-          ],
-        );
-      },
-    );
-
-    await prefs.setBool('hasAskedBatteryOptimization', true);
-    if (proceed == true) {
-      await NativeService.requestIgnoreBatteryOptimizations();
-    }
   }
 
   Future<void> _openLolPcScanner() async {
@@ -837,9 +1244,7 @@ class _IndexScreenState extends State<IndexScreen> with WidgetsBindingObserver {
       final picker = ImagePicker();
       final XFile? photo = await picker.pickImage(
         source: ImageSource.camera,
-        maxWidth: 1280,
-        maxHeight: 720,
-        imageQuality: 82,
+        imageQuality: 100,
       );
 
       if (photo == null) return; // Cancelado por el usuario
@@ -863,7 +1268,7 @@ class _IndexScreenState extends State<IndexScreen> with WidgetsBindingObserver {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(LanguageService.instance.tr('pc_scanner_camera_error', {'error': '$e'})),
-          backgroundColor: const Color(0xFFEF4444),
+          backgroundColor: AppTheme.hextechCrimson,
         ),
       );
     }
@@ -884,17 +1289,17 @@ class _IndexScreenState extends State<IndexScreen> with WidgetsBindingObserver {
         ),
       );
     } else {
-      if (_availableQueries <= 0) {
+      if (!_isLocalModelSelected && _availableQueries <= 0) {
         _showNoQueriesDialog();
         return;
       }
 
-      final hasPermission = await _checkAndShowDisclosure();
+      final hasPermission = await HomeModals.checkAndShowDisclosure(context);
       if (!hasPermission) return;
 
       final isOptimized = await NativeService.isIgnoringBatteryOptimizations();
-      if (!isOptimized) {
-        await _showBatteryOptimizationDialog();
+      if (!isOptimized && mounted) {
+        await HomeModals.showBatteryOptimizationDialog(context);
       }
 
       bool started = await NativeService.startCaptureService(
@@ -909,6 +1314,7 @@ class _IndexScreenState extends State<IndexScreen> with WidgetsBindingObserver {
         activeCreatorId: "",
         language: lang.currentLanguage,
         gameMode: _selectedGameMode,
+        modelTier: _selectedModelTier,
       );
 
       if (started) {
@@ -955,121 +1361,21 @@ class _IndexScreenState extends State<IndexScreen> with WidgetsBindingObserver {
           onNoQueries: _showNoQueriesDialog,
           initialRole: _selectedMainRole,
           initialMyChampion: _selectedOtpChampion.isNotEmpty ? _selectedOtpChampion : null,
+          modelTier: _selectedModelTier,
         ),
       ),
     );
     _fetchUserData();
   }
 
-  /// Abre el Simulador 2D de Esquivo de Habilidades con Lazy Loading (Deferred Library)
-  /// y Priorización de Recursos estilo SO (hibernando todos los Tickers de las demás pantallas).
+  /// Abre el Simulador 2D de Esquivo de Habilidades cambiando a la pestaña Game 2D
   Future<void> _openDodgeSimulator() async {
     HapticFeedback.mediumImpact();
-    // 1. Cargamos el módulo del motor 2D bajo demanda (Lazy Load)
-    await dodge_sim.loadLibrary();
     if (!mounted) return;
-
-    // 2. Hibernamos las animaciones/tickers de todas las pestañas de Drafting
-    // y liberamos caché temporal de imágenes decodificadas innecesarias
-    PaintingBinding.instance.imageCache.clearLiveImages();
     setState(() {
-      _isHighPriorityGameRunning = true;
+      _visitedTabs.add(2);
+      _currentTab = 2;
     });
-
-    try {
-      await Navigator.of(context).push(
-        PageRouteBuilder(
-           opaque: true,
-          transitionDuration: const Duration(milliseconds: 220),
-          pageBuilder: (_, __, ___) => dodge_sim.DodgeSimulatorScreen(
-            userName: (_userName != null && _userName!.trim().isNotEmpty)
-                ? _userName!
-                : 'Invocador',
-            userPhotoUrl: _userPhotoUrl,
-          ),
-          transitionsBuilder: (_, animation, __, child) {
-            return FadeTransition(opacity: animation, child: child);
-          },
-        ),
-      );
-    } finally {
-      // 3. Al salir del juego, restauramos la prioridad normal de la interfaz
-      if (mounted) {
-        setState(() {
-          _isHighPriorityGameRunning = false;
-        });
-      }
-    }
-  }
-
-  void _showSecurityInfoDialog() {
-    HapticFeedback.lightImpact();
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF1E293B),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-          side: const BorderSide(color: Color(0xFF10B981), width: 1.2),
-        ),
-        title: Row(
-          children: [
-            const Icon(Icons.verified_user_rounded, color: Color(0xFF10B981), size: 26),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                '100% Seguro & Anti-Ban',
-                style: GoogleFonts.outfit(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 17,
-                ),
-              ),
-            ),
-          ],
-        ),
-        content: SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                '¿Drafting puede causar ban en Wild Rift?',
-                style: GoogleFonts.outfit(
-                  color: const Color(0xFF10B981),
-                  fontWeight: FontWeight.bold,
-                  fontSize: 14,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'NO. Drafting cumple estrictamente con las políticas de Riot Games para herramientas complementarias:\n\n'
-                '• NO inyecta código ni modifica archivos de Wild Rift.\n'
-                '• NO accede a la memoria interna del juego.\n'
-                '• Funciona como una guía estratégica externa (igual que Porofessor o Blitz en PC).\n\n'
-                'Además, si prefieres no usar la burbuja flotante, puedes usar el Modo Manual sin permisos de pantalla.',
-                style: GoogleFonts.inter(
-                  color: Colors.white70,
-                  fontSize: 13,
-                  height: 1.45,
-                ),
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF10B981),
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            ),
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('Entendido', style: TextStyle(fontWeight: FontWeight.bold)),
-          ),
-        ],
-      ),
-    );
   }
 
   void _showOtpChampionPickerModal() {
@@ -1078,117 +1384,23 @@ class _IndexScreenState extends State<IndexScreen> with WidgetsBindingObserver {
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (ctx) {
-        String search = '';
-        return StatefulBuilder(
-          builder: (context, setModalState) {
-            final filtered = search.isEmpty
-                ? AppConstants.wildRiftChampions
-                : AppConstants.wildRiftChampions
-                    .where((c) => c.toLowerCase().contains(search.toLowerCase()))
-                    .toList();
-            return Container(
-              height: MediaQuery.of(context).size.height * 0.72,
-              decoration: const BoxDecoration(
-                color: Color(0xFF0F172A),
-                borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-              ),
-              child: Column(
-                children: [
-                  const SizedBox(height: 12),
-                  Container(
-                    width: 40,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: Colors.white24,
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(20, 16, 20, 10),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.star_rounded, color: Color(0xFFFDE047), size: 22),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            'Tu Campeón Favorito (OTP)',
-                            style: GoogleFonts.outfit(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
-                            ),
-                          ),
-                        ),
-                        if (_selectedOtpChampion.isNotEmpty)
-                          TextButton(
-                            onPressed: () {
-                              _updateOtpChampion('');
-                              Navigator.of(ctx).pop();
-                            },
-                            child: const Text('Limpiar', style: TextStyle(color: Colors.redAccent)),
-                          ),
-                      ],
-                    ),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
-                    child: TextField(
-                      onChanged: (val) => setModalState(() => search = val),
-                      style: const TextStyle(color: Colors.white),
-                      decoration: InputDecoration(
-                        hintText: 'Buscar campeón...',
-                        hintStyle: const TextStyle(color: Colors.white38),
-                        prefixIcon: const Icon(Icons.search_rounded, color: Color(0xFF00E5FF)),
-                        filled: true,
-                        fillColor: const Color(0xFF1E293B),
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(14),
-                          borderSide: BorderSide.none,
-                        ),
-                      ),
-                    ),
-                  ),
-                  Expanded(
-                    child: ListView.builder(
-                      itemCount: filtered.length,
-                      itemBuilder: (context, idx) {
-                        final champ = filtered[idx];
-                        final isSelected = champ == _selectedOtpChampion;
-                        return ListTile(
-                          leading: CircleAvatar(
-                            backgroundColor: isSelected ? const Color(0xFF00E5FF) : const Color(0xFF1E293B),
-                            child: Text(
-                              champ.substring(0, 1),
-                              style: TextStyle(
-                                color: isSelected ? const Color(0xFF090D16) : Colors.white,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                          title: Text(
-                            champ,
-                            style: TextStyle(
-                              color: isSelected ? const Color(0xFF00E5FF) : Colors.white,
-                              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                            ),
-                          ),
-                          trailing: isSelected ? const Icon(Icons.check_circle_rounded, color: Color(0xFF00E5FF)) : null,
-                          onTap: () {
-                            _updateOtpChampion(champ);
-                            Navigator.of(ctx).pop();
-                          },
-                        );
-                      },
-                    ),
-                  ),
-                ],
-              ),
-            );
-          },
-        );
-      },
+      builder: (ctx) => ChampionPickerSheet(
+        title: 'Tu Campeón Favorito (OTP)',
+        selectedChampion: _selectedOtpChampion,
+        searchHint: 'Buscar campeón...',
+        heightFactor: 0.72,
+        leadingHeaderIcon: const Icon(Icons.star_rounded, color: Color(0xFFFDE047), size: 22),
+        onClear: _selectedOtpChampion.isNotEmpty
+            ? () {
+                _updateOtpChampion('');
+                Navigator.of(ctx).pop();
+              }
+            : null,
+        onSelected: (champ) {
+          _updateOtpChampion(champ);
+          Navigator.of(ctx).pop();
+        },
+      ),
     );
   }
 
@@ -1210,58 +1422,39 @@ class _IndexScreenState extends State<IndexScreen> with WidgetsBindingObserver {
   Widget build(BuildContext context) {
     return ValueListenableBuilder<String>(
       valueListenable: LanguageService.instance.languageNotifier,
-      builder: (context, _, __) {
+      builder: (context, _, _) {
         return Scaffold(
-          backgroundColor: const Color(0xFF0B0E14),
+          key: _scaffoldKey,
+          drawer: _buildDrawer(),
+          backgroundColor: AppTheme.darkScaffold,
           extendBody: false,
           body: IndexedStack(
             index: _currentTab,
             children: [
               _buildPrioritizedTab(
                 0,
-                () => EventsScreen(
-                  key: _eventsKey,
+                () => ReelsScreen(
                   isTab: true,
-                  userEmail: _userEmail,
-                  onLiveEventChanged: (live) {
-                    if (mounted) {
-                      setState(() => _liveEvent = live);
-                    }
-                  },
+                  isActive: _currentTab == 0,
+                  userPhotoUrl: _user.userPhotoUrl,
                 ),
               ),
               _buildPrioritizedTab(
                 1,
-                () => AchievementsScreen(
-                  referralCode: _referralCode ?? '',
-                  referralCount: _referralCount,
-                  referralRewardsClaimed: _referralRewardsClaimed,
-                  hasRedeemedReferral: _hasRedeemedReferral,
-                  onDataChanged: _fetchUserData,
-                  isTab: true,
-                ),
+                _buildHomeContent,
               ),
-              _buildPrioritizedTab(2, _buildHomeContent),
               _buildPrioritizedTab(
-                3,
-                () => TriviaScreen(
-                  onLivesChanged: _fetchUserData,
-                  isTab: true,
-                ),
-              ),
-              if (showDonationsTab)
-                _buildPrioritizedTab(
-                  4,
-                  () => DonationsScreen(
-                    onDataChanged: _fetchUserData,
-                    isTab: true,
-                  ),
-                ),
-              _buildPrioritizedTab(
-                showDonationsTab ? 5 : 4,
-                () => StoreScreen(
-                  onDataChanged: _fetchUserData,
-                  isTab: true,
+                2,
+                () => DodgeSimulatorScreen(
+                  userName: (_user.userName != null && _user.userName!.trim().isNotEmpty)
+                      ? _user.userName!
+                      : 'Invocador',
+                  userPhotoUrl: _user.userPhotoUrl,
+                  onExit: () {
+                    if (mounted) {
+                      setState(() => _currentTab = 1);
+                    }
+                  },
                 ),
               ),
             ],
@@ -1275,234 +1468,238 @@ class _IndexScreenState extends State<IndexScreen> with WidgetsBindingObserver {
   Widget _buildHomeContent() {
     final lang = LanguageService.instance;
     final langOpt = lang.currentOption;
+    final userPhotoUrl = _user.userPhotoUrl;
+
     return Container(
-        width: double.infinity,
-        height: double.infinity,
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              Color(0xFF0F172A),
-              Color(0xFF080B11),
-            ],
-          ),
-        ),
-        child: SafeArea(
-          child: Column(
-            children: [
-              // --- 1. TOP HEADER BAR (Compacto, SIN DESBORDAMIENTO) ---
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 12.0),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    // Brand Logo & Title
-                    Row(
-                      children: [
-                        Container(
+      width: double.infinity,
+      height: double.infinity,
+      decoration: const BoxDecoration(
+        gradient: AppTheme.screenBackgroundGradient,
+      ),
+      child: SafeArea(
+        child: Column(
+          children: [
+            // --- 1. TOP HEADER BAR (Compacto, SIN DESBORDAMIENTO) ---
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 12.0),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  // Botón Hamburguesa + Logo & Título
+                  Row(
+                    children: [
+                      InkWell(
+                        onTap: () {
+                          HapticFeedback.lightImpact();
+                          _scaffoldKey.currentState?.openDrawer();
+                        },
+                        borderRadius: BorderRadius.circular(12),
+                        child: Container(
                           padding: const EdgeInsets.all(8),
                           decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            gradient: const LinearGradient(
-                              colors: [Color(0xFF00E5FF), Color(0xFF0052D4)],
+                            color: AppTheme.hextechCyan.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: AppTheme.hextechCyan.withValues(alpha: 0.35),
+                              width: 1.2,
                             ),
                             boxShadow: [
                               BoxShadow(
-                                color: const Color(0xFF00E5FF).withValues(alpha: 0.3),
-                                blurRadius: 12,
+                                color: AppTheme.hextechCyan.withValues(alpha: 0.2),
+                                blurRadius: 8,
                               ),
                             ],
                           ),
-                          child: const Icon(Icons.auto_awesome, color: Colors.white, size: 20),
+                          child: const Icon(Icons.menu_rounded, color: Colors.white, size: 22),
                         ),
-                        const SizedBox(width: 12),
-                        Text(
-                          'Drafting',
-                          style: GoogleFonts.outfit(
-                            fontSize: 24,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: 1.2,
-                            color: Colors.white,
-                          ),
-                        ),
-                      ],
-                    ),
-
-                    // Actions: Language Selector, Tutorial & User Profile Avatar (Compact)
-                    Row(
-                      children: [
-                        // Selector de Idioma (ES / PT / EN / FR)
-                        Container(
-                          margin: const EdgeInsets.only(right: 8),
-                          child: InkWell(
-                            onTap: () => lang.showLanguagePickerModal(context),
-                            borderRadius: BorderRadius.circular(18),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFF00E5FF).withValues(alpha: 0.12),
-                                borderRadius: BorderRadius.circular(18),
-                                border: Border.all(color: const Color(0xFF00E5FF).withValues(alpha: 0.35)),
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Text(langOpt.flag, style: const TextStyle(fontSize: 13.5)),
-                                  const SizedBox(width: 4),
-                                  Text(
-                                    langOpt.badge,
-                                    style: GoogleFonts.outfit(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w800,
-                                      color: Colors.white,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
-
-                        // Tutorial / Help Button
-                        Container(
-                          margin: const EdgeInsets.only(right: 10),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF00E5FF).withValues(alpha: 0.12),
-                            shape: BoxShape.circle,
-                            border: Border.all(color: const Color(0xFF00E5FF).withValues(alpha: 0.3)),
-                          ),
-                          child: IconButton(
-                            tooltip: lang.tr('tut_header'),
-                            icon: const Icon(Icons.help_outline_rounded, color: Color(0xFF00E5FF), size: 20),
-                            padding: const EdgeInsets.all(7),
-                            constraints: const BoxConstraints(),
-                            onPressed: () => TutorialDialog.show(context),
-                          ),
-                        ),
-
-                        // User Profile Avatar (Tap to logout / info)
-                        InkWell(
-                          onTap: _showLogoutDialog,
-                          borderRadius: BorderRadius.circular(20),
-                          child: Container(
-                            padding: const EdgeInsets.all(2),
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              border: Border.all(color: Colors.white.withValues(alpha: 0.25), width: 1.5),
-                            ),
-                            child: CircleAvatar(
-                              radius: 16,
-                              backgroundColor: AppTheme.primary.withValues(alpha: 0.3),
-                              backgroundImage: _userPhotoUrl != null ? NetworkImage(_userPhotoUrl!) : null,
-                              child: _userPhotoUrl == null
-                                  ? const Icon(Icons.person, color: Colors.white, size: 18)
-                                  : null,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-
-              const SizedBox(height: 8),
-
-              // --- 1.5 BANNER DE ACTUALIZACIÓN AUTOMÁTICA (SI HAY NUEVA VERSIÓN EN GOOGLE PLAY) ---
-              ValueListenableBuilder<AppUpdateStatus?>(
-                valueListenable: UpdateService.instance.updateStatus,
-                builder: (context, updateInfo, _) {
-                  if (updateInfo == null || !updateInfo.hasUpdate) {
-                    return const SizedBox.shrink();
-                  }
-                  final bool isReady = updateInfo.isDownloaded;
-                  final bool isDownloading = updateInfo.isDownloading;
-                  final Color bannerColor =
-                      isReady ? const Color(0xFF10B981) : const Color(0xFF00E5FF);
-                  final String bannerText = isDownloading
-                      ? '${lang.tr("home_update_banner", {"version": updateInfo.latestVersionName})} (${updateInfo.downloadProgress}%)'
-                      : lang.tr('home_update_banner', {'version': updateInfo.latestVersionName});
-
-                  return Padding(
-                    padding: const EdgeInsets.fromLTRB(20, 0, 20, 10),
-                    child: InkWell(
-                      onTap: () => UpdateService.instance.onBannerTapped(
-                        context,
-                        updateInfo,
-                        langCode: lang.currentLanguage,
                       ),
-                      borderRadius: BorderRadius.circular(14),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(14),
-                          gradient: LinearGradient(
-                            colors: [
-                              bannerColor.withValues(alpha: 0.22),
-                              const Color(0xFF10B981).withValues(alpha: 0.16),
+                      const SizedBox(width: 12),
+                      Text(
+                        'Drafting',
+                        style: GoogleFonts.outfit(
+                          fontSize: 24,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 1.2,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  // Selector Desplegable de Modo de Juego (Wild Rift / LoL PC)
+                  Theme(
+                    data: Theme.of(context).copyWith(
+                      cardColor: AppTheme.surface,
+                    ),
+                    child: PopupMenuButton<String>(
+                      tooltip: 'Modo de Consulta',
+                      offset: const Offset(0, 44),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                        side: BorderSide(
+                          color: (_selectedGameMode == 'wild_rift'
+                                  ? AppTheme.hextechCyan
+                                  : AppTheme.hextechGold)
+                              .withValues(alpha: 0.4),
+                          width: 1.2,
+                        ),
+                      ),
+                      color: const Color(0xFF0F172A),
+                      onSelected: (mode) {
+                        HapticFeedback.selectionClick();
+                        setState(() => _selectedGameMode = mode);
+                        SharedPreferences.getInstance()
+                            .then((p) => p.setString('game_mode', mode));
+                      },
+                      itemBuilder: (context) => [
+                        PopupMenuItem<String>(
+                          value: 'wild_rift',
+                          child: Row(
+                            children: [
+                              Image.asset(
+                                'assets/images/logo_wild_rift.png',
+                                height: 24,
+                                fit: BoxFit.contain,
+                              ),
+                              const SizedBox(width: 10),
+                              Text(
+                                'Wild Rift',
+                                style: GoogleFonts.outfit(
+                                  fontSize: 13.5,
+                                  fontWeight: _selectedGameMode == 'wild_rift'
+                                      ? FontWeight.w800
+                                      : FontWeight.w600,
+                                  color: _selectedGameMode == 'wild_rift'
+                                      ? AppTheme.hextechCyan
+                                      : Colors.white70,
+                                ),
+                              ),
+                              const Spacer(),
+                              if (_selectedGameMode == 'wild_rift')
+                                const Icon(Icons.check_circle_rounded,
+                                    color: AppTheme.hextechCyan, size: 18),
                             ],
                           ),
-                          border: Border.all(
-                            color: bannerColor.withValues(alpha: 0.55),
+                        ),
+                        const PopupMenuDivider(height: 1),
+                        PopupMenuItem<String>(
+                          value: 'lol_pc',
+                          child: Row(
+                            children: [
+                              Image.asset(
+                                'assets/images/logo_lol_pc.png',
+                                height: 24,
+                                fit: BoxFit.contain,
+                              ),
+                              const SizedBox(width: 10),
+                              Text(
+                                'LoL PC',
+                                style: GoogleFonts.outfit(
+                                  fontSize: 13.5,
+                                  fontWeight: _selectedGameMode == 'lol_pc'
+                                      ? FontWeight.w800
+                                      : FontWeight.w600,
+                                  color: _selectedGameMode == 'lol_pc'
+                                      ? AppTheme.hextechGold
+                                      : Colors.white70,
+                                ),
+                              ),
+                              const Spacer(),
+                              if (_selectedGameMode == 'lol_pc')
+                                const Icon(Icons.check_circle_rounded,
+                                    color: AppTheme.hextechGold, size: 18),
+                            ],
                           ),
+                        ),
+                      ],
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: (_selectedGameMode == 'wild_rift'
+                                  ? AppTheme.hextechCyan
+                                  : AppTheme.hextechGold)
+                              .withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: (_selectedGameMode == 'wild_rift'
+                                    ? AppTheme.hextechCyan
+                                    : AppTheme.hextechGold)
+                                .withValues(alpha: 0.4),
+                            width: 1.2,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: (_selectedGameMode == 'wild_rift'
+                                      ? AppTheme.hextechCyan
+                                      : AppTheme.hextechGold)
+                                  .withValues(alpha: 0.15),
+                              blurRadius: 8,
+                            ),
+                          ],
                         ),
                         child: Row(
+                          mainAxisSize: MainAxisSize.min,
                           children: [
+                            Image.asset(
+                              _selectedGameMode == 'wild_rift'
+                                  ? 'assets/images/logo_wild_rift.png'
+                                  : 'assets/images/logo_lol_pc.png',
+                              height: 20,
+                              fit: BoxFit.contain,
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              _selectedGameMode == 'wild_rift' ? 'Wild Rift' : 'LoL PC',
+                              style: GoogleFonts.outfit(
+                                fontSize: 12.5,
+                                fontWeight: FontWeight.w800,
+                                color: _selectedGameMode == 'wild_rift'
+                                    ? AppTheme.hextechCyan
+                                    : AppTheme.hextechGold,
+                              ),
+                            ),
+                            const SizedBox(width: 4),
                             Icon(
-                              isReady
-                                  ? Icons.install_mobile_rounded
-                                  : Icons.system_update_rounded,
-                              color: bannerColor,
-                              size: 20,
-                            ),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: Text(
-                                bannerText,
-                                style: GoogleFonts.outfit(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w700,
-                                  color: Colors.white,
-                                ),
-                              ),
-                            ),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                              decoration: BoxDecoration(
-                                color: bannerColor,
-                                borderRadius: BorderRadius.circular(10),
-                              ),
-                              child: Text(
-                                lang.tr('home_update_btn'),
-                                style: GoogleFonts.outfit(
-                                  fontSize: 11.5,
-                                  fontWeight: FontWeight.w800,
-                                  color: const Color(0xFF090D16),
-                                ),
-                              ),
+                              Icons.keyboard_arrow_down_rounded,
+                              color: _selectedGameMode == 'wild_rift'
+                                  ? AppTheme.hextechCyan
+                                  : AppTheme.hextechGold,
+                              size: 18,
                             ),
                           ],
                         ),
                       ),
                     ),
-                  );
-                },
+                  ),
+                ],
               ),
+            ),
 
-              // --- 1.6 BANNER ROJO EN TIEMPO REAL SI ESTAMOS EN DIRECTO AHORA ---
-              if (_liveEvent != null)
-                Padding(
+            const SizedBox(height: 8),
+
+            // --- 1.5 BANNER DE ACTUALIZACIÓN AUTOMÁTICA (SI HAY NUEVA VERSIÓN EN GOOGLE PLAY) ---
+            ValueListenableBuilder<AppUpdateStatus?>(
+              valueListenable: UpdateService.instance.updateStatus,
+              builder: (context, updateInfo, _) {
+                if (updateInfo == null || !updateInfo.hasUpdate) {
+                  return const SizedBox.shrink();
+                }
+                final bool isReady = updateInfo.isDownloaded;
+                final bool isDownloading = updateInfo.isDownloading;
+                final Color bannerColor =
+                    isReady ? AppTheme.hextechEmerald : AppTheme.hextechCyan;
+                final String bannerText = isDownloading
+                    ? '${lang.tr("home_update_banner", {"version": updateInfo.latestVersionName})} (${updateInfo.downloadProgress}%)'
+                    : lang.tr('home_update_banner', {'version': updateInfo.latestVersionName});
+
+                return Padding(
                   padding: const EdgeInsets.fromLTRB(20, 0, 20, 10),
                   child: InkWell(
-                    onTap: () {
-                      final url = (_liveEvent!['action_url'] ?? '').toString();
-                      if (url.isNotEmpty) {
-                        NativeService.openExternalUrl(url);
-                      } else {
-                        setState(() => _currentTab = 0);
-                      }
-                    },
+                    onTap: () => UpdateService.instance.onBannerTapped(
+                      context,
+                      updateInfo,
+                      langCode: lang.currentLanguage,
+                    ),
                     borderRadius: BorderRadius.circular(14),
                     child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
@@ -1510,35 +1707,27 @@ class _IndexScreenState extends State<IndexScreen> with WidgetsBindingObserver {
                         borderRadius: BorderRadius.circular(14),
                         gradient: LinearGradient(
                           colors: [
-                            const Color(0xFFEF4444).withValues(alpha: 0.28),
-                            const Color(0xFF0F172A),
+                            bannerColor.withValues(alpha: 0.22),
+                            AppTheme.hextechEmerald.withValues(alpha: 0.16),
                           ],
                         ),
-                        border: Border.all(color: const Color(0xFFEF4444), width: 1.2),
+                        border: Border.all(
+                          color: bannerColor.withValues(alpha: 0.55),
+                        ),
                       ),
                       child: Row(
                         children: [
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFEF4444),
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            child: Text(
-                              lang.tr('home_live_badge'),
-                              style: GoogleFonts.outfit(
-                                fontSize: 10.5,
-                                fontWeight: FontWeight.w800,
-                                color: Colors.white,
-                              ),
-                            ),
+                          Icon(
+                            isReady
+                                ? Icons.install_mobile_rounded
+                                : Icons.system_update_rounded,
+                            color: bannerColor,
+                            size: 20,
                           ),
                           const SizedBox(width: 10),
                           Expanded(
                             child: Text(
-                              (_liveEvent!['title'] ?? '').toString(),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
+                              bannerText,
                               style: GoogleFonts.outfit(
                                 fontSize: 13,
                                 fontWeight: FontWeight.w700,
@@ -1546,462 +1735,419 @@ class _IndexScreenState extends State<IndexScreen> with WidgetsBindingObserver {
                               ),
                             ),
                           ),
-                          const Icon(Icons.open_in_new_rounded, color: Color(0xFFEF4444), size: 17),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                            decoration: BoxDecoration(
+                              color: bannerColor,
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Text(
+                              lang.tr('home_update_btn'),
+                              style: GoogleFonts.outfit(
+                                fontSize: 11.5,
+                                fontWeight: FontWeight.w800,
+                                color: AppTheme.deepDarkBg,
+                              ),
+                            ),
+                          ),
                         ],
                       ),
                     ),
                   ),
-                ),
+                );
+              },
+            ),
 
-              // --- 2. CONSULTAS & RECARGA CARD (Compacto y unificado) ---
+            // --- 1.6 BANNER ROJO EN TIEMPO REAL SI ESTAMOS EN DIRECTO AHORA ---
+            if (_liveEvent != null)
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20.0),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(18),
-                    gradient: LinearGradient(
-                      colors: [
-                        const Color(0xFF1E293B).withValues(alpha: 0.75),
-                        const Color(0xFF0F172A).withValues(alpha: 0.9),
+                padding: const EdgeInsets.fromLTRB(20, 0, 20, 10),
+                child: InkWell(
+                  onTap: () {
+                    final url = (_liveEvent!['action_url'] ?? '').toString();
+                    if (url.isNotEmpty) {
+                      NativeService.openExternalUrl(url);
+                    } else {
+                      _openEventsScreen();
+                    }
+                  },
+                  borderRadius: BorderRadius.circular(14),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(14),
+                      gradient: LinearGradient(
+                        colors: [
+                          AppTheme.hextechCrimson.withValues(alpha: 0.28),
+                          AppTheme.background,
+                        ],
+                      ),
+                      border: Border.all(color: AppTheme.hextechCrimson, width: 1.2),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: AppTheme.hextechCrimson,
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            lang.tr('home_live_badge'),
+                            style: GoogleFonts.outfit(
+                              fontSize: 10.5,
+                              fontWeight: FontWeight.w800,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            (_liveEvent!['title'] ?? '').toString(),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: GoogleFonts.outfit(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                        const Icon(Icons.open_in_new_rounded, color: AppTheme.hextechCrimson, size: 17),
                       ],
                     ),
-                    border: Border.all(
-                      color: _availableQueries > 0
-                          ? const Color(0xFF00E5FF).withValues(alpha: 0.25)
-                          : Colors.redAccent.withValues(alpha: 0.4),
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.25),
-                        blurRadius: 12,
-                        offset: const Offset(0, 4),
-                      ),
+                  ),
+                ),
+              ),
+
+            // --- 2. MOTOR UNIFICADO: AUREON LOCAL HÍBRIDO (PODA POR ROL + VOZ LOCAL) ---
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20.0),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(18),
+                  gradient: LinearGradient(
+                    colors: [
+                      AppTheme.surface.withValues(alpha: 0.75),
+                      AppTheme.background.withValues(alpha: 0.9),
                     ],
                   ),
-                  child: Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: (_availableQueries > 0 ? const Color(0xFF00E5FF) : Colors.redAccent).withValues(alpha: 0.15),
-                        ),
-                        child: Icon(
-                          Icons.bolt_rounded,
-                          color: _availableQueries > 0 ? const Color(0xFF00E5FF) : Colors.redAccent,
-                          size: 22,
-                        ),
+                  border: Border.all(
+                    color: AppTheme.hextechEmerald.withValues(alpha: 0.35),
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.25),
+                      blurRadius: 12,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: AppTheme.hextechEmerald.withValues(alpha: 0.15),
                       ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: InkWell(
-                          onTap: _showQueriesBreakdownDialog,
-                          borderRadius: BorderRadius.circular(8),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisSize: MainAxisSize.min,
+                      child: const Icon(
+                        Icons.memory_rounded,
+                        color: AppTheme.hextechEmerald,
+                        size: 22,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Row(
                             children: [
-                              Row(
-                                children: [
-                                  Text(
-                                    '$_availableQueries ${_availableQueries == 1 ? lang.tr("home_query_singular") : lang.tr("home_query_plural")}',
-                                    style: GoogleFonts.outfit(
-                                      fontSize: 17,
-                                      fontWeight: FontWeight.bold,
-                                      color: Colors.white,
-                                    ),
+                              Flexible(
+                                child: Text(
+                                  'Aureon Local • IA Híbrida',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: GoogleFonts.outfit(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.white,
                                   ),
-                                  const SizedBox(width: 4),
-                                  const Icon(Icons.info_outline_rounded, size: 14, color: Colors.white38),
-                                ],
+                                ),
                               ),
-                              Text(
-                                lang.tr('home_tap_breakdown'),
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  color: Colors.white.withValues(alpha: 0.5),
+                              const SizedBox(width: 6),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: AppTheme.hextechEmerald.withValues(alpha: 0.2),
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(
+                                    color: AppTheme.hextechEmerald.withValues(alpha: 0.5),
+                                  ),
+                                ),
+                                child: Text(
+                                  'ACTIVO',
+                                  style: GoogleFonts.outfit(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w800,
+                                    color: AppTheme.hextechEmerald,
+                                  ),
                                 ),
                               ),
                             ],
                           ),
-                        ),
+                          const SizedBox(height: 2),
+                          Text(
+                            _localModelDownloaded
+                                ? 'SLM Local (${_localModelSizeMb.toStringAsFixed(0)} MB) + Voz Local'
+                                : 'Top 3 + Estrategia + Runas • Voz Local',
+                            style: TextStyle(
+                              fontSize: 11.5,
+                              color: Colors.white.withValues(alpha: 0.65),
+                            ),
+                          ),
+                        ],
                       ),
-                      // Botón Recarga Rápida
-                      ElevatedButton(
-                        onPressed: _isLoadingQueries ? null : _obtainQueries,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF10B981),
-                          foregroundColor: Colors.white,
-                          elevation: 0,
-                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                    const SizedBox(width: 8),
+                    GestureDetector(
+                      onTap: _handleLocalModelTap,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: _localModelDownloaded
+                              ? AppTheme.hextechEmerald.withValues(alpha: 0.16)
+                              : Colors.white.withValues(alpha: 0.08),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                            color: _localModelDownloaded
+                                ? AppTheme.hextechEmerald.withValues(alpha: 0.5)
+                                : Colors.white.withValues(alpha: 0.2),
+                          ),
                         ),
-                        child: _isLoadingQueries
-                            ? const SizedBox(
-                                width: 16,
-                                height: 16,
-                                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                        child: _localModelDownloading
+                            ? Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const SizedBox(
+                                    width: 12,
+                                    height: 12,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: AppTheme.hextechEmerald,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    '$_localModelProgress%',
+                                    style: GoogleFonts.outfit(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.bold,
+                                      color: AppTheme.hextechEmerald,
+                                    ),
+                                  ),
+                                ],
                               )
                             : Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  const Icon(Icons.add_rounded, size: 18),
+                                  Icon(
+                                    _localModelDownloaded
+                                        ? Icons.check_circle_outline_rounded
+                                        : Icons.download_rounded,
+                                    size: 14,
+                                    color: _localModelDownloaded
+                                        ? AppTheme.hextechEmerald
+                                        : Colors.white70,
+                                  ),
                                   const SizedBox(width: 4),
-                                  Text(lang.tr('home_free_plus3'), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                                  Text(
+                                    _localModelDownloaded ? 'GGUF' : 'Bajar IA',
+                                    style: GoogleFonts.outfit(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w700,
+                                      color: _localModelDownloaded
+                                          ? AppTheme.hextechEmerald
+                                          : Colors.white70,
+                                    ),
+                                  ),
                                 ],
                               ),
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
               ),
+            ),
 
-              // --- 2.2 INSIGNIA 100% SEGURO Y CUMPLE POLÍTICAS DE RIOT GAMES ---
-              Center(
-                child: InkWell(
-                  onTap: _showSecurityInfoDialog,
-                  borderRadius: BorderRadius.circular(20),
-                  child: Container(
-                    margin: const EdgeInsets.only(top: 8),
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF10B981).withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: const Color(0xFF10B981).withValues(alpha: 0.35)),
+            const Spacer(flex: 2),
+
+            // --- 3. PROTAGONISTA CENTRAL: ESFERA HEXTECH (WILD RIFT) O ESCÁNER CÁMARA (LOL PC) ---
+            Center(
+              child: _selectedGameMode == 'wild_rift'
+                  ? HextechOrb(
+                      isActive: _isActive,
+                      onTap: _toggleService,
+                    )
+                  : HextechOrb(
+                      isActive: true,
+                      onTap: _openLolPcScanner,
+                      label: 'ESCANEAR',
+                      icon: Icons.photo_camera_rounded,
+                      customOrbColor: AppTheme.accent,
+                      customGlowColor: const Color(0xFF0284C7),
                     ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(Icons.verified_user_rounded, color: Color(0xFF10B981), size: 13),
-                        const SizedBox(width: 6),
-                        Text(
-                          '100% Seguro • Cumple políticas de Riot Games',
-                          style: GoogleFonts.outfit(
-                            color: const Color(0xFF6EE7B7),
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600,
-                          ),
+            ),
+
+            const SizedBox(height: 24),
+
+            // Status indicator below Orb / Scanner
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 300),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              decoration: BoxDecoration(
+                color: _selectedGameMode == 'lol_pc'
+                    ? AppTheme.accent.withValues(alpha: 0.15)
+                    : (_isActive
+                        ? AppTheme.hextechEmerald.withValues(alpha: 0.15)
+                        : Colors.white.withValues(alpha: 0.05)),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: _selectedGameMode == 'lol_pc'
+                      ? AppTheme.accent.withValues(alpha: 0.4)
+                      : (_isActive
+                          ? AppTheme.hextechEmerald.withValues(alpha: 0.4)
+                          : Colors.white.withValues(alpha: 0.1)),
+                ),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 8,
+                    height: 8,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: _selectedGameMode == 'lol_pc'
+                          ? AppTheme.accent
+                          : (_isActive ? AppTheme.hextechEmerald : Colors.white54),
+                      boxShadow: [
+                        BoxShadow(
+                          color: (_selectedGameMode == 'lol_pc'
+                                  ? AppTheme.accent
+                                  : (_isActive ? AppTheme.hextechEmerald : Colors.white24))
+                              .withValues(alpha: 0.8),
+                          blurRadius: 8,
                         ),
-                        const SizedBox(width: 4),
-                        const Icon(Icons.info_outline_rounded, color: Color(0xFF6EE7B7), size: 11),
                       ],
                     ),
                   ),
-                ),
+                  const SizedBox(width: 8),
+                  Text(
+                    _selectedGameMode == 'lol_pc'
+                        ? 'Apunta la cámara al monitor de tu PC'
+                        : (_isActive
+                            ? lang.tr('home_status_active')
+                            : lang.tr('home_status_idle')),
+                    style: GoogleFonts.inter(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0.8,
+                      color: _selectedGameMode == 'lol_pc'
+                          ? AppTheme.accent
+                          : (_isActive ? AppTheme.hextechEmerald : Colors.white70),
+                    ),
+                  ),
+                ],
               ),
+            ),
 
-              const Spacer(flex: 2),
+            const SizedBox(height: 16),
 
-              // --- 2.5 SELECTOR DE SISTEMA: (Wild Rift) (LoL PC) ---
-              Container(
-                margin: const EdgeInsets.symmetric(horizontal: 24),
-                padding: const EdgeInsets.all(5),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF131B2E).withValues(alpha: 0.95),
-                  borderRadius: BorderRadius.circular(22),
-                  border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
-                ),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: InkWell(
-                        onTap: () {
-                          HapticFeedback.selectionClick();
-                          setState(() => _selectedGameMode = 'wild_rift');
-                          SharedPreferences.getInstance().then((p) => p.setString('game_mode', 'wild_rift'));
-                        },
-                        borderRadius: BorderRadius.circular(18),
-                        child: AnimatedContainer(
-                          duration: const Duration(milliseconds: 250),
-                          height: 48,
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: _selectedGameMode == 'wild_rift'
-                                ? const Color(0xFF00E5FF).withValues(alpha: 0.12)
-                                : Colors.transparent,
-                            borderRadius: BorderRadius.circular(18),
-                            border: Border.all(
-                              color: _selectedGameMode == 'wild_rift'
-                                  ? const Color(0xFF00E5FF)
-                                  : Colors.transparent,
-                              width: 1.5,
-                            ),
-                            boxShadow: _selectedGameMode == 'wild_rift'
-                                ? [
-                                    BoxShadow(
-                                      color: const Color(0xFF00E5FF).withValues(alpha: 0.25),
-                                      blurRadius: 10,
-                                    ),
-                                  ]
-                                : null,
-                          ),
-                          child: Center(
-                            child: AnimatedOpacity(
-                              duration: const Duration(milliseconds: 250),
-                              opacity: _selectedGameMode == 'wild_rift' ? 1.0 : 0.45,
-                              child: Image.asset(
-                                'assets/images/logo_wild_rift.png',
-                                height: 38,
-                                fit: BoxFit.contain,
-                              ),
-                            ),
-                          ),
-                        ),
+            // --- 3.5 BOTONES DE ACCESO: MODO MANUAL & CAMPEÓN OTP ---
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: _openManualDraft,
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppTheme.hextechCyan,
+                        side: BorderSide(color: AppTheme.hextechCyan.withValues(alpha: 0.4), width: 1.2),
+                        padding: const EdgeInsets.symmetric(vertical: 11, horizontal: 10),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                        backgroundColor: AppTheme.hextechCyan.withValues(alpha: 0.06),
+                      ),
+                      icon: const Icon(Icons.touch_app_rounded, size: 17),
+                      label: Text(
+                        'Modo Manual',
+                        style: GoogleFonts.outfit(fontSize: 12.5, fontWeight: FontWeight.bold),
                       ),
                     ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: InkWell(
-                        onTap: () {
-                          HapticFeedback.selectionClick();
-                          setState(() => _selectedGameMode = 'lol_pc');
-                          SharedPreferences.getInstance().then((p) => p.setString('game_mode', 'lol_pc'));
-                        },
-                        borderRadius: BorderRadius.circular(18),
-                        child: AnimatedContainer(
-                          duration: const Duration(milliseconds: 250),
-                          height: 48,
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: _selectedGameMode == 'lol_pc'
-                                ? const Color(0xFFC89B3C).withValues(alpha: 0.15)
-                                : Colors.transparent,
-                            borderRadius: BorderRadius.circular(18),
-                            border: Border.all(
-                              color: _selectedGameMode == 'lol_pc'
-                                  ? const Color(0xFFC89B3C)
-                                  : Colors.transparent,
-                              width: 1.5,
-                            ),
-                            boxShadow: _selectedGameMode == 'lol_pc'
-                                ? [
-                                    BoxShadow(
-                                      color: const Color(0xFFC89B3C).withValues(alpha: 0.25),
-                                      blurRadius: 10,
-                                    ),
-                                  ]
-                                : null,
-                          ),
-                          child: Center(
-                            child: AnimatedOpacity(
-                              duration: const Duration(milliseconds: 250),
-                              opacity: _selectedGameMode == 'lol_pc' ? 1.0 : 0.45,
-                              child: Image.asset(
-                                'assets/images/logo_lol_pc.png',
-                                height: 38,
-                                fit: BoxFit.contain,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-              const SizedBox(height: 16),
-
-              // --- 2.8 SELECTOR DE CAMPEÓN OTP (Detección de Rol, Bans y Picks 100% Automática) ---
-              if (_selectedGameMode == 'wild_rift') ...[
-                Container(
-                  margin: const EdgeInsets.symmetric(horizontal: 24),
-                  child: InkWell(
-                    onTap: _showOtpChampionPickerModal,
-                    borderRadius: BorderRadius.circular(14),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
-                      decoration: BoxDecoration(
-                        color: _selectedOtpChampion.isNotEmpty
-                            ? const Color(0xFFC89B3C).withValues(alpha: 0.18)
-                            : const Color(0xFF131B2E).withValues(alpha: 0.9),
-                        borderRadius: BorderRadius.circular(14),
-                        border: Border.all(
-                          color: _selectedOtpChampion.isNotEmpty
-                              ? const Color(0xFFC89B3C)
-                              : Colors.white12,
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: _showOtpChampionPickerModal,
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: _selectedOtpChampion.isNotEmpty
+                            ? const Color(0xFFFDE047)
+                            : AppTheme.hextechGold,
+                        side: BorderSide(
+                          color: (_selectedOtpChampion.isNotEmpty
+                                  ? const Color(0xFFFDE047)
+                                  : AppTheme.hextechGold)
+                              .withValues(alpha: 0.45),
                           width: 1.2,
                         ),
-                      ),
-                      child: Row(
-                        children: [
-                          Icon(
-                            Icons.star_rounded,
-                            size: 18,
-                            color: _selectedOtpChampion.isNotEmpty
+                        padding: const EdgeInsets.symmetric(vertical: 11, horizontal: 10),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                        backgroundColor: (_selectedOtpChampion.isNotEmpty
                                 ? const Color(0xFFFDE047)
-                                : const Color(0xFF00E5FF),
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Text(
-                              _selectedOtpChampion.isNotEmpty
-                                  ? 'Campeón OTP: $_selectedOtpChampion (Detección automática de rol)'
-                                  : 'Seleccionar Campeón OTP (Opcional • Rol 100% automático)',
-                              style: GoogleFonts.outfit(
-                                fontSize: 12.5,
-                                fontWeight: FontWeight.w700,
-                                color: _selectedOtpChampion.isNotEmpty
-                                    ? const Color(0xFFFDE047)
-                                    : Colors.white70,
-                              ),
-                            ),
-                          ),
-                          const Icon(
-                            Icons.edit_rounded,
-                            size: 15,
-                            color: Colors.white54,
-                          ),
-                        ],
+                                : AppTheme.hextechGold)
+                            .withValues(alpha: 0.08),
+                      ),
+                      icon: Icon(
+                        _selectedOtpChampion.isNotEmpty ? Icons.star_rounded : Icons.star_border_rounded,
+                        size: 18,
+                        color: _selectedOtpChampion.isNotEmpty
+                            ? const Color(0xFFFDE047)
+                            : AppTheme.hextechGold,
+                      ),
+                      label: Text(
+                        _selectedOtpChampion.isNotEmpty
+                            ? 'OTP: $_selectedOtpChampion'
+                            : 'Campeón OTP',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.outfit(fontSize: 12.5, fontWeight: FontWeight.bold),
                       ),
                     ),
                   ),
-                ),
-                const SizedBox(height: 14),
-              ],
-
-              // --- 3. PROTAGONISTA CENTRAL: ESFERA HEXTECH (WILD RIFT) O ESCÁNER CÁMARA (LOL PC) ---
-              Center(
-                child: _selectedGameMode == 'wild_rift'
-                    ? HextechOrb(
-                        isActive: _isActive,
-                        onTap: _toggleService,
-                      )
-                    : HextechOrb(
-                        isActive: true,
-                        onTap: _openLolPcScanner,
-                        label: 'ESCANEAR',
-                        icon: Icons.photo_camera_rounded,
-                        customOrbColor: const Color(0xFF38BDF8),
-                        customGlowColor: const Color(0xFF0284C7),
-                      ),
+                ],
               ),
+            ),
 
-              const SizedBox(height: 24),
+            const Spacer(flex: 2),
 
-              // Status indicator below Orb / Scanner
-              AnimatedContainer(
-                duration: const Duration(milliseconds: 300),
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                decoration: BoxDecoration(
-                  color: _selectedGameMode == 'lol_pc'
-                      ? const Color(0xFF38BDF8).withValues(alpha: 0.15)
-                      : (_isActive
-                          ? const Color(0xFF10B981).withValues(alpha: 0.15)
-                          : Colors.white.withValues(alpha: 0.05)),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(
-                    color: _selectedGameMode == 'lol_pc'
-                        ? const Color(0xFF38BDF8).withValues(alpha: 0.4)
-                        : (_isActive
-                            ? const Color(0xFF10B981).withValues(alpha: 0.4)
-                            : Colors.white.withValues(alpha: 0.1)),
-                  ),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Container(
-                      width: 8,
-                      height: 8,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: _selectedGameMode == 'lol_pc'
-                            ? const Color(0xFF38BDF8)
-                            : (_isActive ? const Color(0xFF10B981) : Colors.white54),
-                        boxShadow: [
-                          BoxShadow(
-                            color: (_selectedGameMode == 'lol_pc'
-                                    ? const Color(0xFF38BDF8)
-                                    : (_isActive ? const Color(0xFF10B981) : Colors.white24))
-                                .withValues(alpha: 0.8),
-                            blurRadius: 8,
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      _selectedGameMode == 'lol_pc'
-                          ? 'Apunta la cámara al monitor de tu PC'
-                          : (_isActive
-                              ? lang.tr('home_status_active')
-                              : lang.tr('home_status_idle')),
-                      style: GoogleFonts.inter(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: 0.8,
-                        color: _selectedGameMode == 'lol_pc'
-                            ? const Color(0xFF38BDF8)
-                            : (_isActive ? const Color(0xFF10B981) : Colors.white70),
-                      ),
-                    ),
-                  ],
+            // Bottom footer hint
+            Padding(
+              padding: const EdgeInsets.only(bottom: 20.0),
+              child: Text(
+                lang.tr('home_footer_hint'),
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 11,
+                  color: Colors.white.withValues(alpha: 0.35),
                 ),
               ),
-
-              const SizedBox(height: 16),
-
-              // --- 3.5 BOTÓN DE ACCESO AL MODO MANUAL TÁCTICO (ANTI-BAN / IPAD) Y SIMULADOR 2D ---
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        onPressed: _openManualDraft,
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: const Color(0xFF00E5FF),
-                          side: BorderSide(color: const Color(0xFF00E5FF).withValues(alpha: 0.4), width: 1.2),
-                          padding: const EdgeInsets.symmetric(vertical: 11, horizontal: 10),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                          backgroundColor: const Color(0xFF00E5FF).withValues(alpha: 0.06),
-                        ),
-                        icon: const Icon(Icons.touch_app_rounded, size: 17),
-                        label: Text(
-                          'Modo Manual',
-                          style: GoogleFonts.outfit(fontSize: 12.5, fontWeight: FontWeight.bold),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        onPressed: _openDodgeSimulator,
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: const Color(0xFF10B981),
-                          side: BorderSide(color: const Color(0xFF10B981).withValues(alpha: 0.5), width: 1.2),
-                          padding: const EdgeInsets.symmetric(vertical: 11, horizontal: 10),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                          backgroundColor: const Color(0xFF10B981).withValues(alpha: 0.08),
-                        ),
-                        icon: const Icon(Icons.sports_esports_rounded, size: 17),
-                        label: Text(
-                          'Reflejos 2D (MVP)',
-                          style: GoogleFonts.outfit(fontSize: 12.5, fontWeight: FontWeight.bold),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-              const Spacer(flex: 2),
-
-              // Bottom footer hint
-              Padding(
-                padding: const EdgeInsets.only(bottom: 20.0),
-                child: Text(
-                  lang.tr('home_footer_hint'),
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: Colors.white.withValues(alpha: 0.35),
-                  ),
-                ),
-              ),
-            ],
+            ),
+          ],
         ),
       ),
     );
@@ -2011,7 +2157,7 @@ class _IndexScreenState extends State<IndexScreen> with WidgetsBindingObserver {
     final lang = LanguageService.instance;
     return Container(
       decoration: BoxDecoration(
-        color: const Color(0xFF090D16),
+        color: AppTheme.deepDarkBg,
         border: Border(
           top: BorderSide(
             color: Colors.white.withValues(alpha: 0.08),
@@ -2035,41 +2181,21 @@ class _IndexScreenState extends State<IndexScreen> with WidgetsBindingObserver {
             children: [
               _buildNavItem(
                 index: 0,
-                icon: Icons.podcasts_rounded,
-                activeColor: const Color(0xFFEF4444),
-                tooltip: lang.tr('nav_events'),
-                showBadge: _liveEvent != null,
+                icon: Icons.movie_filter_rounded,
+                activeColor: AppTheme.hextechCrimson,
+                tooltip: 'Breif',
               ),
               _buildNavItem(
                 index: 1,
-                icon: Icons.emoji_events_rounded,
-                activeColor: const Color(0xFF10B981),
-                tooltip: lang.tr('nav_achievements'),
+                icon: Icons.bolt_rounded,
+                activeColor: AppTheme.hextechCyan,
+                tooltip: 'Home',
               ),
               _buildNavItem(
                 index: 2,
-                icon: Icons.bolt_rounded,
-                activeColor: const Color(0xFF00E5FF),
-                tooltip: lang.tr('nav_home'),
-              ),
-              _buildNavItem(
-                index: 3,
-                icon: Icons.quiz_rounded,
-                activeColor: const Color(0xFFA855F7),
-                tooltip: lang.tr('nav_trivia'),
-              ),
-              if (showDonationsTab)
-                _buildNavItem(
-                  index: 4,
-                  icon: Icons.volunteer_activism_rounded,
-                  activeColor: const Color(0xFFFF0050),
-                  tooltip: lang.tr('nav_donations'),
-                ),
-              _buildNavItem(
-                index: showDonationsTab ? 5 : 4,
-                icon: Icons.storefront_rounded,
-                activeColor: const Color(0xFFC89B3C),
-                tooltip: lang.tr('nav_store'),
+                icon: Icons.sports_esports_rounded,
+                activeColor: AppTheme.hextechEmerald,
+                tooltip: 'Game 2D',
               ),
             ],
           ),
@@ -2096,11 +2222,6 @@ class _IndexScreenState extends State<IndexScreen> with WidgetsBindingObserver {
               _visitedTabs.add(index);
               _currentTab = index;
             });
-            if (index == 0) {
-              WidgetsBinding.instance.addPostFrameCallback((_) {
-                _eventsKey.currentState?.onTabVisitedFirstTime();
-              });
-            }
             _fetchUserData();
           },
           splashColor: activeColor.withValues(alpha: 0.08),
@@ -2129,9 +2250,9 @@ class _IndexScreenState extends State<IndexScreen> with WidgetsBindingObserver {
                         width: 9,
                         height: 9,
                         decoration: BoxDecoration(
-                          color: const Color(0xFFEF4444),
+                          color: AppTheme.hextechCrimson,
                           shape: BoxShape.circle,
-                          border: Border.all(color: const Color(0xFF090D16), width: 1.5),
+                          border: Border.all(color: AppTheme.deepDarkBg, width: 1.5),
                         ),
                       ),
                     ),

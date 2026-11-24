@@ -99,7 +99,39 @@ func Auth(next http.Handler) http.Handler {
 			return
 		}
 
+		// Security Check: Block banned accounts even if they hold a previously issued JWT
+		if user.Banned {
+			http.Error(w, "Tu cuenta ha sido bloqueada por violar las normas de la comunidad.", http.StatusForbidden)
+			return
+		}
+
 		ctx := context.WithValue(r.Context(), UserContextKey, &user)
 		next.ServeHTTP(w, r.WithContext(ctx))
+	})
+}
+
+// OptionalAuth adjunta el usuario al contexto si viene un Bearer token válido,
+// pero permite continuar como anónimo si no hay token o expiró.
+func OptionalAuth(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		authHeader := r.Header.Get("Authorization")
+		if authHeader != "" && strings.HasPrefix(authHeader, "Bearer ") {
+			sessionToken := strings.TrimPrefix(authHeader, "Bearer ")
+			if sub, jti, err := auth.ValidateJWT(sessionToken); err == nil {
+				var user models.User
+				var dbErr error
+				if _, errUuid := uuid.Parse(sub); errUuid == nil {
+					dbErr = database.DB.Where("id = ?", sub).First(&user).Error
+				} else {
+					dbErr = database.DB.Where("google_id = ?", sub).First(&user).Error
+				}
+				if dbErr == nil && user.SessionToken == jti && !user.Banned {
+					ctx := context.WithValue(r.Context(), UserContextKey, &user)
+					next.ServeHTTP(w, r.WithContext(ctx))
+					return
+				}
+			}
+		}
+		next.ServeHTTP(w, r)
 	})
 }

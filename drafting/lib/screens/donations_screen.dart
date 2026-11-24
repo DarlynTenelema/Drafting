@@ -4,10 +4,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import '../core/models/donation_models.dart';
+import '../core/models/social_platform.dart';
 import '../core/services/api_client.dart';
 import '../core/services/iap_service.dart';
-import '../core/services/language_service.dart';
 import '../core/services/native_service.dart';
+import '../shared/mixins/localized_state_mixin.dart';
+import '../shared/widgets/hextech_ui.dart';
+import '../theme/app_theme.dart';
 
 class DonationsScreen extends StatefulWidget {
   final VoidCallback onDataChanged;
@@ -23,22 +27,16 @@ class DonationsScreen extends StatefulWidget {
   State<DonationsScreen> createState() => _DonationsScreenState();
 }
 
-class _DonationsScreenState extends State<DonationsScreen> {
+class _DonationsScreenState extends State<DonationsScreen>
+    with LocalizedStateMixin<DonationsScreen> {
   bool _isLoading = true;
   bool _isPurchasing = false;
   bool _canEditProfile = false;
   String _selectedTierId = 'donate_25';
 
-  List<dynamic> _tiers = [
-    {'id': 'donate_10', 'name': 'Chispa Hextech', 'price_usd': 0.10, 'bonus_queries': 2, 'badge': 'Micro'},
-    {'id': 'donate_25', 'name': 'Moneda Hextech', 'price_usd': 0.25, 'bonus_queries': 5, 'badge': 'Popular'},
-    {'id': 'donate_49', 'name': 'Cristal de Apoyo', 'price_usd': 0.49, 'bonus_queries': 10, 'badge': 'Streamer'},
-    {'id': 'donate_75', 'name': 'Orbe Challenger', 'price_usd': 0.75, 'bonus_queries': 15, 'badge': 'Destacado'},
-    {'id': 'donate_99', 'name': 'Corona Leyenda', 'price_usd': 0.99, 'bonus_queries': 25, 'badge': 'Top VIP'},
-  ];
-
-  List<dynamic> _ranking = [];
-  Map<String, dynamic>? _myDonorProfile;
+  List<DonationTier> _tiers = DonationTier.defaultTiers;
+  List<DonorProfile> _ranking = [];
+  DonorProfile? _myDonorProfile;
   StreamSubscription<IapPurchaseResult>? _iapSub;
 
   @override
@@ -63,17 +61,17 @@ class _DonationsScreenState extends State<DonationsScreen> {
           if (!mounted) return;
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              backgroundColor: const Color(0xFF10B981),
+              backgroundColor: AppTheme.hextechEmerald,
               behavior: SnackBarBehavior.floating,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               content: Text(
-                LanguageService.instance.tr('don_thanks_snack'),
+                tr('don_thanks_snack'),
                 style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
               ),
             ),
           );
-          final bool hasChannelConfigured = _myDonorProfile != null &&
-              (_myDonorProfile!['channel_url'] ?? '').toString().trim().isNotEmpty;
+          final bool hasChannelConfigured =
+              _myDonorProfile != null && _myDonorProfile!.hasChannelConfigured;
           if (!hasChannelConfigured && _canEditProfile && mounted) {
             _showEditChannelModal();
           }
@@ -108,11 +106,19 @@ class _DonationsScreenState extends State<DonationsScreen> {
         if (mounted) {
           setState(() {
             if (data['tiers'] is List && (data['tiers'] as List).isNotEmpty) {
-              _tiers = data['tiers'] as List<dynamic>;
+              _tiers = (data['tiers'] as List<dynamic>)
+                  .whereType<Map<String, dynamic>>()
+                  .map(DonationTier.fromJson)
+                  .toList();
             }
-            _ranking = (data['ranking'] is List) ? data['ranking'] as List<dynamic> : [];
+            _ranking = (data['ranking'] is List)
+                ? (data['ranking'] as List<dynamic>)
+                    .whereType<Map<String, dynamic>>()
+                    .map(DonorProfile.fromJson)
+                    .toList()
+                : [];
             _myDonorProfile = (data['my_donor_profile'] is Map<String, dynamic>)
-                ? data['my_donor_profile'] as Map<String, dynamic>
+                ? DonorProfile.fromJson(data['my_donor_profile'] as Map<String, dynamic>)
                 : null;
             _canEditProfile = data['can_edit_profile'] == true;
             _isLoading = false;
@@ -142,15 +148,14 @@ class _DonationsScreenState extends State<DonationsScreen> {
   }
 
   void _showEditChannelModal() {
-    final lang = LanguageService.instance;
     if (!_canEditProfile) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          backgroundColor: const Color(0xFFF59E0B),
+          backgroundColor: AppTheme.hextechAmber,
           behavior: SnackBarBehavior.floating,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           content: Text(
-            lang.tr('don_locked_snack'),
+            tr('don_locked_snack'),
             style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
           ),
         ),
@@ -158,21 +163,21 @@ class _DonationsScreenState extends State<DonationsScreen> {
       return;
     }
 
-    final nameCtrl = TextEditingController(text: (_myDonorProfile?['display_name'] ?? '').toString());
-    final handleCtrl = TextEditingController(text: (_myDonorProfile?['channel_handle'] ?? '').toString());
-    final urlCtrl = TextEditingController(text: (_myDonorProfile?['channel_url'] ?? '').toString());
-    final bioCtrl = TextEditingController(text: (_myDonorProfile?['bio_message'] ?? '').toString());
-    String selectedPlatform = (_myDonorProfile?['platform'] ?? 'tiktok').toString().toLowerCase();
+    final nameCtrl = TextEditingController(text: _myDonorProfile?.displayName ?? '');
+    final handleCtrl = TextEditingController(text: _myDonorProfile?.channelHandle ?? '');
+    final urlCtrl = TextEditingController(text: _myDonorProfile?.channelUrl ?? '');
+    final bioCtrl = TextEditingController(text: _myDonorProfile?.bioMessage ?? '');
+    String selectedPlatform = (_myDonorProfile?.platform ?? 'tiktok').toLowerCase();
     if (selectedPlatform != 'twitch' && selectedPlatform != 'kick' && selectedPlatform != 'tiktok') {
       selectedPlatform = 'tiktok';
     }
-    bool isLive = _myDonorProfile?['is_live'] == true;
+    bool isLive = _myDonorProfile?.isLive == true;
     bool saving = false;
 
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: const Color(0xFF0F172A),
+      backgroundColor: AppTheme.background,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
       ),
@@ -197,11 +202,11 @@ class _DonationsScreenState extends State<DonationsScreen> {
                         Expanded(
                           child: Row(
                             children: [
-                              const Icon(Icons.live_tv_rounded, color: Color(0xFF00E5FF)),
+                              const Icon(Icons.live_tv_rounded, color: AppTheme.hextechCyan),
                               const SizedBox(width: 8),
                               Expanded(
                                 child: Text(
-                                  lang.tr('don_modal_title'),
+                                  tr('don_modal_title'),
                                   style: GoogleFonts.outfit(
                                     fontSize: 18,
                                     fontWeight: FontWeight.bold,
@@ -220,7 +225,7 @@ class _DonationsScreenState extends State<DonationsScreen> {
                     ),
                     const SizedBox(height: 12),
                     Text(
-                      lang.tr('don_modal_platform_label'),
+                      tr('don_modal_platform_label'),
                       style: TextStyle(fontSize: 12.5, color: Colors.white.withValues(alpha: 0.7)),
                     ),
                     const SizedBox(height: 8),
@@ -228,15 +233,13 @@ class _DonationsScreenState extends State<DonationsScreen> {
                       children: [
                         _buildPlatformSelectorChip(
                           label: 'TikTok',
-                          platform: 'tiktok',
                           selected: selectedPlatform == 'tiktok',
-                          color: const Color(0xFFFF0050),
+                          color: AppTheme.hextechPink,
                           onTap: () => setModalState(() => selectedPlatform = 'tiktok'),
                         ),
                         const SizedBox(width: 8),
                         _buildPlatformSelectorChip(
                           label: 'Twitch',
-                          platform: 'twitch',
                           selected: selectedPlatform == 'twitch',
                           color: const Color(0xFF9146FF),
                           onTap: () => setModalState(() => selectedPlatform = 'twitch'),
@@ -244,7 +247,6 @@ class _DonationsScreenState extends State<DonationsScreen> {
                         const SizedBox(width: 8),
                         _buildPlatformSelectorChip(
                           label: 'Kick',
-                          platform: 'kick',
                           selected: selectedPlatform == 'kick',
                           color: const Color(0xFF53FC18),
                           onTap: () => setModalState(() => selectedPlatform = 'kick'),
@@ -255,44 +257,56 @@ class _DonationsScreenState extends State<DonationsScreen> {
                     TextField(
                       controller: nameCtrl,
                       style: const TextStyle(color: Colors.white),
-                      decoration: _inputDeco(lang.tr('don_modal_name_hint')),
+                      decoration: AppTheme.hextechInputDecoration(
+                        hintText: tr('don_modal_name_hint'),
+                        counterText: '',
+                      ),
                     ),
                     const SizedBox(height: 10),
                     TextField(
                       controller: handleCtrl,
                       style: const TextStyle(color: Colors.white),
-                      decoration: _inputDeco(lang.tr('don_modal_handle_hint')),
+                      decoration: AppTheme.hextechInputDecoration(
+                        hintText: tr('don_modal_handle_hint'),
+                        counterText: '',
+                      ),
                     ),
                     const SizedBox(height: 10),
                     TextField(
                       controller: urlCtrl,
                       style: const TextStyle(color: Colors.white),
-                      decoration: _inputDeco(lang.tr('don_modal_url_hint')),
+                      decoration: AppTheme.hextechInputDecoration(
+                        hintText: tr('don_modal_url_hint'),
+                        counterText: '',
+                      ),
                     ),
                     const SizedBox(height: 10),
                     TextField(
                       controller: bioCtrl,
                       maxLength: 100,
                       style: const TextStyle(color: Colors.white),
-                      decoration: _inputDeco(lang.tr('don_modal_bio_hint')),
+                      decoration: AppTheme.hextechInputDecoration(
+                        hintText: tr('don_modal_bio_hint'),
+                        counterText: '',
+                      ),
                     ),
                     const SizedBox(height: 6),
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
                       decoration: BoxDecoration(
                         color: isLive
-                            ? const Color(0xFFEF4444).withValues(alpha: 0.16)
+                            ? AppTheme.hextechCrimson.withValues(alpha: 0.16)
                             : Colors.white.withValues(alpha: 0.04),
                         borderRadius: BorderRadius.circular(14),
                         border: Border.all(
-                          color: isLive ? const Color(0xFFEF4444) : Colors.white12,
+                          color: isLive ? AppTheme.hextechCrimson : Colors.white12,
                         ),
                       ),
                       child: SwitchListTile(
                         contentPadding: EdgeInsets.zero,
-                        activeThumbColor: const Color(0xFFEF4444),
+                        activeThumbColor: AppTheme.hextechCrimson,
                         title: Text(
-                          lang.tr('don_modal_live_title'),
+                          tr('don_modal_live_title'),
                           style: GoogleFonts.outfit(
                             fontSize: 14,
                             fontWeight: FontWeight.bold,
@@ -300,7 +314,7 @@ class _DonationsScreenState extends State<DonationsScreen> {
                           ),
                         ),
                         subtitle: Text(
-                          lang.tr('don_modal_live_sub'),
+                          tr('don_modal_live_sub'),
                           style: TextStyle(fontSize: 11.5, color: Colors.white.withValues(alpha: 0.65)),
                         ),
                         value: isLive,
@@ -313,8 +327,8 @@ class _DonationsScreenState extends State<DonationsScreen> {
                       height: 48,
                       child: ElevatedButton.icon(
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF00E5FF),
-                          foregroundColor: const Color(0xFF090D16),
+                          backgroundColor: AppTheme.hextechCyan,
+                          foregroundColor: AppTheme.deepDarkBg,
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                         ),
                         onPressed: saving
@@ -340,8 +354,8 @@ class _DonationsScreenState extends State<DonationsScreen> {
                                     if (mounted) {
                                       ScaffoldMessenger.of(context).showSnackBar(
                                         SnackBar(
-                                          backgroundColor: const Color(0xFF10B981),
-                                          content: Text(lang.tr('don_modal_saved_snack')),
+                                          backgroundColor: AppTheme.hextechEmerald,
+                                          content: Text(tr('don_modal_saved_snack')),
                                         ),
                                       );
                                     }
@@ -362,7 +376,7 @@ class _DonationsScreenState extends State<DonationsScreen> {
                               },
                         icon: const Icon(Icons.save_rounded, size: 19),
                         label: Text(
-                          saving ? lang.tr('don_modal_saving') : lang.tr('don_modal_save_btn'),
+                          saving ? tr('don_modal_saving') : tr('don_modal_save_btn'),
                           style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.w800),
                         ),
                       ),
@@ -379,96 +393,40 @@ class _DonationsScreenState extends State<DonationsScreen> {
 
   Widget _buildPlatformSelectorChip({
     required String label,
-    required String platform,
     required bool selected,
     required Color color,
     required VoidCallback onTap,
   }) {
-    return Expanded(
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 10),
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            color: selected ? color.withValues(alpha: 0.22) : Colors.white.withValues(alpha: 0.04),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: selected ? color : Colors.white12,
-              width: selected ? 1.5 : 1.0,
-            ),
-          ),
-          child: Text(
-            label,
-            style: GoogleFonts.outfit(
-              fontSize: 13,
-              fontWeight: FontWeight.w800,
-              color: selected ? color : Colors.white70,
-            ),
-          ),
-        ),
+    return HextechSelectableChip(
+      label: label,
+      selected: selected,
+      activeColor: color,
+      padding: const EdgeInsets.symmetric(vertical: 10),
+      borderRadius: 12,
+      textStyle: GoogleFonts.outfit(
+        fontSize: 13,
+        fontWeight: FontWeight.w800,
+        color: selected ? color : Colors.white70,
       ),
+      onTap: onTap,
     );
-  }
-
-  InputDecoration _inputDeco(String hint) {
-    return InputDecoration(
-      hintText: hint,
-      counterText: '',
-      hintStyle: const TextStyle(color: Colors.white38, fontSize: 13),
-      filled: true,
-      fillColor: Colors.white.withValues(alpha: 0.05),
-      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
-      ),
-      enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
-      ),
-    );
-  }
-
-  Color _platformAccent(String platform) {
-    switch (platform.toLowerCase()) {
-      case 'twitch':
-        return const Color(0xFF9146FF);
-      case 'kick':
-        return const Color(0xFF53FC18);
-      default:
-        return const Color(0xFFFF0050);
-    }
-  }
-
-  String _platformName(String platform) {
-    switch (platform.toLowerCase()) {
-      case 'twitch':
-        return 'Twitch';
-      case 'kick':
-        return 'Kick';
-      default:
-        return 'TikTok';
-    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final lang = LanguageService.instance;
     return Scaffold(
-      backgroundColor: const Color(0xFF0B0E14),
+      backgroundColor: AppTheme.darkScaffold,
       appBar: AppBar(
-        backgroundColor: const Color(0xFF0F172A),
+        backgroundColor: AppTheme.background,
         elevation: 0,
         automaticallyImplyLeading: !widget.isTab,
         title: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.volunteer_activism_rounded, color: Color(0xFFFF0050), size: 22),
+            const Icon(Icons.volunteer_activism_rounded, color: AppTheme.hextechPink, size: 22),
             const SizedBox(width: 8),
             Text(
-              lang.tr('don_appbar'),
+              tr('don_appbar'),
               style: GoogleFonts.outfit(
                 fontSize: 20,
                 fontWeight: FontWeight.bold,
@@ -480,7 +438,7 @@ class _DonationsScreenState extends State<DonationsScreen> {
         centerTitle: true,
         actions: [
           IconButton(
-            icon: const Icon(Icons.edit_note_rounded, color: Color(0xFF00E5FF), size: 24),
+            icon: const Icon(Icons.edit_note_rounded, color: AppTheme.hextechCyan, size: 24),
             tooltip: 'Configurar mi canal',
             onPressed: _showEditChannelModal,
           ),
@@ -490,18 +448,11 @@ class _DonationsScreenState extends State<DonationsScreen> {
         width: double.infinity,
         height: double.infinity,
         decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              Color(0xFF0F172A),
-              Color(0xFF080B11),
-            ],
-          ),
+          gradient: AppTheme.screenBackgroundGradient,
         ),
         child: RefreshIndicator(
-          color: const Color(0xFF00E5FF),
-          backgroundColor: const Color(0xFF0F172A),
+          color: AppTheme.hextechCyan,
+          backgroundColor: AppTheme.background,
           onRefresh: () => _fetchRankingData(),
           child: ListView(
             physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
@@ -520,16 +471,16 @@ class _DonationsScreenState extends State<DonationsScreen> {
               // 3. Ranking de Donadores en Vivo
               Row(
                 children: [
-                  const Icon(Icons.leaderboard_rounded, color: Color(0xFFC89B3C), size: 20),
+                  const Icon(Icons.leaderboard_rounded, color: AppTheme.hextechGold, size: 20),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      lang.tr('don_ranking_header'),
+                      tr('don_ranking_header'),
                       style: GoogleFonts.outfit(
                         fontSize: 12.5,
                         fontWeight: FontWeight.w800,
                         letterSpacing: 0.8,
-                        color: const Color(0xFFC89B3C),
+                        color: AppTheme.hextechGold,
                       ),
                     ),
                   ),
@@ -537,7 +488,7 @@ class _DonationsScreenState extends State<DonationsScreen> {
               ),
               const SizedBox(height: 6),
               Text(
-                lang.tr('don_ranking_sub'),
+                tr('don_ranking_sub'),
                 style: TextStyle(fontSize: 12, color: Colors.white.withValues(alpha: 0.55)),
               ),
               const SizedBox(height: 12),
@@ -545,12 +496,12 @@ class _DonationsScreenState extends State<DonationsScreen> {
               if (_isLoading)
                 const Padding(
                   padding: EdgeInsets.all(32.0),
-                  child: Center(child: CircularProgressIndicator(color: Color(0xFF00E5FF))),
+                  child: Center(child: CircularProgressIndicator(color: AppTheme.hextechCyan)),
                 )
               else if (_ranking.isEmpty)
                 _buildEmptyRankingCard()
               else
-                ..._ranking.map((d) => _buildDonorRankingCard(d as Map<String, dynamic>)),
+                ..._ranking.map(_buildDonorRankingCard),
 
               const SizedBox(height: 24),
             ],
@@ -561,20 +512,14 @@ class _DonationsScreenState extends State<DonationsScreen> {
   }
 
   Widget _buildMicroDonationsCard() {
-    Map<String, dynamic> currentTier = _tiers.firstWhere(
-      (t) => (t as Map<String, dynamic>)['id'] == _selectedTierId,
-      orElse: () => _tiers[1],
-    ) as Map<String, dynamic>;
+    final DonationTier currentTier = _tiers.firstWhere(
+      (t) => t.id == _selectedTierId,
+      orElse: () => _tiers.length > 1 ? _tiers[1] : _tiers.first,
+    );
 
-    final double priceUsd = (currentTier['price_usd'] is num)
-        ? (currentTier['price_usd'] as num).toDouble()
-        : 0.25;
-    final int bonusQueries = (currentTier['bonus_queries'] is int)
-        ? currentTier['bonus_queries'] as int
-        : 5;
     final String displayPrice = InAppPurchaseService.instance.getDisplayPrice(
       _selectedTierId,
-      '\$${priceUsd.toStringAsFixed(2)}',
+      currentTier.formattedFallbackPrice,
     );
 
     return Container(
@@ -585,14 +530,14 @@ class _DonationsScreenState extends State<DonationsScreen> {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            Color(0xFF1E293B),
-            Color(0xFF0F172A),
+            AppTheme.surface,
+            AppTheme.background,
           ],
         ),
-        border: Border.all(color: const Color(0xFFFF0050).withValues(alpha: 0.45)),
+        border: Border.all(color: AppTheme.hextechPink.withValues(alpha: 0.45)),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFFFF0050).withValues(alpha: 0.14),
+            color: AppTheme.hextechPink.withValues(alpha: 0.14),
             blurRadius: 16,
             offset: const Offset(0, 6),
           ),
@@ -607,9 +552,9 @@ class _DonationsScreenState extends State<DonationsScreen> {
                 padding: const EdgeInsets.all(9),
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: const Color(0xFFFF0050).withValues(alpha: 0.18),
+                  color: AppTheme.hextechPink.withValues(alpha: 0.18),
                 ),
-                child: const Icon(Icons.favorite_rounded, color: Color(0xFFFF0050), size: 20),
+                child: const Icon(Icons.favorite_rounded, color: AppTheme.hextechPink, size: 20),
               ),
               const SizedBox(width: 10),
               Expanded(
@@ -617,7 +562,7 @@ class _DonationsScreenState extends State<DonationsScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      LanguageService.instance.tr('don_card_title'),
+                      tr('don_card_title'),
                       style: GoogleFonts.outfit(
                         fontSize: 16.5,
                         fontWeight: FontWeight.w800,
@@ -625,7 +570,7 @@ class _DonationsScreenState extends State<DonationsScreen> {
                       ),
                     ),
                     Text(
-                      LanguageService.instance.tr('don_card_sub'),
+                      tr('don_card_sub'),
                       style: TextStyle(fontSize: 12, color: Colors.white.withValues(alpha: 0.7)),
                     ),
                   ],
@@ -636,14 +581,11 @@ class _DonationsScreenState extends State<DonationsScreen> {
           const SizedBox(height: 14),
           // Selector horizontal de los 5 micro-montos ($0.10, $0.25, $0.49, $0.75, $0.99)
           Row(
-            children: _tiers.map((raw) {
-              final t = raw as Map<String, dynamic>;
-              final String id = (t['id'] ?? '').toString();
-              final double p = (t['price_usd'] is num) ? (t['price_usd'] as num).toDouble() : 0.10;
-              final bool isSelected = id == _selectedTierId;
+            children: _tiers.map((t) {
+              final bool isSelected = t.id == _selectedTierId;
               final String chipPrice = InAppPurchaseService.instance.getDisplayPrice(
-                id,
-                '\$${p.toStringAsFixed(2)}',
+                t.id,
+                t.formattedFallbackPrice,
               );
 
               return Expanded(
@@ -652,7 +594,7 @@ class _DonationsScreenState extends State<DonationsScreen> {
                   child: InkWell(
                     onTap: () {
                       HapticFeedback.selectionClick();
-                      setState(() => _selectedTierId = id);
+                      setState(() => _selectedTierId = t.id);
                     },
                     borderRadius: BorderRadius.circular(12),
                     child: AnimatedContainer(
@@ -660,12 +602,12 @@ class _DonationsScreenState extends State<DonationsScreen> {
                       padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
                       decoration: BoxDecoration(
                         color: isSelected
-                            ? const Color(0xFFFF0050).withValues(alpha: 0.24)
+                            ? AppTheme.hextechPink.withValues(alpha: 0.24)
                             : Colors.white.withValues(alpha: 0.05),
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(
                           color: isSelected
-                              ? const Color(0xFFFF0050)
+                              ? AppTheme.hextechPink
                               : Colors.white.withValues(alpha: 0.12),
                           width: isSelected ? 1.5 : 1.0,
                         ),
@@ -685,11 +627,11 @@ class _DonationsScreenState extends State<DonationsScreen> {
                           ),
                           const SizedBox(height: 2),
                           Text(
-                            '+${t['bonus_queries']}⚡',
+                            '+${t.bonusQueries}⚡',
                             style: TextStyle(
                               fontSize: 10.5,
                               fontWeight: FontWeight.bold,
-                              color: isSelected ? const Color(0xFF00E5FF) : Colors.white38,
+                              color: isSelected ? AppTheme.hextechCyan : Colors.white38,
                             ),
                           ),
                         ],
@@ -706,7 +648,7 @@ class _DonationsScreenState extends State<DonationsScreen> {
             height: 46,
             child: ElevatedButton.icon(
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFFF0050),
+                backgroundColor: AppTheme.hextechPink,
                 foregroundColor: Colors.white,
                 elevation: 3,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
@@ -721,10 +663,10 @@ class _DonationsScreenState extends State<DonationsScreen> {
                   : const Icon(Icons.volunteer_activism_rounded, size: 20),
               label: Text(
                 _isPurchasing
-                    ? LanguageService.instance.tr('don_opening_play')
-                    : LanguageService.instance.tr(
+                    ? tr('don_opening_play')
+                    : tr(
                         'don_btn_contribute',
-                        {'price': displayPrice, 'queries': '$bonusQueries'},
+                        {'price': displayPrice, 'queries': '${currentTier.bonusQueries}'},
                       ),
                 style: GoogleFonts.outfit(fontSize: 13.5, fontWeight: FontWeight.w800),
               ),
@@ -736,9 +678,8 @@ class _DonationsScreenState extends State<DonationsScreen> {
   }
 
   Widget _buildPromoteMyChannelBanner() {
-    final bool hasChannel = _myDonorProfile != null &&
-        (_myDonorProfile!['channel_url'] ?? '').toString().trim().isNotEmpty;
-    final bool isMyStreamLive = _myDonorProfile?['is_live'] == true;
+    final bool hasChannel = _myDonorProfile != null && _myDonorProfile!.hasChannelConfigured;
+    final bool isMyStreamLive = _myDonorProfile?.isLive == true;
 
     return InkWell(
       onTap: _showEditChannelModal,
@@ -750,7 +691,7 @@ class _DonationsScreenState extends State<DonationsScreen> {
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
             color: _canEditProfile
-                ? const Color(0xFF00E5FF).withValues(alpha: 0.45)
+                ? AppTheme.hextechCyan.withValues(alpha: 0.45)
                 : Colors.white.withValues(alpha: 0.12),
           ),
         ),
@@ -758,7 +699,7 @@ class _DonationsScreenState extends State<DonationsScreen> {
           children: [
             Icon(
               hasChannel ? Icons.live_tv_rounded : Icons.add_link_rounded,
-              color: const Color(0xFF00E5FF),
+              color: AppTheme.hextechCyan,
               size: 24,
             ),
             const SizedBox(width: 12),
@@ -768,14 +709,14 @@ class _DonationsScreenState extends State<DonationsScreen> {
                 children: [
                   Text(
                     hasChannel
-                        ? LanguageService.instance.tr(
+                        ? tr(
                             'don_promote_my',
                             {
-                              'name': '${_myDonorProfile!['display_name']}',
-                              'platform': _platformName((_myDonorProfile!['platform'] ?? 'tiktok').toString()),
+                              'name': _myDonorProfile!.displayName,
+                              'platform': _myDonorProfile!.socialPlatform.creatorPlatformName,
                             },
                           )
-                        : LanguageService.instance.tr('don_promote_add'),
+                        : tr('don_promote_add'),
                     style: GoogleFonts.outfit(
                       fontSize: 14,
                       fontWeight: FontWeight.bold,
@@ -785,17 +726,17 @@ class _DonationsScreenState extends State<DonationsScreen> {
                   Text(
                     hasChannel
                         ? (isMyStreamLive
-                            ? LanguageService.instance.tr('don_promote_sub_live')
-                            : LanguageService.instance.tr('don_promote_sub_edit'))
+                            ? tr('don_promote_sub_live')
+                            : tr('don_promote_sub_edit'))
                         : (_canEditProfile
-                            ? LanguageService.instance.tr('don_promote_sub_unlocked')
-                            : LanguageService.instance.tr('don_promote_sub_locked')),
+                            ? tr('don_promote_sub_unlocked')
+                            : tr('don_promote_sub_locked')),
                     style: TextStyle(fontSize: 11.5, color: Colors.white.withValues(alpha: 0.65)),
                   ),
                 ],
               ),
             ),
-            const Icon(Icons.chevron_right_rounded, color: Color(0xFF00E5FF)),
+            const Icon(Icons.chevron_right_rounded, color: AppTheme.hextechCyan),
           ],
         ),
       ),
@@ -812,10 +753,10 @@ class _DonationsScreenState extends State<DonationsScreen> {
       ),
       child: Column(
         children: [
-          const Icon(Icons.emoji_events_outlined, color: Color(0xFFC89B3C), size: 42),
+          const Icon(Icons.emoji_events_outlined, color: AppTheme.hextechGold, size: 42),
           const SizedBox(height: 10),
           Text(
-            LanguageService.instance.tr('don_empty_title'),
+            tr('don_empty_title'),
             style: GoogleFonts.outfit(
               fontSize: 16,
               fontWeight: FontWeight.bold,
@@ -824,7 +765,7 @@ class _DonationsScreenState extends State<DonationsScreen> {
           ),
           const SizedBox(height: 6),
           Text(
-            LanguageService.instance.tr('don_empty_sub'),
+            tr('don_empty_sub'),
             textAlign: TextAlign.center,
             style: TextStyle(fontSize: 12.5, color: Colors.white.withValues(alpha: 0.6)),
           ),
@@ -833,49 +774,11 @@ class _DonationsScreenState extends State<DonationsScreen> {
     );
   }
 
-  String _resolveDonorStreamUrl(String platform, String rawUrl, String handle) {
-    String url = rawUrl.trim();
-    final String cleanHandle = handle.trim().replaceFirst(RegExp(r'^@+'), '');
-    if (url.isEmpty && cleanHandle.isNotEmpty) {
-      switch (platform.toLowerCase()) {
-        case 'twitch':
-          return 'https://www.twitch.tv/$cleanHandle';
-        case 'kick':
-          return 'https://kick.com/$cleanHandle';
-        default:
-          return 'https://www.tiktok.com/@$cleanHandle';
-      }
-    }
-    if (url.isNotEmpty &&
-        !url.toLowerCase().startsWith('http://') &&
-        !url.toLowerCase().startsWith('https://')) {
-      url = 'https://${url.replaceFirst(RegExp(r'^/+'), '')}';
-    }
-    return url;
-  }
-
-  Widget _buildDonorRankingCard(Map<String, dynamic> donor) {
-    final int rank = (donor['rank'] is int) ? donor['rank'] as int : 1;
-    final String name = (donor['display_name'] ?? 'Donador').toString();
-    final String platform = (donor['platform'] ?? 'tiktok').toString();
-    final String handle = (donor['channel_handle'] ?? '').toString();
-    final String rawUrl = (donor['channel_url'] ?? '').toString();
-    final String url = _resolveDonorStreamUrl(platform, rawUrl, handle);
-    final String bio = (donor['bio_message'] ?? '').toString();
-    final bool isLive = donor['is_live'] == true;
-    final double totalUsd = (donor['total_donated_usd'] is num)
-        ? (donor['total_donated_usd'] as num).toDouble()
-        : 0.0;
-
-    final Color rankColor = rank == 1
-        ? const Color(0xFFFFD700)
-        : rank == 2
-            ? const Color(0xFFE2E8F0)
-            : rank == 3
-                ? const Color(0xFFCD7F32)
-                : const Color(0xFF00E5FF);
-
-    final Color pColor = _platformAccent(platform);
+  Widget _buildDonorRankingCard(DonorProfile donor) {
+    final SocialPlatform social = donor.socialPlatform;
+    final String url = donor.resolvedStreamUrl;
+    final Color rankColor = donor.rankColor;
+    final Color pColor = social.creatorAccentColor;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
@@ -887,9 +790,9 @@ class _DonationsScreenState extends State<DonationsScreen> {
           } else {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                backgroundColor: const Color(0xFF1E293B),
+                backgroundColor: AppTheme.surface,
                 behavior: SnackBarBehavior.floating,
-                content: Text(LanguageService.instance.tr('don_no_link_snack', {'name': name})),
+                content: Text(tr('don_no_link_snack', {'name': donor.displayName})),
               ),
             );
           }
@@ -898,13 +801,13 @@ class _DonationsScreenState extends State<DonationsScreen> {
         child: Container(
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
-            color: const Color(0xFF131B2E),
+            color: AppTheme.cardDark,
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
-              color: isLive
-                  ? const Color(0xFFEF4444)
-                  : (rank <= 3 ? rankColor.withValues(alpha: 0.55) : Colors.white12),
-              width: isLive || rank == 1 ? 1.4 : 1.0,
+              color: donor.isLive
+                  ? AppTheme.hextechCrimson
+                  : (donor.rank <= 3 ? rankColor.withValues(alpha: 0.55) : Colors.white12),
+              width: donor.isLive || donor.rank == 1 ? 1.4 : 1.0,
             ),
           ),
           child: Row(
@@ -920,7 +823,7 @@ class _DonationsScreenState extends State<DonationsScreen> {
                   border: Border.all(color: rankColor.withValues(alpha: 0.6)),
                 ),
                 child: Text(
-                  '#$rank',
+                  '#${donor.rank}',
                   style: GoogleFonts.outfit(
                     fontSize: 14,
                     fontWeight: FontWeight.w800,
@@ -937,7 +840,7 @@ class _DonationsScreenState extends State<DonationsScreen> {
                       children: [
                         Flexible(
                           child: Text(
-                            name,
+                            donor.displayName,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: GoogleFonts.outfit(
@@ -948,15 +851,15 @@ class _DonationsScreenState extends State<DonationsScreen> {
                           ),
                         ),
                         const SizedBox(width: 6),
-                        if (isLive)
+                        if (donor.isLive)
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                             decoration: BoxDecoration(
-                              color: const Color(0xFFEF4444),
+                              color: AppTheme.hextechCrimson,
                               borderRadius: BorderRadius.circular(6),
                             ),
                             child: Text(
-                              LanguageService.instance.tr('home_live_badge'),
+                              tr('home_live_badge'),
                               style: GoogleFonts.outfit(
                                 fontSize: 9.5,
                                 fontWeight: FontWeight.w800,
@@ -976,7 +879,7 @@ class _DonationsScreenState extends State<DonationsScreen> {
                             borderRadius: BorderRadius.circular(6),
                           ),
                           child: Text(
-                            '${_platformName(platform)} ${handle.isNotEmpty ? "• $handle" : ""}',
+                            '${social.creatorPlatformName} ${donor.channelHandle.isNotEmpty ? "• ${donor.channelHandle}" : ""}',
                             style: TextStyle(
                               fontSize: 11,
                               fontWeight: FontWeight.bold,
@@ -986,10 +889,10 @@ class _DonationsScreenState extends State<DonationsScreen> {
                         ),
                       ],
                     ),
-                    if (bio.isNotEmpty) ...[
+                    if (donor.bioMessage.isNotEmpty) ...[
                       const SizedBox(height: 4),
                       Text(
-                        bio,
+                        donor.bioMessage,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
@@ -1008,15 +911,15 @@ class _DonationsScreenState extends State<DonationsScreen> {
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF10B981).withValues(alpha: 0.16),
+                      color: AppTheme.hextechEmerald.withValues(alpha: 0.16),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Text(
-                      '\$${totalUsd.toStringAsFixed(2)}',
+                      '\$${donor.totalDonatedUsd.toStringAsFixed(2)}',
                       style: GoogleFonts.outfit(
                         fontSize: 13,
                         fontWeight: FontWeight.w800,
-                        color: const Color(0xFF10B981),
+                        color: AppTheme.hextechEmerald,
                       ),
                     ),
                   ),
@@ -1026,20 +929,20 @@ class _DonationsScreenState extends State<DonationsScreen> {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Text(
-                          isLive
-                              ? LanguageService.instance.tr('don_watch_stream')
-                              : LanguageService.instance.tr('don_visit_channel'),
+                          donor.isLive
+                              ? tr('don_watch_stream')
+                              : tr('don_visit_channel'),
                           style: TextStyle(
                             fontSize: 11,
                             fontWeight: FontWeight.bold,
-                            color: isLive ? const Color(0xFFEF4444) : const Color(0xFF00E5FF),
+                            color: donor.isLive ? AppTheme.hextechCrimson : AppTheme.hextechCyan,
                           ),
                         ),
                         const SizedBox(width: 3),
                         Icon(
                           Icons.open_in_new_rounded,
                           size: 13,
-                          color: isLive ? const Color(0xFFEF4444) : const Color(0xFF00E5FF),
+                          color: donor.isLive ? AppTheme.hextechCrimson : AppTheme.hextechCyan,
                         ),
                       ],
                     ),
@@ -1052,4 +955,3 @@ class _DonationsScreenState extends State<DonationsScreen> {
     );
   }
 }
-

@@ -80,6 +80,7 @@ class MainActivity : FlutterActivity() {
     private var pendingActiveCreatorId: String? = ""
     private var pendingLanguage: String? = "es"
     private var pendingGameMode: String? = "wild_rift"
+    private var pendingModelTier: String? = "local"
     private var awaitingOverlayPermission: Boolean = false
 
     private val resultReceiver = object : BroadcastReceiver() {
@@ -209,9 +210,11 @@ class MainActivity : FlutterActivity() {
                 pendingActiveCreatorId = call.argument("activeCreatorId") ?: ""
                 pendingLanguage = call.argument("language") ?: "es"
                 pendingGameMode = call.argument("gameMode") ?: "wild_rift"
+                pendingModelTier = (call.argument<String>("modelTier") ?: "classic").lowercase()
                 getSharedPreferences("drafting_prefs", Context.MODE_PRIVATE).edit()
                     .putString("language", pendingLanguage?.lowercase()?.take(2) ?: "es")
                     .putString("game_mode", pendingGameMode?.lowercase() ?: "wild_rift")
+                    .putString("model_tier", pendingModelTier ?: "classic")
                     .apply()
 
                 if (!Settings.canDrawOverlays(this)) {
@@ -230,6 +233,13 @@ class MainActivity : FlutterActivity() {
             } else if (call.method == "stopService") {
                 val intent = Intent(this, CaptureService::class.java)
                 stopService(intent)
+                result.success(true)
+            } else if (call.method == "setModelTier") {
+                val tier = (call.argument<String>("modelTier") ?: "classic").lowercase()
+                pendingModelTier = tier
+                getSharedPreferences("drafting_prefs", Context.MODE_PRIVATE).edit()
+                    .putString("model_tier", tier)
+                    .apply()
                 result.success(true)
             } else if (call.method == "isIgnoringBatteryOptimizations") {
                 val isIgnoring = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
@@ -483,6 +493,72 @@ class MainActivity : FlutterActivity() {
                 val targetUrl = call.argument<String>("url") ?: ""
                 showNativeEventNotification(title, body, targetUrl)
                 result.success(true)
+            } else if (call.method == "analyzeLocalDraft") {
+                val role = call.argument<String>("role") ?: "Mid"
+                val bans = call.argument<List<String>>("bans") ?: emptyList()
+                val allies = call.argument<List<String>>("allies") ?: emptyList()
+                val enemies = call.argument<List<String>>("enemies") ?: emptyList()
+                val otp = call.argument<String>("otp") ?: ""
+                val exclude = call.argument<List<String>>("exclude") ?: emptyList()
+                val lang = call.argument<String>("language") ?: "es"
+                kotlin.concurrent.thread {
+                    try {
+                        val res = LocalLlmEngine.analyzeDraftLocal(
+                            context = applicationContext,
+                            role = role,
+                            bans = bans,
+                            allies = allies,
+                            enemies = enemies,
+                            otp = otp,
+                            exclude = exclude,
+                            lang = lang
+                        )
+                        runOnUiThread {
+                            result.success(mapOf(
+                                "recommendation" to res.recommendation,
+                                "draft_context" to res.draftContext,
+                                "latency_ms" to res.latencyMs,
+                                "engine_mode" to res.engineMode
+                            ))
+                        }
+                    } catch (e: Exception) {
+                        runOnUiThread {
+                            result.error("LOCAL_AI_ERROR", e.message ?: "Error en motor local", null)
+                        }
+                    }
+                }
+            } else if (call.method == "getLocalModelStatus") {
+                result.success(LocalModelManager.getStatus(applicationContext))
+            } else if (call.method == "downloadLocalModel") {
+                val url = call.argument<String>("url")
+                val sha = call.argument<String>("sha256")
+                LocalModelManager.downloadModelAsync(
+                    context = applicationContext,
+                    customUrl = url,
+                    expectedSha256 = sha,
+                    onProgress = { pct ->
+                        runOnUiThread {
+                            eventSink?.success(mapOf(
+                                "status" to "LOCAL_MODEL_DOWNLOADING",
+                                "code" to 210,
+                                "progress" to pct,
+                                "message" to "Descargando modelo local ($pct%)"
+                            ))
+                        }
+                    },
+                    onComplete = { ok, msg ->
+                        runOnUiThread {
+                            eventSink?.success(mapOf(
+                                "status" to if (ok) "LOCAL_MODEL_READY" else "LOCAL_MODEL_ERROR",
+                                "code" to if (ok) 211 else 212,
+                                "message" to msg
+                            ))
+                        }
+                    }
+                )
+                result.success(true)
+            } else if (call.method == "deleteLocalModel") {
+                result.success(LocalModelManager.deleteModel(applicationContext))
             } else {
                 result.notImplemented()
             }
@@ -608,6 +684,7 @@ class MainActivity : FlutterActivity() {
                 serviceIntent.putExtra("activeCreatorId", pendingActiveCreatorId)
                 serviceIntent.putExtra("language", pendingLanguage)
                 serviceIntent.putExtra("gameMode", pendingGameMode)
+                serviceIntent.putExtra("modelTier", pendingModelTier)
 
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                     startForegroundService(serviceIntent)

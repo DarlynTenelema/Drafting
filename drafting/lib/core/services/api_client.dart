@@ -1,6 +1,6 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
-import 'dart:async';
 import 'package:http/http.dart' as http;
 
 import '../config/app_config.dart';
@@ -9,6 +9,29 @@ import 'session_service.dart';
 
 class ApiClient {
   ApiClient._();
+
+  /// Construye las cabeceras estándar (idioma, Content-Type y token Bearer si aplica)
+  /// eliminando la duplicación en todos los métodos HTTP.
+  static Future<Map<String, String>> _buildHeaders({
+    bool authenticated = false,
+    String? sessionToken,
+    bool jsonContent = false,
+  }) async {
+    final headers = <String, String>{
+      if (jsonContent) 'Content-Type': 'application/json',
+      'Accept-Language': LanguageService.instance.currentLanguage,
+    };
+
+    if (authenticated) {
+      final token = sessionToken ?? await SessionService.getSessionToken();
+      if (token == null || token.isEmpty) {
+        throw ApiException('No hay sesión activa.', statusCode: 401);
+      }
+      headers['Authorization'] = 'Bearer $token';
+    }
+
+    return headers;
+  }
 
   static Future<http.Response> _handleRequest(Future<http.Response> Function() requestFunc) async {
     try {
@@ -37,18 +60,11 @@ class ApiClient {
     bool authenticated = false,
     String? sessionToken,
   }) async {
-    final headers = <String, String>{
-      'Content-Type': 'application/json',
-      'Accept-Language': LanguageService.instance.currentLanguage,
-    };
-
-    if (authenticated) {
-      final token = sessionToken ?? await SessionService.getSessionToken();
-      if (token == null || token.isEmpty) {
-        throw ApiException('No hay sesión activa.', statusCode: 401);
-      }
-      headers['Authorization'] = 'Bearer $token';
-    }
+    final headers = await _buildHeaders(
+      authenticated: authenticated,
+      sessionToken: sessionToken,
+      jsonContent: true,
+    );
 
     return _handleRequest(() => http.post(
       AppConfig.apiUri(path),
@@ -62,38 +78,25 @@ class ApiClient {
     bool authenticated = false,
     String? sessionToken,
   }) async {
-    final headers = <String, String>{
-      'Accept-Language': LanguageService.instance.currentLanguage,
-    };
-
-    if (authenticated) {
-      final token = sessionToken ?? await SessionService.getSessionToken();
-      if (token == null || token.isEmpty) {
-        throw ApiException('No hay sesión activa.', statusCode: 401);
-      }
-      headers['Authorization'] = 'Bearer $token';
-    }
+    final headers = await _buildHeaders(
+      authenticated: authenticated,
+      sessionToken: sessionToken,
+    );
 
     return _handleRequest(() => http.get(AppConfig.apiUri(path), headers: headers));
   }
+
   static Future<http.Response> put(
     String path, {
     Map<String, dynamic>? body,
     bool authenticated = false,
     String? sessionToken,
   }) async {
-    final headers = <String, String>{
-      'Content-Type': 'application/json',
-      'Accept-Language': LanguageService.instance.currentLanguage,
-    };
-
-    if (authenticated) {
-      final token = sessionToken ?? await SessionService.getSessionToken();
-      if (token == null || token.isEmpty) {
-        throw ApiException('No hay sesión activa.', statusCode: 401);
-      }
-      headers['Authorization'] = 'Bearer $token';
-    }
+    final headers = await _buildHeaders(
+      authenticated: authenticated,
+      sessionToken: sessionToken,
+      jsonContent: true,
+    );
 
     return _handleRequest(() => http.put(
       AppConfig.apiUri(path),
@@ -107,17 +110,10 @@ class ApiClient {
     bool authenticated = false,
     String? sessionToken,
   }) async {
-    final headers = <String, String>{
-      'Accept-Language': LanguageService.instance.currentLanguage,
-    };
-
-    if (authenticated) {
-      final token = sessionToken ?? await SessionService.getSessionToken();
-      if (token == null || token.isEmpty) {
-        throw ApiException('No hay sesión activa.', statusCode: 401);
-      }
-      headers['Authorization'] = 'Bearer $token';
-    }
+    final headers = await _buildHeaders(
+      authenticated: authenticated,
+      sessionToken: sessionToken,
+    );
 
     return _handleRequest(() => http.delete(AppConfig.apiUri(path), headers: headers));
   }
@@ -131,20 +127,12 @@ class ApiClient {
   }) async {
     final uri = AppConfig.apiUri(path);
     final request = http.MultipartRequest('POST', uri);
-    request.headers['Accept-Language'] = LanguageService.instance.currentLanguage;
-
+    final headers = await _buildHeaders(authenticated: authenticated);
+    request.headers.addAll(headers);
     request.fields.addAll(fields);
 
     if (filePath.isNotEmpty) {
       request.files.add(await http.MultipartFile.fromPath(fileField, filePath));
-    }
-
-    if (authenticated) {
-      final token = await SessionService.getSessionToken();
-      if (token == null || token.isEmpty) {
-        throw ApiException('No hay sesión activa.', statusCode: 401);
-      }
-      request.headers['Authorization'] = 'Bearer $token';
     }
 
     return _handleRequest(() async {

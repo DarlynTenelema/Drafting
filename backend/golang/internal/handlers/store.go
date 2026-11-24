@@ -13,6 +13,7 @@ import (
 	"backend/internal/database"
 	"backend/internal/middleware"
 	"backend/internal/models"
+	"backend/internal/playstore"
 
 	"gorm.io/gorm/clause"
 )
@@ -21,6 +22,7 @@ import (
 type PackConfig struct {
 	ID           string  `json:"id"`
 	Name         string  `json:"name"`
+	ModelTier    string  `json:"model_tier,omitempty"` // "classic", "flake", "aureon"
 	PriceUSD     float64 `json:"price_usd"`
 	TotalQueries int     `json:"queries"`
 	BaseQueries  int     `json:"base_queries"`
@@ -31,7 +33,7 @@ type PackConfig struct {
 	Description  string  `json:"description"`
 }
 
-// SubscriptionConfig define la configuración económica de cada suscripción mensual
+// SubscriptionConfig define la configuración económica de cada suscripción mensual (legacy)
 type SubscriptionConfig struct {
 	ID               string  `json:"id"`
 	Name             string  `json:"name"`
@@ -42,50 +44,44 @@ type SubscriptionConfig struct {
 }
 
 var AvailablePacks = map[string]PackConfig{
-	"pack_starter": {
-		ID:           "pack_starter",
-		Name:         "Pack Starter",
-		PriceUSD:     0.19,
-		TotalQueries: 100,
-		BaseQueries:  100,
-		BonusQueries: 0,
-		Tag:          "Solo una vez",
-		IsStarter:    true,
-		Description:  "100 consultas para ti + 25 para regalar a amigos",
-	},
-	"pack_plus": {
-		ID:           "pack_plus",
-		Name:         "Pack Plus",
-		PriceUSD:     0.19,
-		TotalQueries: 30,
-		BaseQueries:  30,
-		BonusQueries: 0,
-		Tag:          "Económico",
-		IsStarter:    false,
-		Description:  "30 consultas permanentes sin fecha de vencimiento",
-	},
-	"pack_pro": {
-		ID:           "pack_pro",
-		Name:         "Pack Pro",
-		PriceUSD:     0.49,
-		TotalQueries: 100,
-		BaseQueries:  100,
-		BonusQueries: 0,
-		Tag:          "Más Popular",
-		IsStarter:    false,
-		Description:  "100 consultas permanentes sin fecha de vencimiento",
-	},
-	"pack_ultra": {
-		ID:           "pack_ultra",
-		Name:         "Pack Ultra",
+	// Nuevos IDs oficiales por modelo de IA ($0.99 c/u)
+	"pack_classic_100": {
+		ID:           "pack_classic_100",
+		Name:         "Classic",
+		ModelTier:    models.ModelClassic,
 		PriceUSD:     0.99,
-		TotalQueries: 250,
-		BaseQueries:  250,
+		TotalQueries: 100,
+		BaseQueries:  100,
 		BonusQueries: 0,
-		Tag:          "Mejor Valor",
+		Tag:          "100 Consultas",
 		IsStarter:    false,
-		Description:  "250 consultas permanentes sin fecha de vencimiento",
+		Description:  "Campeón, runas y estrategia rápida con voz local. Sin chat.",
 	},
+	"pack_flake_50": {
+		ID:           "pack_flake_50",
+		Name:         "Flake 1.0",
+		ModelTier:    models.ModelFlake,
+		PriceUSD:     0.99,
+		TotalQueries: 50,
+		BaseQueries:  50,
+		BonusQueries: 0,
+		Tag:          "50 Consultas • Popular",
+		IsStarter:    false,
+		Description:  "Pre-entrenado con base Wild Rift + Razonamiento de bans/picks + Chat táctico + Voz local.",
+	},
+	"pack_aureon_20": {
+		ID:           "pack_aureon_20",
+		Name:         "Aureon 1.0",
+		ModelTier:    models.ModelAureon,
+		PriceUSD:     0.99,
+		TotalQueries: 20,
+		BaseQueries:  20,
+		BonusQueries: 0,
+		Tag:          "20 Consultas • Ultra IA",
+		IsStarter:    false,
+		Description:  "Máxima potencia: pantalla rápida + explicación extendida con voz en la nube WaveNet + Chat.",
+	},
+	// Paquetes de Vidas para Trivia
 	"pack_trivia_plus": {
 		ID:           "pack_trivia_plus",
 		Name:         "Pack Trivia Plus",
@@ -122,6 +118,48 @@ var AvailablePacks = map[string]PackConfig{
 		IsStarter:    false,
 		Description:  "100 vidas para continuar jugando en las pantallas de Trivia",
 	},
+	// Legacy IDs (solo para liquidar compras pendientes en Google Play de versiones anteriores)
+	"pack_starter": {
+		ID:           "pack_starter",
+		Name:         "Pack Starter",
+		ModelTier:    models.ModelClassic,
+		PriceUSD:     0.19,
+		TotalQueries: 20,
+		BaseQueries:  20,
+		IsStarter:    true,
+		Tag:          "Legacy",
+		Description:  "Pack legacy acreditado en Classic",
+	},
+	"pack_plus": {
+		ID:           "pack_plus",
+		Name:         "Pack Plus",
+		ModelTier:    models.ModelClassic,
+		PriceUSD:     0.19,
+		TotalQueries: 20,
+		BaseQueries:  20,
+		Tag:          "Legacy",
+		Description:  "Pack legacy acreditado en Classic",
+	},
+	"pack_pro": {
+		ID:           "pack_pro",
+		Name:         "Pack Pro",
+		ModelTier:    models.ModelClassic,
+		PriceUSD:     0.49,
+		TotalQueries: 50,
+		BaseQueries:  50,
+		Tag:          "Legacy",
+		Description:  "Pack legacy acreditado en Classic",
+	},
+	"pack_ultra": {
+		ID:           "pack_ultra",
+		Name:         "Pack Ultra",
+		ModelTier:    models.ModelClassic,
+		PriceUSD:     0.99,
+		TotalQueries: 100,
+		BaseQueries:  100,
+		Tag:          "Legacy",
+		Description:  "Pack legacy acreditado en Classic",
+	},
 }
 
 var AvailableSubscriptions = map[string]SubscriptionConfig{
@@ -154,6 +192,15 @@ var AvailableSubscriptions = map[string]SubscriptionConfig{
 func ResolvePack(id string) (PackConfig, bool) {
 	id = strings.TrimSpace(strings.ToLower(id))
 	switch id {
+	case "classic", "pack_classic", "pack_classic_100":
+		p, ok := AvailablePacks["pack_classic_100"]
+		return p, ok
+	case "flake", "pack_flake", "pack_flake_50":
+		p, ok := AvailablePacks["pack_flake_50"]
+		return p, ok
+	case "aureon", "pack_aureon", "pack_aureon_20":
+		p, ok := AvailablePacks["pack_aureon_20"]
+		return p, ok
 	case "starter", "pack_starter":
 		p, ok := AvailablePacks["pack_starter"]
 		return p, ok
@@ -178,6 +225,15 @@ func ResolvePack(id string) (PackConfig, bool) {
 	default:
 		if p, ok := AvailablePacks[id]; ok {
 			return p, true
+		}
+		if strings.Contains(id, "aureon") {
+			return AvailablePacks["pack_aureon_20"], true
+		}
+		if strings.Contains(id, "flake") {
+			return AvailablePacks["pack_flake_50"], true
+		}
+		if strings.Contains(id, "classic") {
+			return AvailablePacks["pack_classic_100"], true
 		}
 		if strings.Contains(id, "trivia") {
 			if strings.Contains(id, "ultra") {
@@ -252,18 +308,15 @@ func localizePack(p PackConfig, lang string) PackConfig {
 	switch lang {
 	case "pt":
 		switch p.ID {
-		case "pack_starter":
-			p.Tag = "Apenas uma vez"
-			p.Description = "100 consultas para você + 25 para presentear amigos"
-		case "pack_plus":
-			p.Tag = "Econômico"
-			p.Description = "30 consultas permanentes sem data de validade"
-		case "pack_pro":
-			p.Tag = "Mais Popular"
-			p.Description = "100 consultas permanentes sem data de validade"
-		case "pack_ultra":
-			p.Tag = "Melhor Valor"
-			p.Description = "250 consultas permanentes sem data de validade"
+		case "pack_classic_100":
+			p.Tag = "100 Consultas"
+			p.Description = "Campeão, runas e estratégia rápida com voz local. Sem chat."
+		case "pack_flake_50":
+			p.Tag = "50 Consultas • Popular"
+			p.Description = "Pré-treinado com base Wild Rift + Raciocínio de bans/picks + Chat tático + Voz local."
+		case "pack_aureon_20":
+			p.Tag = "20 Consultas • Ultra IA"
+			p.Description = "Potência máxima: tela rápida + explicação estendida com voz WaveNet na nuvem + Chat."
 		case "pack_trivia_plus":
 			p.Name = "Pack Trivia Plus"
 			p.Tag = "20 Vidas"
@@ -279,18 +332,15 @@ func localizePack(p PackConfig, lang string) PackConfig {
 		}
 	case "en":
 		switch p.ID {
-		case "pack_starter":
-			p.Tag = "One-time only"
-			p.Description = "100 queries for you + 25 bonus queries to gift friends"
-		case "pack_plus":
-			p.Tag = "Budget"
-			p.Description = "30 permanent queries that never expire"
-		case "pack_pro":
-			p.Tag = "Most Popular"
-			p.Description = "100 permanent queries that never expire"
-		case "pack_ultra":
-			p.Tag = "Best Value"
-			p.Description = "250 permanent queries that never expire"
+		case "pack_classic_100":
+			p.Tag = "100 Queries"
+			p.Description = "Champion, runes and quick strategy with local voice. No chat."
+		case "pack_flake_50":
+			p.Tag = "50 Queries • Popular"
+			p.Description = "Wild Rift database pre-trained + Ban/Pick reasoning + Tactical chat + Local voice."
+		case "pack_aureon_20":
+			p.Tag = "20 Queries • Ultra AI"
+			p.Description = "Maximum power: fast screen picks + extended WaveNet cloud voice coaching + Chat."
 		case "pack_trivia_plus":
 			p.Name = "Trivia Plus Pack"
 			p.Tag = "20 Lives"
@@ -306,18 +356,15 @@ func localizePack(p PackConfig, lang string) PackConfig {
 		}
 	case "fr":
 		switch p.ID {
-		case "pack_starter":
-			p.Tag = "Une seule fois"
-			p.Description = "100 consultations pour vous + 25 à offrir à vos amis"
-		case "pack_plus":
-			p.Tag = "Économique"
-			p.Description = "30 consultations permanentes sans date d'expiration"
-		case "pack_pro":
-			p.Tag = "Plus Populaire"
-			p.Description = "100 consultations permanentes sans date d'expiration"
-		case "pack_ultra":
-			p.Tag = "Meilleure Offre"
-			p.Description = "250 consultations permanentes sans date d'expiration"
+		case "pack_classic_100":
+			p.Tag = "100 Requêtes"
+			p.Description = "Champion, runes et stratégie rapide avec voix locale. Sans chat."
+		case "pack_flake_50":
+			p.Tag = "50 Requêtes • Populaire"
+			p.Description = "Base Wild Rift pré-entraînée + Analyse bans/picks + Chat tactique + Voix locale."
+		case "pack_aureon_20":
+			p.Tag = "20 Requêtes • Ultra IA"
+			p.Description = "Puissance maximale : écran rapide + explication vocale cloud WaveNet + Chat."
 		case "pack_trivia_plus":
 			p.Name = "Pack Trivia Plus"
 			p.Tag = "20 Vies"
@@ -396,49 +443,49 @@ func GetStoreCatalog(w http.ResponseWriter, r *http.Request) {
 
 	lang := normalizeAppLanguage(r.Header.Get("Accept-Language"))
 
-	today := time.Now().UTC().Format("2006-01-02")
+	now := time.Now().UTC()
+	today := now.Format("2006-01-02")
 	prevTransferDate := user.LastTransferDate
 	prevReceivedDate := user.LastReceivedDate
 	user.ResetDailyLimitsIfNewDay(today)
-	subExpired := user.CheckSubscriptionExpiry()
-	user.RecalculateAvailableQueries()
+	classicRefreshed := user.RefreshClassicDaily(now)
+	adsReset := user.ResetModelAdLimitsIfNewDay(today)
+	user.SyncModelWalletsToTotals()
 
 	if user.ReferralCode == "" {
 		user.ReferralCode = models.GenerateReferralCode(user.ID)
 	}
 
-	if prevTransferDate != user.LastTransferDate || prevReceivedDate != user.LastReceivedDate || subExpired {
+	if prevTransferDate != user.LastTransferDate || prevReceivedDate != user.LastReceivedDate || classicRefreshed || adsReset {
 		database.DB.Model(user).Updates(map[string]interface{}{
-			"daily_transferred_today": user.DailyTransferredToday,
-			"last_transfer_date":      user.LastTransferDate,
-			"daily_received_today":    user.DailyReceivedToday,
-			"last_received_date":      user.LastReceivedDate,
-			"subscription_plan":       user.SubscriptionPlan,
-			"subscription_ends_at":    user.SubscriptionEndsAt,
-			"available_queries":       user.AvailableQueries,
-			"referral_code":           user.ReferralCode,
+			"daily_transferred_today":  user.DailyTransferredToday,
+			"last_transfer_date":       user.LastTransferDate,
+			"daily_received_today":     user.DailyReceivedToday,
+			"last_received_date":       user.LastReceivedDate,
+			"classic_daily":            user.ClassicDaily,
+			"classic_last_recharge_at": user.ClassicLastRechargeAt,
+			"daily_queries":            user.DailyQueries,
+			"available_queries":        user.AvailableQueries,
+			"flake_ads_today":          user.FlakeAdsToday,
+			"flake_last_ad_date":       user.FlakeLastAdDate,
+			"aureon_ads_today":         user.AureonAdsToday,
+			"aureon_last_ad_date":      user.AureonLastAdDate,
+			"referral_code":            user.ReferralCode,
 		})
 	}
 
-	// Filtrar catálogo: si ya compró el starter pack, no se muestra
+	// Catálogo público con los 3 nuevos modelos de IA + Vidas de Trivia (packs viejos y suscripciones eliminados)
 	packsList := make([]PackConfig, 0)
 	orderPacks := []string{
-		"pack_starter", "pack_plus", "pack_pro", "pack_ultra",
+		"pack_classic_100", "pack_flake_50", "pack_aureon_20",
 		"pack_trivia_plus", "pack_trivia_pro", "pack_trivia_ultra",
 	}
 	for _, id := range orderPacks {
 		pack := localizePack(AvailablePacks[id], lang)
-		if pack.IsStarter && user.HasPurchasedStarter {
-			continue // Desaparece para siempre de la tienda
-		}
 		packsList = append(packsList, pack)
 	}
 
 	subsList := make([]SubscriptionConfig, 0)
-	orderSubs := []string{"sub_plus", "sub_pro", "sub_ultra"}
-	for _, id := range orderSubs {
-		subsList = append(subsList, localizeSubscription(AvailableSubscriptions[id], lang))
-	}
 
 	remainingTransferQuota := 10 - user.DailyTransferredToday
 	if remainingTransferQuota < 0 {
@@ -448,14 +495,27 @@ func GetStoreCatalog(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
 		"has_purchased_starter":    user.HasPurchasedStarter,
-		"is_subscribed":            user.IsSubscribed(),
-		"subscription_plan":        user.SubscriptionPlan,
-		"subscription_ends_at":     user.SubscriptionEndsAt,
+		"is_subscribed":            false,
+		"subscription_plan":        "none",
 		"subscription_queries":     user.SubscriptionQueries,
 		"purchased_queries":        user.PurchasedQueries,
 		"gift_queries":             user.GiftQueries,
 		"trivia_lives":             user.TriviaLives,
 		"available_queries":        user.AvailableQueries,
+		"classic_queries":          user.ClassicQueries(),
+		"classic_daily":            user.ClassicDaily,
+		"classic_ad":               user.ClassicAd,
+		"classic_purchased":        user.ClassicPurchased,
+		"flake_queries":            user.FlakeQueries(),
+		"flake_ad":                 user.FlakeAd,
+		"flake_purchased":          user.FlakePurchased,
+		"flake_ads_today":          user.FlakeAdsToday,
+		"flake_ads_remaining":      user.RemainingAdsForModel(models.ModelFlake, today),
+		"aureon_queries":           user.AureonQueries(),
+		"aureon_ad":                user.AureonAd,
+		"aureon_purchased":         user.AureonPurchased,
+		"aureon_ads_today":         user.AureonAdsToday,
+		"aureon_ads_remaining":     user.RemainingAdsForModel(models.ModelAureon, today),
 		"daily_transferred_today":  user.DailyTransferredToday,
 		"remaining_transfer_quota": remainingTransferQuota,
 		"remaining_transfer_today": remainingTransferQuota,
@@ -543,6 +603,18 @@ func PurchasePack(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Verificación contra Google Play Developer API (controlada por GOOGLE_PLAY_VERIFICATION_ENABLED)
+	if provider == "google_play" {
+		verifiedOrderID, verifyErr := playstore.VerifyProductPurchase(r.Context(), req.PackageName, pack.ID, purchaseToken)
+		if verifyErr != nil {
+			http.Error(w, verifyErr.Error(), http.StatusBadRequest)
+			return
+		}
+		if verifiedOrderID != "" {
+			txID = verifiedOrderID
+		}
+	}
+
 	tx := database.DB.Begin()
 	if tx.Error != nil {
 		http.Error(w, "Error iniciando transacción de base de datos", http.StatusInternalServerError)
@@ -619,9 +691,10 @@ func PurchasePack(w http.ResponseWriter, r *http.Request) {
 	if pack.TriviaLives > 0 {
 		lockedUser.AddTriviaLives(pack.TriviaLives)
 	}
-	lockedUser.RecalculateAvailableQueries()
 	if pack.TotalQueries > 0 {
-		lockedUser.AddPurchasedQueries(pack.TotalQueries)
+		lockedUser.AddPurchasedModelQueries(pack.ModelTier, pack.TotalQueries)
+	} else {
+		lockedUser.SyncModelWalletsToTotals()
 	}
 
 	// 3. Registrar primero la transacción dentro de la transacción SQL atómica
@@ -647,6 +720,9 @@ func PurchasePack(w http.ResponseWriter, r *http.Request) {
 
 	// 4. Actualizar el saldo del usuario dentro de la misma transacción SQL
 	if err := tx.Model(&lockedUser).Updates(map[string]interface{}{
+		"classic_purchased":     lockedUser.ClassicPurchased,
+		"flake_purchased":       lockedUser.FlakePurchased,
+		"aureon_purchased":      lockedUser.AureonPurchased,
 		"purchased_queries":     lockedUser.PurchasedQueries,
 		"gift_queries":          lockedUser.GiftQueries,
 		"available_queries":     lockedUser.AvailableQueries,
@@ -683,11 +759,15 @@ func PurchasePack(w http.ResponseWriter, r *http.Request) {
 		"already_processed":     false,
 		"message":               successMsg,
 		"pack_id":               pack.ID,
+		"model_tier":            pack.ModelTier,
 		"queries_added":         pack.TotalQueries,
 		"gift_queries_added":    giftAdded,
 		"trivia_lives_added":    pack.TriviaLives,
 		"trivia_lives":          lockedUser.TriviaLives,
 		"available_queries":     lockedUser.AvailableQueries,
+		"classic_queries":       lockedUser.ClassicQueries(),
+		"flake_queries":         lockedUser.FlakeQueries(),
+		"aureon_queries":        lockedUser.AureonQueries(),
 		"purchased_queries":     lockedUser.PurchasedQueries,
 		"gift_queries":          lockedUser.GiftQueries,
 		"has_purchased_starter": lockedUser.HasPurchasedStarter,
@@ -726,6 +806,18 @@ func Subscribe(w http.ResponseWriter, r *http.Request) {
 	if errMsg != "" {
 		http.Error(w, errMsg, http.StatusBadRequest)
 		return
+	}
+
+	// Verificación contra Google Play Developer API (controlada por GOOGLE_PLAY_VERIFICATION_ENABLED)
+	if provider == "google_play" {
+		verifiedOrderID, verifyErr := playstore.VerifySubscriptionPurchase(r.Context(), req.PackageName, plan.ID, purchaseToken)
+		if verifyErr != nil {
+			http.Error(w, verifyErr.Error(), http.StatusBadRequest)
+			return
+		}
+		if verifiedOrderID != "" {
+			txID = verifiedOrderID
+		}
 	}
 
 	tx := database.DB.Begin()
@@ -768,12 +860,12 @@ func Subscribe(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Las consultas de suscripción se acumulan únicamente en compras/renovaciones nuevas verificadas
+	// Las consultas de suscripción se acumulan en la billetera V2 (ClassicPurchased) y se registran también en SubscriptionQueries
 	expiryDate := time.Now().UTC().AddDate(0, 1, 0)
 	lockedUser.SubscriptionPlan = plan.ID
 	lockedUser.SubscriptionQueries += plan.QueriesPerMonth
 	lockedUser.SubscriptionEndsAt = &expiryDate
-	lockedUser.RecalculateAvailableQueries()
+	lockedUser.AddPurchasedModelQueries(models.ModelClassic, plan.QueriesPerMonth)
 
 	transactionRecord := models.Transaction{
 		UserID:                lockedUser.ID,
@@ -799,6 +891,8 @@ func Subscribe(w http.ResponseWriter, r *http.Request) {
 		"subscription_plan":    lockedUser.SubscriptionPlan,
 		"subscription_queries": lockedUser.SubscriptionQueries,
 		"subscription_ends_at": lockedUser.SubscriptionEndsAt,
+		"classic_purchased":    lockedUser.ClassicPurchased,
+		"purchased_queries":    lockedUser.PurchasedQueries,
 		"available_queries":    lockedUser.AvailableQueries,
 	}).Error; err != nil {
 		tx.Rollback()
@@ -926,52 +1020,99 @@ func TransferQueries(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Regla 7: Límite diario de consultas recibidas por el destinatario (máx 10 por día)
-	targetUser.ResetDailyLimitsIfNewDay(today)
-	if targetUser.DailyReceivedToday+req.Amount > 10 {
+	tx := database.DB.Begin()
+	if tx.Error != nil {
+		http.Error(w, "Error iniciando transacción de transferencia", http.StatusInternalServerError)
+		return
+	}
+
+	// Bloquear ambos usuarios en orden determinista por UUID para evitar deadlocks y race conditions
+	var lockedSender, lockedTarget models.User
+	if user.ID.String() < targetUser.ID.String() {
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("id = ?", user.ID).First(&lockedSender).Error; err != nil {
+			tx.Rollback()
+			http.Error(w, "Remitente no encontrado", http.StatusNotFound)
+			return
+		}
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("id = ?", targetUser.ID).First(&lockedTarget).Error; err != nil {
+			tx.Rollback()
+			http.Error(w, "Destinatario no encontrado", http.StatusNotFound)
+			return
+		}
+	} else {
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("id = ?", targetUser.ID).First(&lockedTarget).Error; err != nil {
+			tx.Rollback()
+			http.Error(w, "Destinatario no encontrado", http.StatusNotFound)
+			return
+		}
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("id = ?", user.ID).First(&lockedSender).Error; err != nil {
+			tx.Rollback()
+			http.Error(w, "Remitente no encontrado", http.StatusNotFound)
+			return
+		}
+	}
+
+	lockedSender.ResetDailyLimitsIfNewDay(today)
+	lockedTarget.ResetDailyLimitsIfNewDay(today)
+
+	if lockedSender.DailyTransferredToday+req.Amount > 10 {
+		tx.Rollback()
+		remaining := 10 - lockedSender.DailyTransferredToday
+		if remaining < 0 {
+			remaining = 0
+		}
+		http.Error(w, fmt.Sprintf("Límite diario alcanzado. Hoy ya transferiste %d consultas (solo te quedan %d disponibles hoy).", lockedSender.DailyTransferredToday, remaining), http.StatusBadRequest)
+		return
+	}
+
+	if lockedTarget.DailyReceivedToday+req.Amount > 10 {
+		tx.Rollback()
 		http.Error(w, "El jugador destino ha alcanzado su límite diario de recepción de consultas (máximo 10 por día).", http.StatusBadRequest)
 		return
 	}
 
-	tx := database.DB.Begin()
-
-	// Descontar consultas del remitente (priorizando GiftQueries -> Suscripción -> Compradas -> Anuncios -> Bono -> Diarias)
-	if !user.DeductTransferQueries(req.Amount) {
+	// Descontar consultas del remitente sincronizando billeteras V2
+	if !lockedSender.DeductTransferModelQueries(req.Amount) {
 		tx.Rollback()
 		http.Error(w, "No tienes suficientes consultas transferibles.", http.StatusBadRequest)
 		return
 	}
 
-	user.DailyTransferredToday += req.Amount
-	user.LastTransferDate = today
+	lockedSender.DailyTransferredToday += req.Amount
+	lockedSender.LastTransferDate = today
 
-	if err := tx.Model(user).Updates(map[string]interface{}{
-		"gift_queries":            user.GiftQueries,
-		"subscription_queries":    user.SubscriptionQueries,
-		"purchased_queries":       user.PurchasedQueries,
-		"ad_queries":              user.AdQueries,
-		"bonus_queries":           user.BonusQueries,
-		"daily_queries":           user.DailyQueries,
-		"available_queries":       user.AvailableQueries,
-		"daily_transferred_today": user.DailyTransferredToday,
-		"last_transfer_date":      user.LastTransferDate,
+	if err := tx.Model(&lockedSender).Updates(map[string]interface{}{
+		"gift_queries":            lockedSender.GiftQueries,
+		"classic_daily":           lockedSender.ClassicDaily,
+		"classic_ad":              lockedSender.ClassicAd,
+		"classic_purchased":       lockedSender.ClassicPurchased,
+		"flake_ad":                lockedSender.FlakeAd,
+		"flake_purchased":         lockedSender.FlakePurchased,
+		"aureon_ad":               lockedSender.AureonAd,
+		"aureon_purchased":        lockedSender.AureonPurchased,
+		"purchased_queries":       lockedSender.PurchasedQueries,
+		"ad_queries":              lockedSender.AdQueries,
+		"daily_queries":           lockedSender.DailyQueries,
+		"available_queries":       lockedSender.AvailableQueries,
+		"daily_transferred_today": lockedSender.DailyTransferredToday,
+		"last_transfer_date":      lockedSender.LastTransferDate,
 	}).Error; err != nil {
 		tx.Rollback()
 		http.Error(w, "Error actualizando el saldo del remitente", http.StatusInternalServerError)
 		return
 	}
 
-	// Añadir consultas al destinatario
-	targetUser.RecalculateAvailableQueries()
-	targetUser.AddAdQueries(req.Amount)
-	targetUser.DailyReceivedToday += req.Amount
-	targetUser.LastReceivedDate = today
+	// Añadir consultas al destinatario en billetera V2 (ClassicAd) para que no se pierdan al sincronizar
+	lockedTarget.AddAdModelQueries(models.ModelClassic, req.Amount)
+	lockedTarget.DailyReceivedToday += req.Amount
+	lockedTarget.LastReceivedDate = today
 
-	if err := tx.Model(&targetUser).Updates(map[string]interface{}{
-		"ad_queries":           targetUser.AdQueries,
-		"available_queries":    targetUser.AvailableQueries,
-		"daily_received_today": targetUser.DailyReceivedToday,
-		"last_received_date":   targetUser.LastReceivedDate,
+	if err := tx.Model(&lockedTarget).Updates(map[string]interface{}{
+		"classic_ad":           lockedTarget.ClassicAd,
+		"ad_queries":           lockedTarget.AdQueries,
+		"available_queries":    lockedTarget.AvailableQueries,
+		"daily_received_today": lockedTarget.DailyReceivedToday,
+		"last_received_date":   lockedTarget.LastReceivedDate,
 	}).Error; err != nil {
 		tx.Rollback()
 		http.Error(w, "Error acreditando consultas al destinatario", http.StatusInternalServerError)
@@ -982,6 +1123,9 @@ func TransferQueries(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Error confirmando la transferencia", http.StatusInternalServerError)
 		return
 	}
+
+	*user = lockedSender
+	targetUser = lockedTarget
 
 	// Registrar transferencia para auditoría (no bloqueante ante esquemas legacy)
 	transferLog := models.QueryTransfer{

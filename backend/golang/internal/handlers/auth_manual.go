@@ -63,16 +63,20 @@ func ManualRegister(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Create user
+	// Create user aligned with V2 model wallets (same initial quota as GoogleLogin)
+	now := time.Now().UTC()
 	user := models.User{
-		Email:               req.Email,
-		PasswordHash:        string(hashedPassword),
-		DeviceID:            req.DeviceID,
-		BonusQueries:        5,
-		DailyQueries:        3,
-		AdQueries:           0,
-		AvailableQueries:    8,
-		LastDailyRewardDate: time.Now().UTC().Format("2006-01-02"),
+		Email:                 req.Email,
+		PasswordHash:          string(hashedPassword),
+		DeviceID:              req.DeviceID,
+		ClassicDaily:          models.ClassicDailyCap,
+		ClassicLastRechargeAt: &now,
+		DailyQueries:          models.ClassicDailyCap,
+		BonusQueries:          0,
+		AdQueries:             0,
+		AvailableQueries:      models.ClassicDailyCap,
+		LastDailyRewardDate:   now.Format("2006-01-02"),
+		ModelsV2Migrated:      true,
 	}
 
 	if err := database.DB.Create(&user).Error; err != nil {

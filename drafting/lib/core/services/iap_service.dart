@@ -41,20 +41,15 @@ class InAppPurchaseService {
   final InAppPurchase _iap = InAppPurchase.instance;
   StreamSubscription<List<PurchaseDetails>>? _subscription;
 
-  // IDs oficiales para Google Play Console
-  static const String packStarter = 'pack_starter';
-  static const String packPlus = 'pack_plus';
-  static const String packPro = 'pack_pro';
-  static const String packUltra = 'pack_ultra';
+  // Nuevos IDs oficiales por modelo de IA para Google Play Console ($0.99 c/u)
+  static const String packClassic100 = 'pack_classic_100';
+  static const String packFlake50 = 'pack_flake_50';
+  static const String packAureon20 = 'pack_aureon_20';
 
   // IDs de Paquetes de Vidas para Trivia ($0.19, $0.49, $0.99)
   static const String packTriviaPlus = 'pack_trivia_plus';
   static const String packTriviaPro = 'pack_trivia_pro';
   static const String packTriviaUltra = 'pack_trivia_ultra';
-
-  static const String subPlus = 'sub_plus';
-  static const String subPro = 'sub_pro';
-  static const String subUltra = 'sub_ultra';
 
   // IDs de Micro-Donaciones para Google Play Console ($0.10 - $0.99)
   static const String donate10 = 'donate_10';
@@ -70,10 +65,9 @@ class InAppPurchaseService {
   };
 
   static const Set<String> packIds = {
-    packStarter,
-    packPlus,
-    packPro,
-    packUltra,
+    packClassic100,
+    packFlake50,
+    packAureon20,
     ...triviaPackIds,
   };
 
@@ -85,11 +79,8 @@ class InAppPurchaseService {
     donate99,
   };
 
-  static const Set<String> subscriptionIds = {
-    subPlus,
-    subPro,
-    subUltra,
-  };
+  // Suscripciones eliminadas del nuevo sistema de modelos
+  static const Set<String> subscriptionIds = {};
 
   static const Set<String> allProductIds = {
     ...packIds,

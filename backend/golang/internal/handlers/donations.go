@@ -11,6 +11,7 @@ import (
 	"backend/internal/database"
 	"backend/internal/middleware"
 	"backend/internal/models"
+	"backend/internal/playstore"
 
 	"gorm.io/gorm/clause"
 )
@@ -138,6 +139,7 @@ type ContributeDonationRequest struct {
 	ProviderTransactionID string `json:"provider_transaction_id"`
 	Provider              string `json:"provider"`
 	PurchaseToken         string `json:"purchase_token,omitempty"`
+	PackageName           string `json:"package_name,omitempty"`
 }
 
 // ContributeDonation acredita una micro-donación de Google Play Billing y actualiza la posición del usuario en el Ranking
@@ -164,6 +166,18 @@ func ContributeDonation(w http.ResponseWriter, r *http.Request) {
 	if errMsg != "" {
 		http.Error(w, errMsg, http.StatusBadRequest)
 		return
+	}
+
+	// Verificación contra Google Play Developer API (activada por GOOGLE_PLAY_VERIFICATION_ENABLED)
+	if provider == "google_play" {
+		verifiedOrderID, verifyErr := playstore.VerifyProductPurchase(r.Context(), req.PackageName, tier.ID, purchaseToken)
+		if verifyErr != nil {
+			http.Error(w, verifyErr.Error(), http.StatusBadRequest)
+			return
+		}
+		if verifiedOrderID != "" {
+			txID = verifiedOrderID
+		}
 	}
 
 	tx := database.DB.Begin()
@@ -201,9 +215,8 @@ func ContributeDonation(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Acreditar consultas de agradecimiento
-	lockedUser.RecalculateAvailableQueries()
-	lockedUser.AddPurchasedQueries(tier.BonusQueries)
+	// Acreditar consultas de agradecimiento en la billetera V2 (ClassicPurchased) para que nunca se pierdan al sincronizar
+	lockedUser.AddPurchasedModelQueries(models.ModelClassic, tier.BonusQueries)
 
 	txRecord := models.Transaction{
 		UserID:                lockedUser.ID,
@@ -224,6 +237,7 @@ func ContributeDonation(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := tx.Model(&lockedUser).Updates(map[string]interface{}{
+		"classic_purchased": lockedUser.ClassicPurchased,
 		"purchased_queries": lockedUser.PurchasedQueries,
 		"available_queries": lockedUser.AvailableQueries,
 	}).Error; err != nil {

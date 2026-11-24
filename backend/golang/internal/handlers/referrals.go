@@ -10,6 +10,7 @@ import (
 	"backend/internal/middleware"
 	"backend/internal/models"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type RedeemReferralRequest struct {
@@ -59,20 +60,33 @@ func RedeemReferral(w http.ResponseWriter, r *http.Request) {
 		var streamer models.StreamerApplication
 		if sErr := database.DB.Where("UPPER(promo_code) = ? AND status = 'approved'", codeUpper).First(&streamer).Error; sErr == nil {
 			const streamerWelcomeBonus = 3
-			currentUser.ReferredByStreamerCode = streamer.PromoCode
-			currentUser.AddAdQueries(streamerWelcomeBonus)
 
 			txErr := database.DB.Transaction(func(tx *gorm.DB) error {
-				if err := tx.Model(currentUser).Updates(map[string]interface{}{
-					"referred_by_streamer_code": currentUser.ReferredByStreamerCode,
-					"ad_queries":                currentUser.AdQueries,
-					"available_queries":         currentUser.AvailableQueries,
+				var lockedCurrent models.User
+				if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("id = ?", currentUser.ID).First(&lockedCurrent).Error; err != nil {
+					return err
+				}
+				if lockedCurrent.ReferredByID != nil || lockedCurrent.ReferredByStreamerCode != "" {
+					return errors.New("ALREADY_REDEEMED")
+				}
+				lockedCurrent.ReferredByStreamerCode = streamer.PromoCode
+				lockedCurrent.AddAdModelQueries(models.ModelClassic, streamerWelcomeBonus)
+				if err := tx.Model(&lockedCurrent).Updates(map[string]interface{}{
+					"referred_by_streamer_code": lockedCurrent.ReferredByStreamerCode,
+					"classic_ad":                lockedCurrent.ClassicAd,
+					"ad_queries":                lockedCurrent.AdQueries,
+					"available_queries":         lockedCurrent.AvailableQueries,
 				}).Error; err != nil {
 					return err
 				}
+				*currentUser = lockedCurrent
 				return tx.Model(&streamer).Update("total_referrals", gorm.Expr("total_referrals + 1")).Error
 			})
 			if txErr != nil {
+				if txErr.Error() == "ALREADY_REDEEMED" {
+					http.Error(w, "Ya has canjeado un código de invitación anteriormente.", http.StatusBadRequest)
+					return
+				}
 				http.Error(w, "Error al activar código de creador.", http.StatusInternalServerError)
 				return
 			}
@@ -125,11 +139,19 @@ func RedeemReferral(w http.ResponseWriter, r *http.Request) {
 	var milestoneEarned bool
 	var newAvailableQueries int
 
-	// Ejecutar en transacción atómica
+	// Ejecutar en transacción atómica con bloqueo FOR UPDATE en ambos usuarios
 	err := database.DB.Transaction(func(tx *gorm.DB) error {
+		var lockedCurrent models.User
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("id = ?", currentUser.ID).First(&lockedCurrent).Error; err != nil {
+			return err
+		}
+		if lockedCurrent.ReferredByID != nil || lockedCurrent.ReferredByStreamerCode != "" {
+			return errors.New("ALREADY_REDEEMED")
+		}
+
 		// Bloquear y recargar al anfitrión dentro de la transacción
 		var lockedReferrer models.User
-		if err := tx.Where("id = ?", referrer.ID).First(&lockedReferrer).Error; err != nil {
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("id = ?", referrer.ID).First(&lockedReferrer).Error; err != nil {
 			return err
 		}
 
@@ -137,34 +159,40 @@ func RedeemReferral(w http.ResponseWriter, r *http.Request) {
 			return errors.New("MAX_LIMIT_REACHED")
 		}
 
-		// Actualizar al usuario actual (invitado)
-		currentUser.ReferredByID = &lockedReferrer.ID
+		// Actualizar al usuario actual (invitado) en billetera V2 (ClassicAd)
+		lockedCurrent.ReferredByID = &lockedReferrer.ID
+		if lockedCurrent.DeviceID == "" && currentUser.DeviceID != "" {
+			lockedCurrent.DeviceID = currentUser.DeviceID
+		}
 		const welcomeBonus = 2 // Bono de bienvenida para el invitado
-		currentUser.AddAdQueries(welcomeBonus)
-		if err := tx.Model(currentUser).Updates(map[string]interface{}{
-			"referred_by_id":    currentUser.ReferredByID,
-			"device_id":         currentUser.DeviceID,
-			"ad_queries":        currentUser.AdQueries,
-			"available_queries": currentUser.AvailableQueries,
+		lockedCurrent.AddAdModelQueries(models.ModelClassic, welcomeBonus)
+		if err := tx.Model(&lockedCurrent).Updates(map[string]interface{}{
+			"referred_by_id":    lockedCurrent.ReferredByID,
+			"device_id":         lockedCurrent.DeviceID,
+			"classic_ad":        lockedCurrent.ClassicAd,
+			"ad_queries":        lockedCurrent.AdQueries,
+			"available_queries": lockedCurrent.AvailableQueries,
 		}).Error; err != nil {
 			return err
 		}
 
-		newAvailableQueries = currentUser.AvailableQueries
+		*currentUser = lockedCurrent
+		newAvailableQueries = lockedCurrent.AvailableQueries
 
-		// Actualizar al anfitrión
+		// Actualizar al anfitrión en billetera V2 (ClassicAd)
 		lockedReferrer.ReferralCount++
 
 		// Recompensa: Cada nuevo amigo = +5 consultas hasta un máximo de 10 amigos (50 consultas)
 		if lockedReferrer.ReferralRewardsClaimed < 10 {
 			lockedReferrer.ReferralRewardsClaimed++
-			lockedReferrer.AddAdQueries(5)
+			lockedReferrer.AddAdModelQueries(models.ModelClassic, 5)
 			milestoneEarned = true
 		}
 
 		if err := tx.Model(&lockedReferrer).Updates(map[string]interface{}{
 			"referral_count":           lockedReferrer.ReferralCount,
 			"referral_rewards_claimed": lockedReferrer.ReferralRewardsClaimed,
+			"classic_ad":               lockedReferrer.ClassicAd,
 			"ad_queries":               lockedReferrer.AdQueries,
 			"available_queries":        lockedReferrer.AvailableQueries,
 		}).Error; err != nil {
@@ -175,6 +203,10 @@ func RedeemReferral(w http.ResponseWriter, r *http.Request) {
 	})
 
 	if err != nil {
+		if err.Error() == "ALREADY_REDEEMED" {
+			http.Error(w, "Ya has canjeado un código de invitación anteriormente.", http.StatusBadRequest)
+			return
+		}
 		if err.Error() == "MAX_LIMIT_REACHED" {
 			http.Error(w, "Este usuario ya alcanzó el límite máximo de 10 amigos invitados.", http.StatusBadRequest)
 			return
