@@ -28,7 +28,7 @@ android {
 
     defaultConfig {
         applicationId = "com.drafting.app"
-        minSdk = maxOf(flutter.minSdkVersion, 24)
+        minSdk = maxOf(flutter.minSdkVersion, 26)
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
@@ -86,5 +86,8 @@ flutter {
 dependencies {
     implementation("com.google.android.play:app-update:2.1.0")
     implementation("com.google.android.play:app-update-ktx:2.1.0")
-    implementation("com.llamatik:library-android:0.15.0")
+    implementation("com.llamatik:library-android:0.15.0") {
+        exclude(group = "androidx.lifecycle", module = "lifecycle-runtime-compose")
+        exclude(group = "androidx.lifecycle", module = "lifecycle-runtime-compose-android")
+    }
 }

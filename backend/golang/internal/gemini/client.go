@@ -1331,20 +1331,22 @@ Rules:
 	}
 
 	thinkingBudget := int32(0)
-	cfg := &genai.GenerateContentConfig{
-		MaxOutputTokens:  200,
-		ResponseMIMEType: "application/json",
-		ThinkingConfig: &genai.ThinkingConfig{
-			ThinkingBudget: &thinkingBudget,
-		},
-	}
-
-	models := []string{"gemini-2.5-flash-lite", "gemini-2.5-flash", "gemini-2.5-flash-lite"}
+	models := []string{"gemini-2.5-flash", "gemini-2.5-flash-lite"}
 	var resp *genai.GenerateContentResponse
 	var lastErr error
 	var usedModel string
 
 	for attempt, m := range models {
+		cfg := &genai.GenerateContentConfig{
+			MaxOutputTokens:  512,
+			ResponseMIMEType: "application/json",
+		}
+		if m == "gemini-2.5-flash" {
+			cfg.ThinkingConfig = &genai.ThinkingConfig{
+				ThinkingBudget: &thinkingBudget,
+			}
+		}
+
 		resp, lastErr = aiClient.Models.GenerateContent(ctx, m, contents, cfg)
 		if lastErr == nil && resp != nil && strings.TrimSpace(resp.Text()) != "" {
 			usedModel = m
@@ -1368,8 +1370,10 @@ Rules:
 		)
 	}
 
-	state, err := parseDraftVisionJSON(resp.Text(), fallbackRole...)
+	rawText := resp.Text()
+	state, err := parseDraftVisionJSON(rawText, fallbackRole...)
 	if err != nil {
+		log.Printf("⚠️ [extract-vision] JSON inválido recibido de %s: %q | err=%v", usedModel, rawText, err)
 		return DraftVisionState{}, tokens, fmt.Errorf("JSON de visión inválido: %w", err)
 	}
 	return state, tokens, nil

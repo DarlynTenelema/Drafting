@@ -1269,7 +1269,14 @@ class CaptureService : Service() {
                     showResultOnUI(overlayTr("err_401"), autoSpeak = false)
                     sendResultToActivity("error", 401, overlayTr("err_401"))
                 } else {
-                    showResultOnUI("Error visión ($code)", autoSpeak = false)
+                    val errBody = try {
+                        conn.errorStream?.bufferedReader()?.use { it.readText() }?.trim() ?: ""
+                    } catch (_: Exception) {
+                        ""
+                    }
+                    Log.e("CaptureService", "extract-vision HTTP $code: $errBody")
+                    val shortErr = if (errBody.isNotEmpty()) ": ${errBody.take(120)}" else ""
+                    showResultOnUI("Error visión ($code)$shortErr", autoSpeak = false)
                 }
             } catch (e: Exception) {
                 showResultOnUI("Error modo local: ${e.message ?: e.javaClass.simpleName}", autoSpeak = false)
