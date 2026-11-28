@@ -11,20 +11,46 @@ import (
 type TriviaCategory string
 
 const (
-	TriviaCategoryItemCost  TriviaCategory = "item_cost"  // ¿Cuánto cuesta este objeto?
-	TriviaCategoryBuildPath TriviaCategory = "build_path" // ¿Qué se está armando?
-	TriviaCategoryCounter   TriviaCategory = "counter"    // ¿Cuál es el counter de este campeón?
+	TriviaCategoryItemCost   TriviaCategory = "item_cost"   // ¿Cuánto vale este objeto?
+	TriviaCategoryBuildPath  TriviaCategory = "build_path"  // ¿Qué se está armando?
+	TriviaCategoryCounter    TriviaCategory = "counter"     // ¿Cuál es el counter de este campeón?
+	TriviaCategoryPowerSpike TriviaCategory = "power_spike" // ¿Cuál es el power spike de este campeón?
+	TriviaCategoryLevelDuel  TriviaCategory = "level_duel"  // ¿Quién gana a este nivel?
+	TriviaCategoryBestRune   TriviaCategory = "best_rune"   // ¿A quién le va mejor esta runa?
+	TriviaCategoryBestItem   TriviaCategory = "best_item"   // ¿A quién le va mejor este objeto?
 )
+
+func AllTriviaCategories() []TriviaCategory {
+	return []TriviaCategory{
+		TriviaCategoryItemCost,
+		TriviaCategoryBuildPath,
+		TriviaCategoryCounter,
+		TriviaCategoryPowerSpike,
+		TriviaCategoryLevelDuel,
+		TriviaCategoryBestRune,
+		TriviaCategoryBestItem,
+	}
+}
+
+func IsValidTriviaCategory(cat TriviaCategory) bool {
+	for _, c := range AllTriviaCategories() {
+		if c == cat {
+			return true
+		}
+	}
+	return false
+}
 
 type TriviaQuestion struct {
 	ID            uuid.UUID      `gorm:"type:uuid;primary_key;default:gen_random_uuid()" json:"id"`
-	Category      TriviaCategory `gorm:"type:varchar(32);index;not null" json:"category"` // item_cost, build_path, counter
+	Category      TriviaCategory `gorm:"type:varchar(32);index;not null" json:"category"` // item_cost, build_path, counter, power_spike, level_duel, best_rune, best_item
 	Game          string         `gorm:"type:varchar(32);default:'wild_rift';index" json:"game"` // wild_rift o lol_pc
 	QuestionText  string         `gorm:"type:text;not null" json:"question_text"`
 	TargetName    string         `gorm:"type:varchar(128);not null" json:"target_name"` // ej: "Fuerza de la Trinidad", "Darius"
-	Clues         string         `gorm:"type:text;default:''" json:"clues"`             // pistas / componentes: "Brillo + Furia + Bacteriófago"
+	Clues         string         `gorm:"type:text;default:''" json:"clues"`             // pistas / componentes / nivel
 	Options       string         `gorm:"type:text;default:'[]'" json:"options"`         // JSON string array: ["A", "B", "C", "D"]
 	CorrectAnswer string         `gorm:"type:text;not null" json:"correct_answer"`      // "3333", "Fuerza de la Trinidad", "Vayne"
+	Explanation   string         `gorm:"type:text;default:''" json:"explanation"`       // Explicación educativa del porqué de la respuesta
 	Tolerance     int            `gorm:"default:0" json:"tolerance"`                    // Margen de tolerancia para precios numéricos (ej: 0)
 	MonthTag      string         `gorm:"type:varchar(32);default:'general';index" json:"month_tag"` // ej: "2026-11"
 	Active        bool           `gorm:"default:true;index" json:"active"`

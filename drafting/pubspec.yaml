@@ -43,6 +43,7 @@ flutter:
     - assets/images/
     - assets/models/
     - assets/campeones/
+    - assets/champions/
 
 flutter_launcher_icons:
   android: true

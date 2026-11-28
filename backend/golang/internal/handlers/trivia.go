@@ -35,6 +35,7 @@ type TriviaQuestionJSON struct {
 	Clues         string   `json:"clues"`
 	Options       []string `json:"options"`
 	CorrectAnswer string   `json:"correct_answer"`
+	Explanation   string   `json:"explanation"`
 	Tolerance     int      `json:"tolerance"`
 	MonthTag      string   `json:"month_tag"`
 }
@@ -71,16 +72,18 @@ func findTriviaJSONPath(lang string) string {
 	return ""
 }
 
-// loadQuestionsForLang carga las preguntas desde el archivo JSON y las recarga automáticamente si el archivo se edita
+// loadQuestionsForLang carga las preguntas desde el archivo JSON en disco (recarga en caliente)
+// y, si no existe en disco (ej. contenedor Docker / Railway), las carga desde el FS embebido en el binario.
 func loadQuestionsForLang(lang string) []TriviaQuestionJSON {
+	cleanLang := gemini.NormalizeLanguage(lang)
 	path := findTriviaJSONPath(lang)
 	if path == "" {
-		return nil
+		return loadEmbeddedQuestionsForLang(cleanLang)
 	}
 
 	fi, err := os.Stat(path)
 	if err != nil {
-		return nil
+		return loadEmbeddedQuestionsForLang(cleanLang)
 	}
 
 	triviaCacheLock.RLock()
@@ -112,6 +115,38 @@ func loadQuestionsForLang(lang string) []TriviaQuestionJSON {
 	return list
 }
 
+func loadEmbeddedQuestionsForLang(cleanLang string) []TriviaQuestionJSON {
+	embedKey := "embed:" + cleanLang
+	triviaCacheLock.RLock()
+	if cached, ok := triviaFileCache[embedKey]; ok {
+		triviaCacheLock.RUnlock()
+		return cached
+	}
+	triviaCacheLock.RUnlock()
+
+	candidates := []string{
+		fmt.Sprintf("trivia_data/trivia_questions_%s.json", cleanLang),
+		"trivia_data/trivia_questions_es.json",
+	}
+	for _, p := range candidates {
+		data, err := embeddedTriviaFS.ReadFile(p)
+		if err != nil {
+			continue
+		}
+		var list []TriviaQuestionJSON
+		if err := json.Unmarshal(data, &list); err != nil {
+			log.Printf("⚠️ Error parseando JSON embebido de trivia %s: %v", p, err)
+			continue
+		}
+		triviaCacheLock.Lock()
+		triviaFileCache[embedKey] = list
+		triviaCacheLock.Unlock()
+		log.Printf("📦 [TRIVIA] %d preguntas cargadas desde JSON embebido: %s", len(list), p)
+		return list
+	}
+	return nil
+}
+
 func findQuestionInJSON(qID string, lang string) *TriviaQuestionJSON {
 	langs := []string{lang, "es", "en", "pt", "fr"}
 	for _, l := range langs {
@@ -131,6 +166,18 @@ type TriviaAnswerRequest struct {
 	UserAnswer string `json:"user_answer"`
 }
 
+// ensureDailyTriviaRecharge aplica y persiste la recarga diaria gratuita de vidas de Trivia.
+func ensureDailyTriviaRecharge(user *models.User) int64 {
+	changed, nextSecs := user.ApplyDailyTriviaRecharge(time.Now().UTC())
+	if changed {
+		database.DB.Model(user).Updates(map[string]interface{}{
+			"trivia_lives":            user.TriviaLives,
+			"trivia_last_recharge_at": user.TriviaLastRechargeAt,
+		})
+	}
+	return nextSecs
+}
+
 // GetTriviaStatus devuelve las vidas actuales y el progreso del usuario en cada categoría
 func GetTriviaStatus(w http.ResponseWriter, r *http.Request) {
 	user, ok := r.Context().Value(middleware.UserContextKey).(*models.User)
@@ -139,17 +186,16 @@ func GetTriviaStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	nextRechargeSecs := ensureDailyTriviaRecharge(user)
+
 	lang := r.URL.Query().Get("lang")
 	if lang == "" {
 		lang = r.Header.Get("Accept-Language")
 	}
 	jsonQuestions := loadQuestionsForLang(lang)
 
-	categories := []models.TriviaCategory{
-		models.TriviaCategoryItemCost,
-		models.TriviaCategoryBuildPath,
-		models.TriviaCategoryCounter,
-	}
+	categories := models.AllTriviaCategories()
+	fallbackQuestions := loadQuestionsForLang("es")
 
 	type CategoryProgress struct {
 		Category  string `json:"category"`
@@ -168,6 +214,13 @@ func GetTriviaStatus(w http.ResponseWriter, r *http.Request) {
 					total++
 				}
 			}
+			if total == 0 && len(fallbackQuestions) > 0 {
+				for _, q := range fallbackQuestions {
+					if q.Category == string(cat) {
+						total++
+					}
+				}
+			}
 		} else {
 			database.DB.Model(&models.TriviaQuestion{}).Where("category = ? AND active = ?", cat, true).Count(&total)
 		}
@@ -182,8 +235,10 @@ func GetTriviaStatus(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
-		"trivia_lives": user.TriviaLives,
-		"categories":   progressList,
+		"trivia_lives":          user.TriviaLives,
+		"max_daily_lives":       models.TriviaDailyMaxLives,
+		"next_recharge_seconds": nextRechargeSecs,
+		"categories":            progressList,
 	})
 }
 
@@ -195,16 +250,16 @@ func GetTriviaQuestion(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	nextRechargeSecs := ensureDailyTriviaRecharge(user)
+
 	categoryRaw := strings.TrimSpace(r.URL.Query().Get("category"))
 	if categoryRaw == "" {
 		categoryRaw = string(models.TriviaCategoryItemCost)
 	}
 	category := models.TriviaCategory(categoryRaw)
 
-	if category != models.TriviaCategoryItemCost &&
-		category != models.TriviaCategoryBuildPath &&
-		category != models.TriviaCategoryCounter {
-		http.Error(w, "Categoría no válida. Usar: item_cost, build_path, counter", http.StatusBadRequest)
+	if !models.IsValidTriviaCategory(category) {
+		http.Error(w, "Categoría no válida. Usar: item_cost, build_path, counter, power_spike, level_duel, best_rune, best_item", http.StatusBadRequest)
 		return
 	}
 
@@ -213,6 +268,21 @@ func GetTriviaQuestion(w http.ResponseWriter, r *http.Request) {
 		lang = r.Header.Get("Accept-Language")
 	}
 	jsonQuestions := loadQuestionsForLang(lang)
+
+	// Si el archivo del idioma actual aún no tiene esta categoría (ej. nuevas categorías validadas en ES),
+	// hacemos fallback al archivo maestro en español para no dejar la pestaña vacía.
+	hasCategoryInLang := false
+	for _, q := range jsonQuestions {
+		if q.Category == string(category) {
+			hasCategoryInLang = true
+			break
+		}
+	}
+	if !hasCategoryInLang {
+		if esQuestions := loadQuestionsForLang("es"); len(esQuestions) > 0 {
+			jsonQuestions = esQuestions
+		}
+	}
 
 	if len(jsonQuestions) > 0 {
 		// Modo JSON: filtrar desde el archivo JSON editable
@@ -236,10 +306,12 @@ func GetTriviaQuestion(w http.ResponseWriter, r *http.Request) {
 		if len(eligible) == 0 {
 			w.Header().Set("Content-Type", "application/json")
 			json.NewEncoder(w).Encode(map[string]interface{}{
-				"completed_all": true,
-				"message":       "¡Felicitaciones! Has completado todas las preguntas disponibles en esta modalidad.",
-				"category":      category,
-				"trivia_lives":  user.TriviaLives,
+				"completed_all":         true,
+				"message":               "¡Felicitaciones! Has completado todas las preguntas disponibles en esta modalidad.",
+				"category":              category,
+				"trivia_lives":          user.TriviaLives,
+				"max_daily_lives":       models.TriviaDailyMaxLives,
+				"next_recharge_seconds": nextRechargeSecs,
 			})
 			return
 		}
@@ -249,7 +321,7 @@ func GetTriviaQuestion(w http.ResponseWriter, r *http.Request) {
 
 		options := make([]string, len(chosen.Options))
 		copy(options, chosen.Options)
-		if len(options) > 1 {
+		if len(options) > 1 && category != models.TriviaCategoryPowerSpike {
 			rand.Shuffle(len(options), func(i, j int) {
 				options[i], options[j] = options[j], options[i]
 			})
@@ -257,15 +329,17 @@ func GetTriviaQuestion(w http.ResponseWriter, r *http.Request) {
 
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]interface{}{
-			"id":            chosen.ID,
-			"category":      chosen.Category,
-			"game":          chosen.Game,
-			"question_text": chosen.QuestionText,
-			"target_name":   chosen.TargetName,
-			"clues":         chosen.Clues,
-			"options":       options,
-			"trivia_lives":  user.TriviaLives,
-			"completed_all": false,
+			"id":                    chosen.ID,
+			"category":              chosen.Category,
+			"game":                  chosen.Game,
+			"question_text":         chosen.QuestionText,
+			"target_name":           chosen.TargetName,
+			"clues":                 chosen.Clues,
+			"options":               options,
+			"trivia_lives":          user.TriviaLives,
+			"max_daily_lives":       models.TriviaDailyMaxLives,
+			"next_recharge_seconds": nextRechargeSecs,
+			"completed_all":         false,
 		})
 		return
 	}
@@ -333,14 +407,17 @@ func SubmitTriviaAnswer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 1. Verificar si el usuario tiene vidas disponibles
+	// 1. Aplicar recarga diaria y verificar si el usuario tiene vidas disponibles
+	nextRechargeSecs := ensureDailyTriviaRecharge(user)
 	if user.TriviaLives <= 0 {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusForbidden)
 		json.NewEncoder(w).Encode(map[string]interface{}{
-			"error":        "no_lives",
-			"message":      "No tienes vidas disponibles para jugar. Mira un anuncio de video para recibir 3 vidas o recarga en la tienda.",
-			"trivia_lives": 0,
+			"error":                 "no_lives",
+			"message":               "Te quedaste sin vidas por hoy. Tus vidas se recargan gratis cada 24 horas.",
+			"trivia_lives":          0,
+			"max_daily_lives":       models.TriviaDailyMaxLives,
+			"next_recharge_seconds": nextRechargeSecs,
 		})
 		return
 	}
@@ -348,6 +425,7 @@ func SubmitTriviaAnswer(w http.ResponseWriter, r *http.Request) {
 	cleanUserAns := strings.TrimSpace(req.UserAnswer)
 	var cleanCorrectAns string
 	var questionCategory string
+	var explanation string
 	var tolerance int
 
 	// 2. Buscar primero en los archivos JSON editables
@@ -365,6 +443,7 @@ func SubmitTriviaAnswer(w http.ResponseWriter, r *http.Request) {
 	if jsonQ != nil {
 		cleanCorrectAns = strings.TrimSpace(jsonQ.CorrectAnswer)
 		questionCategory = jsonQ.Category
+		explanation = strings.TrimSpace(jsonQ.Explanation)
 		tolerance = jsonQ.Tolerance
 	} else {
 		// Fallback a Base de Datos
@@ -375,6 +454,7 @@ func SubmitTriviaAnswer(w http.ResponseWriter, r *http.Request) {
 		}
 		cleanCorrectAns = strings.TrimSpace(question.CorrectAnswer)
 		questionCategory = string(question.Category)
+		explanation = strings.TrimSpace(question.Explanation)
 		tolerance = question.Tolerance
 	}
 
@@ -425,16 +505,23 @@ func SubmitTriviaAnswer(w http.ResponseWriter, r *http.Request) {
 	feedbackMsg := "¡Excelente! Respuesta correcta."
 	if !isCorrect {
 		user.ConsumeTriviaLife()
-		database.DB.Model(user).Update("trivia_lives", user.TriviaLives)
+		database.DB.Model(user).Updates(map[string]interface{}{
+			"trivia_lives":            user.TriviaLives,
+			"trivia_last_recharge_at": user.TriviaLastRechargeAt,
+		})
+		_, nextRechargeSecs = user.ApplyDailyTriviaRecharge(time.Now().UTC())
 		feedbackMsg = fmt.Sprintf("Incorrecto. La respuesta correcta era: %s", cleanCorrectAns)
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
-		"is_correct":     isCorrect,
-		"correct_answer": cleanCorrectAns,
-		"message":        feedbackMsg,
-		"trivia_lives":   user.TriviaLives,
+		"is_correct":            isCorrect,
+		"correct_answer":        cleanCorrectAns,
+		"explanation":           explanation,
+		"message":               feedbackMsg,
+		"trivia_lives":          user.TriviaLives,
+		"max_daily_lives":       models.TriviaDailyMaxLives,
+		"next_recharge_seconds": nextRechargeSecs,
 	})
 }
 

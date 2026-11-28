@@ -91,10 +91,36 @@ comentarios/
 *.md
 !README.md
 
-# --- 10. Reference Screenshots, Python Cache & Local AI Weights ---
+# --- 10. Reference Screenshots, Media, Python Cache & Local AI Weights ---
 Items/
 campeones/
 runas/
+Campeones_masterizados/
+Estadísticas_de_partida/
+Estadísticas_especiales/
+Estadísticas_generales/
+Historial_de_objetos/
+*.mp4
+*.mov
+*.avi
+*.mkv
+*.webm
 __pycache__/
 *.pyc
 *.gguf
+*.onnx
+*.pt
+*.pth
+*.safetensors
+local_ai/models/
+local_ai/data/icons_cache/
+local_ai/data/wr_icons_cache/
+local_ai/data/*.bin
+local_ai/data/*.jsonl
+local_ai/data/wr_ban_fingerprints.json
+local_ai/coach/data/*.jsonl
+local_ai/debug_crops/
+local_ai/debug_neural/
+local_ai/*.zip
+drafting/android/app/src/main/assets/*.onnx
+drafting/android/app/src/main/assets/*.bin

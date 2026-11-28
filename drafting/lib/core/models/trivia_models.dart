@@ -16,8 +16,12 @@ class TriviaQuestion {
     required this.options,
   });
 
-  factory TriviaQuestion.fromJson(Map<String, dynamic> json, {required String fallbackCategory}) {
-    final rawOptions = (json['options'] is List) ? json['options'] as List<dynamic> : const [];
+  factory TriviaQuestion.fromJson(
+    Map<String, dynamic> json, {
+    required String fallbackCategory,
+  }) {
+    final rawOptions =
+        (json['options'] is List) ? json['options'] as List<dynamic> : const [];
     return TriviaQuestion(
       id: json['id'],
       category: (json['category'] ?? fallbackCategory).toString(),
@@ -30,4 +34,25 @@ class TriviaQuestion {
 
   bool get isItemCost => category == 'item_cost';
   bool get isBuildPath => category == 'build_path';
+  bool get isCounter => category == 'counter';
+  bool get isPowerSpike => category == 'power_spike';
+  bool get isLevelDuel => category == 'level_duel';
+  bool get isBestRune => category == 'best_rune';
+  bool get isBestItem => category == 'best_item';
+
+  /// Indica si las opciones de respuesta representan nombres de campeones.
+  bool get optionsAreChampions =>
+      isCounter || isLevelDuel || isBestRune || isBestItem;
+
+  /// Extrae los 2 campeones enfrentados en preguntas de tipo `level_duel` ("A vs B").
+  List<String> get duelChampions {
+    final parts = targetName.split(RegExp(r'\s+vs\.?\s+', caseSensitive: false));
+    if (parts.length == 2) {
+      return [parts[0].trim(), parts[1].trim()];
+    }
+    if (options.length >= 2) {
+      return [options[0], options[1]];
+    }
+    return [targetName];
+  }
 }
