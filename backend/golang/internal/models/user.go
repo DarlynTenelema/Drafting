@@ -19,6 +19,15 @@ const (
 	FlakeMaxAdsDay   = 2
 	AureonAdReward   = 1
 	AureonMaxAdsDay  = 1
+
+	TriviaDailyMaxLives    = 5
+	TriviaRechargeInterval = 24 * time.Hour
+
+	DraftingPassTrialDays = 7
+	PlanPassNone          = "none"
+	PlanPassTrial         = "trial"
+	PlanPassMonthly       = "drafting_pass_monthly"
+	PlanPassAnnual        = "drafting_pass_annual"
 )
 
 // NormalizeModelTier normaliza el identificador del modelo de IA ("classic", "flake", "aureon").
@@ -64,6 +73,7 @@ type User struct {
 	SubscriptionQueries    int            `gorm:"default:0" json:"subscription_queries"`     // Legacy suscripción
 	GiftQueries            int            `gorm:"default:0" json:"gift_queries"`             // Consultas exclusivas para regalar a amigos
 	TriviaLives            int            `gorm:"default:5" json:"trivia_lives"`            // Vidas para el minijuego de trivia (5 iniciales)
+	TriviaLastRechargeAt   *time.Time     `json:"trivia_last_recharge_at,omitempty"`      // Inicio del ciclo de 24h para recarga diaria gratuita
 
 	// Billeteras independientes por modelo de IA (Classic, Flake 1.0, Aureon 1.0)
 	ClassicDaily           int            `gorm:"default:3" json:"classic_daily"`
@@ -83,9 +93,13 @@ type User struct {
 
 	ModelsV2Migrated       bool           `gorm:"default:false" json:"-"`
 
-	// Suscripción mensual
-	SubscriptionPlan       string         `gorm:"type:varchar(50);default:'none'" json:"subscription_plan"` // 'none', 'plus', 'pro', 'ultra'
+	// Suscripción mensual / Drafting Pass
+	SubscriptionPlan       string         `gorm:"type:varchar(50);default:'none'" json:"subscription_plan"` // 'none', 'drafting_pass_monthly', 'drafting_pass_annual'
 	SubscriptionEndsAt     *time.Time     `json:"subscription_ends_at"`
+	PassStatus             string         `gorm:"type:varchar(24);default:'none'" json:"pass_status"`       // 'none', 'trial', 'active', 'expired'
+	PassPlan               string         `gorm:"type:varchar(40);default:'none'" json:"pass_plan"`         // 'none', 'trial', 'drafting_pass_monthly', 'drafting_pass_annual'
+	PassExpiresAt          *time.Time     `json:"pass_expires_at,omitempty"`
+	HasUsedFreeTrial       bool           `gorm:"default:false" json:"has_used_free_trial"`
 	HasPurchasedStarter    bool           `gorm:"default:false" json:"has_purchased_starter"` // True tras comprar Pack Starter $0.19 (desaparece)
 
 	// Sistema de compartir consultas (Máximo 10 por día para suscriptores)
@@ -112,6 +126,68 @@ func GenerateReferralCode(id uuid.UUID) string {
 		return "WR" + clean[:6]
 	}
 	return "WR" + clean
+}
+
+// TrialDevice registra dispositivos que ya usaron la prueba gratuita de 7 días sin tarjeta.
+type TrialDevice struct {
+	DeviceID  string    `gorm:"type:varchar(255);primary_key" json:"device_id"`
+	UserID    uuid.UUID `gorm:"type:uuid;not null;index" json:"user_id"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+func (TrialDevice) TableName() string {
+	return "trial_devices"
+}
+
+// SyncPassStatus actualiza el estado de Drafting Pass si ya venció. Devuelve true si cambió.
+func (user *User) SyncPassStatus(now time.Time) bool {
+	nowUTC := now.UTC()
+	if (user.PassStatus == "trial" || user.PassStatus == "active") &&
+		user.PassExpiresAt != nil && !nowUTC.Before(user.PassExpiresAt.UTC()) {
+		user.PassStatus = "expired"
+		return true
+	}
+	return false
+}
+
+// HasActivePass indica si el usuario tiene Drafting Pass activo (trial de 7 días o suscripción paga).
+func (user *User) HasActivePass(now time.Time) bool {
+	nowUTC := now.UTC()
+	user.SyncPassStatus(nowUTC)
+	if (user.PassStatus == "trial" || user.PassStatus == "active") &&
+		user.PassExpiresAt != nil && nowUTC.Before(user.PassExpiresAt.UTC()) {
+		return true
+	}
+	return user.IsSubscribed()
+}
+
+// PassDaysRemaining devuelve los días completos/restantes del Pass activo (redondeo hacia arriba).
+func (user *User) PassDaysRemaining(now time.Time) int {
+	nowUTC := now.UTC()
+	if !user.HasActivePass(nowUTC) {
+		return 0
+	}
+	var exp *time.Time
+	if user.PassExpiresAt != nil && nowUTC.Before(user.PassExpiresAt.UTC()) {
+		exp = user.PassExpiresAt
+	} else if user.SubscriptionEndsAt != nil && nowUTC.Before(user.SubscriptionEndsAt.UTC()) {
+		exp = user.SubscriptionEndsAt
+	}
+	if exp == nil {
+		return 0
+	}
+	rem := exp.UTC().Sub(nowUTC)
+	if rem <= 0 {
+		return 0
+	}
+	days := int(rem.Hours() / 24)
+	if rem.Hours() > float64(days*24) {
+		days++
+	}
+	if days < 1 {
+		days = 1
+	}
+	return days
 }
 
 // CheckSubscriptionExpiry verifica y actualiza el plan si ya venció el ciclo de suscripción
@@ -259,12 +335,51 @@ func (user *User) ResetDailyLimitsIfNewDay(today string) {
 	}
 }
 
+// ApplyDailyTriviaRecharge recarga gratuitamente las vidas de Trivia a TriviaDailyMaxLives
+// cada 24 horas si el usuario está por debajo del máximo diario.
+// Devuelve changed=true si modificó TriviaLives o TriviaLastRechargeAt, y los segundos faltantes.
+func (user *User) ApplyDailyTriviaRecharge(now time.Time) (bool, int64) {
+	nowUTC := now.UTC()
+	if user.TriviaLives >= TriviaDailyMaxLives {
+		if user.TriviaLastRechargeAt != nil {
+			user.TriviaLastRechargeAt = nil
+			return true, 0
+		}
+		return false, 0
+	}
+
+	if user.TriviaLastRechargeAt == nil {
+		t := nowUTC
+		user.TriviaLastRechargeAt = &t
+		return true, int64(TriviaRechargeInterval.Seconds())
+	}
+
+	elapsed := nowUTC.Sub(user.TriviaLastRechargeAt.UTC())
+	if elapsed >= TriviaRechargeInterval {
+		user.TriviaLives = TriviaDailyMaxLives
+		user.TriviaLastRechargeAt = nil
+		return true, 0
+	}
+
+	remaining := TriviaRechargeInterval - elapsed
+	secs := int64(remaining.Seconds())
+	if secs < 1 {
+		secs = 1
+	}
+	return false, secs
+}
+
 // ConsumeTriviaLife descuenta 1 vida de trivia si el usuario tiene vidas disponibles
+// e inicia el temporizador de recarga diaria de 24h cuando baja del máximo.
 func (user *User) ConsumeTriviaLife() bool {
 	if user.TriviaLives <= 0 {
 		return false
 	}
 	user.TriviaLives--
+	if user.TriviaLives < TriviaDailyMaxLives && user.TriviaLastRechargeAt == nil {
+		now := time.Now().UTC()
+		user.TriviaLastRechargeAt = &now
+	}
 	return true
 }
 
